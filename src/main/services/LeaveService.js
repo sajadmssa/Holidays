@@ -521,6 +521,179 @@ function processSickLeave(
 }
 
 // ──────────────────────────────────────────────────────────────
+//  processRegularLeave
+//
+//  معالجة وتسجيل الإجازة الاعتيادية (أو سبب آخر / دورة تدريبية):
+//  1. التحقق من المدخلات ومطابقة عدد الأيام الفعلي مع التواريخ.
+//  2. فحص تداخل التواريخ مع إجازات أخرى للموظف (سواء قبل المعاملة أو داخلها).
+//  3. تنفيذ حركة ذرية تعيد فحص الرصيد لحظياً داخل Transaction لمنع مشكلة التزامن (Race Condition).
+//  4. خصم الرصيد وإدراج السجل وتوثيق العملية في سجل التدقيق والأمان Audit Logs.
+//
+//  @param {number} employeeId
+//  @param {number} requestedDays
+//  @param {string} startDate
+//  @param {string} endDate
+//  @param {import('better-sqlite3').Database} db
+//  @param {string} [leaveType='إجازة اعتيادية']
+//  @param {object} [meta={}]
+//  @returns {{ leaveId: number, finalBalance: number|null, requestedDays: number, remainingBalance: number|null }}
+// ──────────────────────────────────────────────────────────────
+function processRegularLeave(
+  employeeId,
+  requestedDays,
+  startDate,
+  endDate,
+  db,
+  leaveType = 'إجازة اعتيادية',
+  {
+    orderRef = null,
+    notes = null,
+    leaveApprover = null,
+    requestDate = null,
+    memoNumber = null,
+    memoDate = null,
+    orderNumber = null,
+    orderDate = null,
+  } = {}
+) {
+  // ── Pre-flight validation (outside transaction — fast checks) ──
+  if (!Number.isInteger(employeeId) || employeeId <= 0) {
+    throw new Error('الرقم الوظيفي غير صالح.');
+  }
+  if (!Number.isInteger(requestedDays) || requestedDays <= 0) {
+    throw new Error('عدد أيام الإجازة يجب أن يكون رقماً صحيحاً أكبر من صفر.');
+  }
+  if (!startDate || !endDate) {
+    throw new Error('يرجى تحديد تاريخ بداية ونهاية الإجازة.');
+  }
+
+  // Inclusive date-range count must match requestedDays
+  const dateRangeDays = _daysBetween(startDate, endDate) + 1;
+  if (dateRangeDays !== requestedDays) {
+    throw new Error(
+      `عدد الأيام المدخل (${requestedDays} يوم) لا يتطابق مع الفترة المحددة (${dateRangeDays} يوم).`
+    );
+  }
+
+  // ── Resolve the target LeaveType ───────────────────────────
+  let targetLeaveName = typeof leaveType === 'string' ? leaveType.trim() : '';
+  if (targetLeaveName === 'regular') {
+    targetLeaveName = 'إجازة اعتيادية';
+  } else if (targetLeaveName === 'other') {
+    targetLeaveName = 'سبب آخر';
+  } else if (targetLeaveName === 'training') {
+    targetLeaveName = 'دورة تدريبية';
+  }
+
+  const targetLeaveType = db
+    .prepare('SELECT LeaveTypeID, Name FROM LeaveTypes WHERE Name = ?')
+    .get(targetLeaveName);
+
+  if (!targetLeaveType) {
+    throw new Error(`نوع الإجازة غير معرّف بالنظام: "${targetLeaveName || leaveType}".`);
+  }
+
+  targetLeaveName = targetLeaveType.Name;
+  const isBalanced = (targetLeaveName === 'إجازة اعتيادية' || targetLeaveName === 'سبب آخر');
+
+  // ── Step 0: Check Overlap (Strict Prevention) ─────────────
+  const overlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
+  if (overlap) {
+    throw new Error(
+      `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
+    );
+  }
+
+  // ── Define atomic transaction ─────────────────────────────
+  const _runTransaction = db.transaction(() => {
+    let finalBalance = null;
+    let remainingBalance = null;
+
+    // Re-check overlap inside transaction for concurrency safety
+    const txOverlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
+    if (txOverlap) {
+      throw new Error(
+        `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${txOverlap.LeaveTypeName} من ${txOverlap.StartDate} إلى ${txOverlap.EndDate} — ${txOverlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
+      );
+    }
+
+    if (isBalanced) {
+      // Step A: Re-compute balance inside the transaction
+      const balanceResult = calculateRegularLeaveBalance(employeeId, db);
+      finalBalance = balanceResult.finalBalance;
+
+      // Step B: Reject if insufficient balance
+      if (requestedDays > finalBalance) {
+        throw new Error(
+          `رصيد الإجازات الاعتيادية غير كافٍ (المطلوب: ${requestedDays} يوم، المتبقي: ${finalBalance} يوم).`
+        );
+      }
+
+      remainingBalance = finalBalance - requestedDays;
+    }
+
+    // Step C: INSERT into Leaves
+    const insertResult = db
+      .prepare(`
+        INSERT INTO Leaves
+          (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, OrderRef, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate)
+        VALUES
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        employeeId,
+        targetLeaveType.LeaveTypeID,
+        startDate,
+        endDate,
+        requestedDays,
+        orderRef ?? (orderNumber || null),
+        notes    ?? null,
+        leaveApprover ?? null,
+        requestDate ?? null,
+        memoNumber  ?? null,
+        memoDate    ?? null,
+        orderNumber ?? null,
+        orderDate   ?? null
+      );
+
+    const newLeaveId = Number(insertResult.lastInsertRowid);
+
+    // Step D: Log Audit trail
+    AuditService.logAction(db, {
+      actionType: 'INSERT',
+      entityType: 'Leave',
+      entityID: newLeaveId,
+      oldValue: null,
+      newValue: {
+        LeaveID: newLeaveId,
+        EmployeeID: employeeId,
+        LeaveType: targetLeaveName,
+        StartDate: startDate,
+        EndDate: endDate,
+        DaysCount: requestedDays,
+        RemainingBalance: remainingBalance,
+        LeaveApprover: leaveApprover ?? null,
+        RequestDate: requestDate ?? null,
+        MemoNumber: memoNumber ?? null,
+        MemoDate: memoDate ?? null,
+        OrderNumber: orderNumber ?? null,
+        OrderDate: orderDate ?? null,
+      },
+      details: `تسجيل ${targetLeaveName} (${requestedDays} يوم) للموظف رقم (${employeeId}) من ${startDate} إلى ${endDate}`,
+    });
+
+    return {
+      leaveId: newLeaveId,
+      finalBalance,
+      requestedDays,
+      remainingBalance,
+    };
+  });
+
+  return _runTransaction();
+}
+
+// ──────────────────────────────────────────────────────────────
 //  getActiveLeavesForToday
 //
 //  استرجاع قائمة الإجازات السارية في تاريخ اليوم الحالي:
@@ -1200,6 +1373,7 @@ function updateLeave(leaveId, payload, db) {
 module.exports = {
   calculateRegularLeaveBalance,
   processSickLeave,
+  processRegularLeave,
   getActiveLeavesForToday,
   getActiveLeavesToday: getActiveLeavesForToday,
   getActiveLeavesTodayPaginated,

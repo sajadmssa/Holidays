@@ -25,7 +25,6 @@
 'use strict';
 
 const LeaveService = require('../services/LeaveService');
-const AuditService = require('../services/AuditService');
 const LoggerService = require('../services/LoggerService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
 const { createSafeHandler } = require('../utils/ipcHandlerHelper');
@@ -172,12 +171,10 @@ function registerLeaveHandlers(ipcMain, db) {
   // ── leave:submitRegularLeave ─────────────────────────────────
   //
   //  تسجيل إجازة اعتيادية (أو سبب آخر / دورة تدريبية):
-  //  1. التحقق من المدخلات ومنع التداخل الزمني مع إجازات أخرى.
-  //  2. تنفيذ حركة ذرية تعيد فحص الرصيد لحظياً داخل Transaction لمنع مشكلة التزامن (Race Condition).
-  //  3. خصم الرصيد وإدراج السجل وتوثيق العملية في سجل التدقيق والأمان.
+  //  طبقة تفويض رقيقة تفحص قيود المدخلات الشكلية ثم تُحيل المعالجة لخدمة LeaveService.processRegularLeave.
   //
   //  Renderer payload:
-  //    { employeeId, requestedDays, startDate, endDate, orderRef?, notes?, requestDate?, memoNumber?, memoDate?, orderNumber?, orderDate? }
+  //    { employeeId, requestedDays, startDate, endDate, leaveType?, orderRef?, notes?, requestDate?, memoNumber?, memoDate?, orderNumber?, orderDate? }
   //  Response data:
   //    { leaveId, finalBalance, requestedDays, remainingBalance }
   // ────────────────────────────────────────────────────────────
@@ -237,131 +234,24 @@ function registerLeaveHandlers(ipcMain, db) {
       const validOrderNumber = validateOrderNumber(orderNumber, 'رقم الأمر الإداري');
       const validOrderRef = validateOrderNumber(orderRef, 'رقم الأمر الإداري');
 
-      // ── Resolve the target LeaveType / استرجاع نوع الإجازة وتعيينه ──
-      let targetLeaveName = typeof leaveType === 'string' ? leaveType.trim() : '';
-
-      // Legacy fallback mapping for backward compatibility
-      if (targetLeaveName === 'regular') {
-        targetLeaveName = 'إجازة اعتيادية';
-      } else if (targetLeaveName === 'other') {
-        targetLeaveName = 'سبب آخر';
-      } else if (targetLeaveName === 'training') {
-        targetLeaveName = 'دورة تدريبية';
-      }
-
-      const targetLeaveType = db
-        .prepare('SELECT LeaveTypeID, Name FROM LeaveTypes WHERE Name = ?')
-        .get(targetLeaveName);
-
-      if (!targetLeaveType) {
-        throw new Error(`نوع الإجازة غير معرّف بالنظام: "${targetLeaveName || leaveType}".`);
-      }
-
-      targetLeaveName = targetLeaveType.Name;
-      const isBalanced = (targetLeaveName === 'إجازة اعتيادية' || targetLeaveName === 'سبب آخر');
-
-      // ── Step 0: Check Overlap (Strict Prevention) / فحص منع التداخل ─
-      const overlap = LeaveService.checkLeaveOverlap(employeeId, startDate, endDate, null, db);
-      if (overlap) {
-        throw new Error(
-          `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
-        );
-      }
-
-      // ── Atomic transaction / المعاملة الذرية لتسجيل الإجازة ──
-      const _run = db.transaction(() => {
-        let finalBalance = null;
-        let remainingBalance = null;
-
-        // Re-check overlap inside transaction for concurrency safety / إعادة فحص التداخل داخل المعاملة
-        const txOverlap = LeaveService.checkLeaveOverlap(employeeId, startDate, endDate, null, db);
-        if (txOverlap) {
-          throw new Error(
-            `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${txOverlap.LeaveTypeName} من ${txOverlap.StartDate} إلى ${txOverlap.EndDate} — ${txOverlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
-          );
+      return LeaveService.processRegularLeave(
+        employeeId,
+        requestedDays,
+        startDate,
+        endDate,
+        db,
+        leaveType,
+        {
+          orderRef: validOrderRef,
+          notes: notes ?? null,
+          leaveApprover: leaveApprover ?? null,
+          requestDate: requestDate ?? null,
+          memoNumber: validMemoNumber,
+          memoDate: memoDate ?? null,
+          orderNumber: validOrderNumber,
+          orderDate: orderDate ?? null,
         }
-
-        if (isBalanced) {
-          // Step A: Re-compute balance inside the transaction so the
-          //         check and the insert are one atomic unit.
-          // إعادة احتساب الرصيد داخل المعاملة لضمان كفايته في البيئات المتزامنة
-          const balanceResult = LeaveService.calculateRegularLeaveBalance(
-            employeeId,
-            db
-          );
-
-          finalBalance = balanceResult.finalBalance;
-
-          // Step B: Reject if insufficient balance / رفض الطلب في حال عدم كفاية الرصيد
-          if (requestedDays > finalBalance) {
-            throw new Error(
-              `رصيد الإجازات الاعتيادية غير كافٍ (المطلوب: ${requestedDays} يوم، المتبقي: ${finalBalance} يوم).`
-            );
-          }
-
-          remainingBalance = finalBalance - requestedDays;
-        }
-
-        // Step C: INSERT into Leaves / إدراج السجل في جدول Leaves
-        //  DB triggers (gender, inactive-employee, audit) fire automatically.
-        const insertResult = db
-          .prepare(`
-            INSERT INTO Leaves
-              (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, OrderRef, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate)
-            VALUES
-              (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `)
-          .run(
-            employeeId,
-            targetLeaveType.LeaveTypeID,
-            startDate,
-            endDate,
-            requestedDays,
-            validOrderRef ?? (validOrderNumber || null),
-            notes    ?? null,
-            leaveApprover ?? null,
-            requestDate ?? null,
-            validMemoNumber  ?? null,
-            memoDate    ?? null,
-            validOrderNumber ?? null,
-            orderDate   ?? null
-          );
-
-        const newLeaveId = Number(insertResult.lastInsertRowid);
-
-        // توثيق تسجيل الإجازة في سجل التدقيق والأمان
-        AuditService.logAction(db, {
-          actionType: 'INSERT',
-          entityType: 'Leave',
-          entityID: newLeaveId,
-          oldValue: null,
-          newValue: {
-            LeaveID: newLeaveId,
-            EmployeeID: employeeId,
-            LeaveType: targetLeaveName,
-            StartDate: startDate,
-            EndDate: endDate,
-            DaysCount: requestedDays,
-            RemainingBalance: remainingBalance,
-            LeaveApprover: leaveApprover ?? null,
-            RequestDate: requestDate ?? null,
-            MemoNumber: validMemoNumber ?? null,
-            MemoDate: memoDate ?? null,
-            OrderNumber: validOrderNumber ?? null,
-            OrderDate: orderDate ?? null,
-          },
-          details: `تسجيل ${targetLeaveName} (${requestedDays} يوم) للموظف رقم (${employeeId}) من ${startDate} إلى ${endDate}`,
-        });
-
-        return {
-          leaveId:           newLeaveId,
-          finalBalance,
-          requestedDays,
-          remainingBalance,
-        };
-      });
-
-      return _run();
+      );
     })
   );
 
