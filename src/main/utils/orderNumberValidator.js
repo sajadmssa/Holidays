@@ -1,16 +1,23 @@
 // ============================================================
 //  utils/orderNumberValidator.js
-//  Reusable Administrative Order & Memo Number Validation
+//  أداة التحقق وتوحيد أرقام الأوامر الإدارية والكتب الرسمية
+//
+//  المسؤوليات الرئيسية:
+//    • توحيد الأرقام المشرقية (٠-٩) والفارسية (۰-۹) وتحويلها إلى أرقام قياسية (0-9).
+//    • التحقق الصارم من أن رقم الأمر الإداري أو المذكرة يتكون من خانات رقمية فقط.
+//    • الحفاظ على الأصفار البادئة (Leading Zeros) مثل "0123" دون فقدها.
+//    • قبول الحقول الاختيارية الفارغة (null / undefined / '') بإرجاع null.
 // ============================================================
 
 'use strict';
 
 /**
+ * تحويل الأرقام العربية الشرقية (٠-٩) والفارسية (۰-۹) إلى أرقام لاتينية قياسية (0-9)
  * Normalizes Eastern Arabic (٠-٩) and Persian (۰-۹) numerals to standard ASCII digits (0-9).
  * Leaves all other characters untouched so validation can strictly evaluate them.
  *
- * @param {string} str
- * @returns {string}
+ * @param {string} str النص المراد تحويل أرقامه
+ * @returns {string} النص بعد توحيد الأرقام
  */
 function normalizeArabicDigits(str) {
   if (typeof str !== 'string') return str;
@@ -20,6 +27,7 @@ function normalizeArabicDigits(str) {
 }
 
 /**
+ * التحقق الصارم من صحة رقم الأمر الإداري وتوحيد تنسيقه الرقمي
  * Validates and normalizes an Administrative Order Number (or Memo Number).
  *
  * Requirements:
@@ -30,10 +38,10 @@ function normalizeArabicDigits(str) {
  *  5. Rejects any letters (Arabic or Latin), punctuation, slashes, dashes, or internal spaces.
  *  6. Throws a clear Arabic Error message on any non-numeric input.
  *
- * @param {string|number|null|undefined} value The raw input value
- * @param {string} [fieldLabel='رقم الأمر الإداري'] Arabic label for the error message
- * @returns {string|null} Normalized numeric string or null if empty
- * @throws {Error} If value contains non-numeric characters
+ * @param {string|number|null|undefined} value القيمة المدخلة
+ * @param {string} [fieldLabel='رقم الأمر الإداري'] مسمى الحقل لرسالة الخطأ
+ * @returns {string|null} السلسلة الرقمية بعد التوحيد أو null إذا كان الحقل فارغاً
+ * @throws {Error} إطلاق خطأ بالعربية إذا احتوت القيمة على أي رموز أو حروف غير رقمية
  */
 function validateOrderNumber(value, fieldLabel = 'رقم الأمر الإداري') {
   if (value === null || value === undefined) {
@@ -48,6 +56,7 @@ function validateOrderNumber(value, fieldLabel = 'رقم الأمر الإدار
 
   const normalized = normalizeArabicDigits(trimmed);
 
+  // التحقق من أن السلسلة تتكون من أرقام فقط (0-9)
   if (!/^\d+$/.test(normalized)) {
     throw new Error(`${fieldLabel} يجب أن يتكون من أرقام فقط.`);
   }
@@ -56,11 +65,12 @@ function validateOrderNumber(value, fieldLabel = 'رقم الأمر الإدار
 }
 
 /**
+ * دالة مساعدة آمنة تفحص صحة رقم الأمر الإداري دون إطلاق أخطاء (Boolean Check)
  * Returns true if the value is either empty (null/blank) or purely numeric.
  * Safe helper that never throws.
  *
  * @param {any} value
- * @returns {boolean}
+ * @returns {boolean} true إذا كان الرقم صحيحاً أو فارغاً، وfalse إذا احتوى أخطاء
  */
 function isOrderNumberValid(value) {
   try {
@@ -76,3 +86,4 @@ module.exports = {
   isOrderNumberValid,
   normalizeArabicDigits,
 };
+

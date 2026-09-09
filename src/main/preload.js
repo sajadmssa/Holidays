@@ -1,10 +1,12 @@
 // ============================================================
 //  preload.js  –  Electron Preload Script
-//  Responsibilities:
-//    • Acts as the SOLE bridge between Renderer and Main
-//    • Exposes a typed, minimal API surface via contextBridge
-//    • The Renderer has ZERO access to Node.js or Electron APIs
-//    • Every method is a thin wrapper around ipcRenderer.invoke()
+//  سكربت الجسر الآمن المسبق التحميل (Preload Script)
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • يمثل الجسر والمنفذ الوحيد المسموح به بين واجهة المستخدم (Renderer) والعملية الرئيسية (Main).
+//    • يتيح واجهة برمجية مصغرة ومعزولة (Typed API Surface) عبر contextBridge.exposeInMainWorld.
+//    • يحجب تماماً وصول الواجهة لأي واجهات Node.js أو Electron APIs المباشرة لمنع الثغرات.
+//    • يفرض قائمة بيضاء صارمة لجميع قنوات IPC المصرح بها (VALID_CHANNELS) لصد أي هجمات حقن.
 // ============================================================
 
 'use strict';
@@ -13,8 +15,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // ──────────────────────────────────────────────────────────────
 //  Security: Whitelist of valid IPC channels.
-//  ipcRenderer.invoke is ONLY called through these helpers,
-//  preventing a compromised renderer from sending arbitrary channels.
+//  القائمة البيضاء الصارمة لقنوات الاتصال الداخلي المسموح بها:
+//  يتم رفض أي قناة غير مدرجة هنا فوراً لمنع استدعاء أي قنوات عشوائية أو ضارة.
 // ──────────────────────────────────────────────────────────────
 const VALID_CHANNELS = new Set([
   'employees:getAll',

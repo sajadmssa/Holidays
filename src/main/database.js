@@ -1,12 +1,23 @@
 // ============================================================
 //  database.js  –  Database Service (Main Process ONLY)
-//  Responsibilities:
+//  خدمة إدارة وتنسيق قاعدة البيانات المركزية (SQLite عبر better-sqlite3)
+//
+//  Responsibilities / المسؤوليات الأساسية:
 //    • Open better-sqlite3 with WAL mode + foreign keys
+//      (فتح وإدارة اتصال SQLite بوضع WAL وتفعيل القيود المرجعية)
 //    • Run migrations on startup (idempotent)
+//      (تنفيذ الترحيلات الهيكلية تلقائياً بترتيب زمني عند الإقلاع دون تكرار)
 //    • Expose typed repository methods consumed by IPC handlers
-//    • Provide a clean `close()` for graceful shutdown
+//      (توفير دوال مستودع البيانات الصافية المستهلكة من معالجات IPC)
+//    • Live backup & bundle compression (.hbak / .zip)
+//      (إنشاء النسخ الاحتياطية المجمعة الحية مع المستندات والتحقق منها)
+//    • Fail-safe restore with automatic pre-restore safety backup and emergency rollback
+//      (استعادة آمنة للبيانات مع نسخة وقائية وتراجع فوري تلقائي عند أي انقطاع)
+//    • Provide a clean `close()` with PRAGMA optimize for graceful shutdown
+//      (إغلاق نظيف مع تحسين الجداول وتفريغ سجلات WAL وتحرير أقفال الملفات)
 //
 //  This file MUST NEVER be imported by the renderer or preload.
+//  ممنوع نهائياً استيراد هذا الملف في Renderer أو Preload لأسباب أمنية وهيكلية.
 // ============================================================
 
 'use strict';
@@ -21,6 +32,8 @@ const { app } = require('electron');
 //  Database File Location
 //  Stored in the OS user-data directory so it survives app updates.
 //  On Windows: %APPDATA%\leave-management-system\leave_management.db
+//  محدد مسار ملف قاعدة البيانات:
+//  يُخزن في مجلد بيانات المستخدم لنظام التشغيل لضمان بقاء البيانات عند تحديث التطبيق.
 // ──────────────────────────────────────────────────────────────
 const DB_DIR = process.env.HOLIDAYS_DB_DIR
   ? process.env.HOLIDAYS_DB_DIR
@@ -36,6 +49,8 @@ let _db = null;
 
 // ──────────────────────────────────────────────────────────────
 //  Internal Accessor  (throws if called before initialize())
+//  الدالة الداخلية للوصول إلى كائن قاعدة البيانات:
+//  تضمن عدم استدعاء أي استعلام قبل استدعاء initialize() وتهيئة الاتصال.
 // ──────────────────────────────────────────────────────────────
 function getDb() {
   if (!_db) throw new Error('Database has not been initialized. Call db.initialize() first.');
@@ -46,9 +61,12 @@ function getDb() {
 //  initialize()
 //  Opens (or creates) the SQLite file, applies PRAGMAs, and
 //  runs all migration files in lexical order.
+//  تهيئة وإقلاع قاعدة البيانات:
+//  تنشئ المجلد إذا لم يكن موجوداً، تفتح ملف SQLite، تطبق إعدادات PRAGMA الحرجة،
+//  وتشغل محرك الترحيلات الهيكلية.
 // ──────────────────────────────────────────────────────────────
 function initialize() {
-  if (_db) return; // Already initialized
+  if (_db) return; // Already initialized / الاتصال مفتوح مسبقاً
 
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
@@ -57,14 +75,14 @@ function initialize() {
   console.log(`[DB] Opening database at: ${DB_PATH}`);
   _db = new Database(DB_PATH, { verbose: process.env.NODE_ENV === 'development' ? console.log : undefined });
 
-  // ── Critical PRAGMAs ────────────────────────────────────────
-  _db.pragma('journal_mode = WAL');    // Write-Ahead Logging for concurrency + speed
-  _db.pragma('foreign_keys = ON');     // Enforce referential integrity
-  _db.pragma('synchronous = NORMAL');  // Safe + fast with WAL
-  _db.pragma('cache_size = -16000');   // 16 MB page cache
-  _db.pragma('temp_store = MEMORY');   // Keep temp tables in RAM
+  // ── Critical PRAGMAs / إعدادات الأداء والأمان الأساسية ──────
+  _db.pragma('journal_mode = WAL');    // Write-Ahead Logging for concurrency + speed (تسجيل مسبق يتيح القراءة والكتابة المتزامنة بدون تعليق)
+  _db.pragma('foreign_keys = ON');     // Enforce referential integrity (فرض قيود المفاتيح الأجنبية لمنع السجلات اليتيمة)
+  _db.pragma('synchronous = NORMAL');  // Safe + fast with WAL (توازن مثالي بين سرعة الإدخال وضمان استقرار البيانات عند انقطاع الكهرباء)
+  _db.pragma('cache_size = -16000');   // 16 MB page cache (حجز ذاكرة كاش بحجم 16 ميجابايت لتسريع استعلامات الجداول)
+  _db.pragma('temp_store = MEMORY');   // Keep temp tables in RAM (حفظ الجداول والفرز المؤقت في الذاكرة العشوائية لتقليل إجهاد القرص)
 
-  // ── Run Migrations ─────────────────────────────────────────
+  // ── Run Migrations / تشغيل الترحيلات الهيكلية ───────────────
   runMigrations();
 
   console.log('[DB] Database ready.');
@@ -75,6 +93,11 @@ function initialize() {
 //  Reads every .sql file from the migrations directory in order
 //  and executes it. Uses `CREATE TABLE IF NOT EXISTS` and
 //  `INSERT OR IGNORE` so re-runs are safe (idempotent).
+//
+//  محرك ترحيل بنية قاعدة البيانات:
+//  يقرأ ملفات .sql بالترتيب الهجائي/الرقمي الصارم (001_ ثم 002_ وهكذا)،
+//  وينفذ كل ملف داخل Transaction مستقلة مع توثيق اسم الترحيل في جدول _Migrations.
+//  يتميز بكونه Idempotent (آمن ضد التكرار) ويتجاهل أخطاء الأعمدة المكررة بمرونة.
 // ──────────────────────────────────────────────────────────────
 function runMigrations() {
   _db.exec(`
@@ -92,7 +115,7 @@ function runMigrations() {
   const files = fs
     .readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.sql'))
-    .sort(); // lexical sort ensures 001_ runs before 002_ etc.
+    .sort(); // lexical sort ensures 001_ runs before 002_ etc. / فرز هجائي يضمن ترتيب الترحيل
 
   for (const file of files) {
     if (!executed.has(file)) {
@@ -117,11 +140,15 @@ function runMigrations() {
 // ──────────────────────────────────────────────────────────────
 //  close()
 //  Call on app exit to flush WAL and release the file lock.
+//  إغلاق اتصال قاعدة البيانات:
+//  يُستدعى عند خروج التطبيق. ينفذ PRAGMA optimize لتحديث إحصائيات الاستعلامات
+//  وتنظيف الفهارس، ثم يحرر قفل الملف ويفرغ سجلات WAL.
 // ──────────────────────────────────────────────────────────────
 function close() {
   if (_db) {
     try {
       // Execute PRAGMA optimize to update query statistics and keep DB compact
+      // تحسين الجداول وتحديث إحصائيات منسق الاستعلامات لقاعدة البيانات
       _db.pragma('optimize');
     } catch (optErr) {
       console.warn('[DB Close Warning] PRAGMA optimize failed:', optErr.message);
@@ -133,16 +160,19 @@ function close() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  ── REPOSITORY METHODS ──────────────────────────────────────
+//  ── REPOSITORY METHODS / دوال مستودع البيانات الصافية ────────
 //  All methods are synchronous (better-sqlite3 is sync-only).
 //  Each method is a pure data-access function with no business logic.
+//  جميع الدوال تزامنية لأن better-sqlite3 يعتمد التنفيذ المباشر عالي السرعة.
+//  تختص هذه الدوال بعمليات الوصول الصافية للبيانات دون تطبيق منطق الأعمال المعقد.
 // ══════════════════════════════════════════════════════════════
 
 // ──────────────────────────────────────────────────────────────
-//  Employees
+//  Employees / إدارة بيانات الموظفين
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * جلب كافة سجلات الموظفين مرتبين هجائياً بالاسم الكامل.
  * @returns {Employee[]}
  */
 function getAllEmployees() {
@@ -152,6 +182,7 @@ function getAllEmployees() {
 }
 
 /**
+ * استرجاع بيانات موظف محدد بمعرفه الوظيفي (EmployeeID).
  * @param {number} id
  * @returns {Employee | undefined}
  */
@@ -162,6 +193,7 @@ function getEmployeeById(id) {
 }
 
 /**
+ * إنشاء قيد موظف نشط جديد مع تدوين حدث الإنشاء تلقائياً بسجل التدقيق.
  * @param {{ fullName:string, gender:'Male'|'Female', hireDate:string, jobTitle:string, workLocation?:string, leaveCardNumber?:string, leaveApprover?:string }} payload
  * @returns {{ id: number }}
  */
@@ -181,13 +213,14 @@ function createEmployee({ fullName, gender, hireDate, jobTitle, workLocation, le
       leaveApprover ?? null
     );
 
-  // Audit
+  // Audit / توثيق العملية في سجل التدقيق
   _auditLog('CREATE_EMPLOYEE', { employeeId: result.lastInsertRowid, fullName, gender, jobTitle, workLocation, leaveCardNumber, leaveApprover });
 
   return { id: result.lastInsertRowid };
 }
 
 /**
+ * تحديث حقول بيانات الموظف مع الحفاظ على القيم الحالية في حال عدم إرسال حقول جديدة (بواسطة COALESCE).
  * @param {number} id
  * @param {{ fullName?:string, gender?:string, hireDate?:string, jobTitle?:string, workLocation?:string, leaveCardNumber?:string, leaveApprover?:string }} payload
  * @returns {number} number of rows changed
@@ -221,6 +254,7 @@ function updateEmployee(id, { fullName, gender, hireDate, jobTitle, workLocation
 }
 
 /**
+ * تجميد حساب الموظف (حذف منطقي ناعم Soft-Delete) بتعيين IsActive = 0 لحفظ السجلات التاريخية.
  * Soft-delete: sets IsActive = 0.
  * @param {number} id
  * @returns {number} number of rows changed
@@ -235,10 +269,11 @@ function deactivateEmployee(id) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Leave Types
+//  Leave Types / جدول أنواع الإجازات الرسمية
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * جلب كافة أنواع الإجازات المعرفة بالنظام مرتبة هجائياً.
  * @returns {LeaveType[]}
  */
 function getAllLeaveTypes() {
@@ -248,10 +283,11 @@ function getAllLeaveTypes() {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Leave Balances
+//  Leave Balances / أرصدة الإجازات
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * استرجاع كافة أرصدة الإجازات لموظف محدد مع الربط بنوع الإجازة وقيود الجنس.
  * @param {number} employeeId
  * @returns {LeaveBalance[]}
  */
@@ -268,6 +304,7 @@ function getLeaveBalancesByEmployee(employeeId) {
 }
 
 /**
+ * إضافة رصيد إجازة أو تحديثه في حال وجوده مسبقاً (Upsert عبر ON CONFLICT).
  * INSERT or REPLACE a balance entry.
  * @param {{ employeeId:number, leaveTypeId:number, totalBalance:number, payPercentage:100|50 }} payload
  */
@@ -286,10 +323,11 @@ function upsertLeaveBalance({ employeeId, leaveTypeId, totalBalance, payPercenta
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Leaves
+//  Leaves / قيود وسجلات الإجازات
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * استرجاع كافة حركات الإجازات المسجلة بالنظام مع الربط ببيانات الموظف ونوع الإجازة، مرتبة بالأحدث تاريخاً.
  * @returns {Leave[]}  All leaves, joined with employee & type names
  */
 function getAllLeaves() {
@@ -309,6 +347,7 @@ function getAllLeaves() {
 }
 
 /**
+ * جلب أرشيف الإجازات الخاص بموظف محدد.
  * @param {number} employeeId
  * @returns {Leave[]}
  */
@@ -327,6 +366,9 @@ function getLeavesByEmployee(employeeId) {
 }
 
 /**
+ * تسجيل قيد إجازة جديد في جدول Leaves.
+ * تنبيه: القيود المتعلقة بجنس الموظف وصحة التواريخ تفرضها مشغلات (Triggers) على مستوى قاعدة البيانات،
+ * كما يتم تفعيل مشغل التدقيق trg_audit_leave_insert آلياً فور نجاح الإدخال.
  * Creates a new leave record.
  * NOTE: Gender enforcement and order-ref enforcement are handled
  *       by DB-level TRIGGERS — they will throw on violation.
@@ -352,6 +394,7 @@ function createLeave({ employeeId, leaveTypeId, startDate, endDate, daysCount, o
 }
 
 /**
+ * حذف قيد إجازة مع تفعيل مشغل التدقيق trg_audit_leave_delete تلقائياً.
  * Deletes a leave record.
  * NOTE: trg_audit_leave_delete fires automatically.
  * @param {number} leaveId
@@ -365,10 +408,11 @@ function deleteLeave(leaveId) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Audit Log
+//  Audit Log / سجل التدقيق والأمان للنظام
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * استرجاع سجل التدقيق مرتباً من الأحدث إلى الأقدم.
  * @returns {AuditEntry[]}
  */
 function getAuditLog() {
@@ -378,6 +422,7 @@ function getAuditLog() {
 }
 
 /**
+ * دالة مساعدة داخلية لتوثيق العمليات المباشرة الصادرة من كود التطبيق في سجل التدقيق.
  * Internal helper to write audit entries from JS-side operations.
  * @param {string} actionType
  * @param {object} details
@@ -397,6 +442,10 @@ function _auditLog(actionType, details) {
 }
 
 /**
+ * إنشاء نسخة احتياطية حية وآمنة لقاعدة بيانات SQLite وأرشيف مستندات الموظفين.
+ * في حال كان الامتداد المطلوب .hbak أو .zip (الوضع الافتراضي المعتمد):
+ * تُنشأ حزمة مضغوطة تشمل لقطة قاعدة البيانات الحية، مجلد المستندات EmployeeDocuments، وملف البيانات الوصفية manifest.json.
+ * وفي حال كان الامتداد .db، تُنفذ عملية نسخ احتياطي مباشرة وأصلية عبر better-sqlite3 backup().
  * Safely creates a live backup of the SQLite database and EmployeeDocuments.
  * If destinationPath is .hbak or .zip (or default), bundles DB + EmployeeDocuments + manifest.json.
  * If destinationPath is .db, creates native direct SQLite backup.
@@ -417,26 +466,26 @@ async function backupDatabase(destinationPath) {
     return { filePath: destinationPath, isBundle: false };
   }
 
-  // Ensure parent directory exists
+  // Ensure parent directory exists / التأكد من وجود المجلد الأب للمسار
   const parentDir = path.dirname(destinationPath);
   if (!fs.existsSync(parentDir)) {
     fs.mkdirSync(parentDir, { recursive: true });
   }
 
-  // 1. Create temporary SQLite snapshot
+  // 1. Create temporary SQLite snapshot / 1. إنشاء لقطة لحظية مؤقتة لقاعدة البيانات بدون إيقاف النظام
   const tempDbName = `temp_snap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.db`;
   const tempDbPath = path.join(DB_DIR, tempDbName);
 
   try {
     await getDb().backup(tempDbPath);
 
-    // 2. Build ZIP archive
+    // 2. Build ZIP archive / 2. بناء الأرشيف المضغوط المجمع
     const zip = new AdmZip();
 
-    // Add SQLite DB snapshot as leave_management.db
+    // Add SQLite DB snapshot as leave_management.db / إضافة لقطة القاعدة بالاسم القياسي المعتمد
     zip.addLocalFile(tempDbPath, '', 'leave_management.db');
 
-    // Add EmployeeDocuments directory if present
+    // Add EmployeeDocuments directory if present / إضافة مجلد مستندات الموظفين إن وُجد
     let docStoragePath = null;
     try {
       const DocumentStorageService = require('./services/DocumentStorageService');
@@ -461,7 +510,7 @@ async function backupDatabase(destinationPath) {
     const employeesCount = _db.prepare('SELECT COUNT(*) as c FROM Employees').get()?.c ?? 0;
     const leavesCount = _db.prepare('SELECT COUNT(*) as c FROM Leaves').get()?.c ?? 0;
 
-    // 3. Add manifest.json metadata
+    // 3. Add manifest.json metadata / 3. تضمين ملف البيان والبيانات الوصفية للنسخة (الإصدار، التوقيت، أعداد السجلات)
     const manifest = {
       app: 'Holidays - Leave Management System',
       version: '4.0.0',
@@ -473,7 +522,7 @@ async function backupDatabase(destinationPath) {
     };
     zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'));
 
-    // 4. Write zip bundle to destination
+    // 4. Write zip bundle to destination / 4. كتابة الحزمة المضغوطة بالكامل إلى المسار النهائي
     zip.writeZip(destinationPath);
 
     return { filePath: destinationPath, isBundle: true };
@@ -485,6 +534,10 @@ async function backupDatabase(destinationPath) {
 }
 
 /**
+ * فحص وتدقيق سلامة ملف النسخة الاحتياطية قبل المباشرة بالاستعادة.
+ * يدعم كلاً من حزم HBAK/ZIP المجمعة الحديثة وملفات SQLite (.db) القديمة.
+ * يتضمن: فحص التوقيع السحري Magic Bytes، فحص السلامة الهيكلية PRAGMA integrity_check،
+ * والتحقق من وجود الجداول الإلزامية ومقارنة أحدث المستندات لتحذير المستخدم.
  * Validates a potential backup file before restoring.
  * Handles both ZIP/HBAK bundle files and legacy .db SQLite files.
  * @param {string} backupPath
@@ -510,7 +563,7 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
   const isZip = headerBuf[0] === 0x50 && headerBuf[1] === 0x4B && headerBuf[2] === 0x03 && headerBuf[3] === 0x04;
 
   if (isZip) {
-    // ── Bundle Validation (.hbak / .zip) ────────────────────────
+    // ── Bundle Validation (.hbak / .zip) / فحص حزم النسخ الاحتياطي المجمعة ──
     let zip = null;
     try {
       zip = new AdmZip(backupPath);
@@ -525,7 +578,7 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
       throw new Error('حزمة النسخة الاحتياطية غير صالحة؛ ملف قاعدة البيانات (.db) غير موجود بداخلها.');
     }
 
-    // Extract DB to temp location for validation
+    // Extract DB to temp location for validation / استخراج مؤقت لقاعدة البيانات لإجراء الفحص الهيكلي
     const tempValidateDbPath = path.join(DB_DIR, `temp_val_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.db`);
 
     let tempDb = null;
@@ -566,7 +619,7 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
         documentsCount = tempDb.prepare('SELECT COUNT(*) as c FROM EmployeeDocuments WHERE IsDeleted = 0').get()?.c ?? 0;
       }
 
-      // Comparison check against active DB
+      // Comparison check against active DB / فحص مقارن مع قاعدة البيانات النشطة للتحذير من فقدان مستندات أحدث
       let warning = null;
       const currentActiveDb = activeDbInstance || _db;
       if (currentActiveDb) {
@@ -611,7 +664,7 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
     }
   }
 
-  // ── Legacy .db SQLite file validation ────────────────────────
+  // ── Legacy .db SQLite file validation / فحص ملفات SQLite القديمة (.db) ──
   const headerStr = headerBuf.toString('utf8', 0, 15);
   if (headerStr !== 'SQLite format 3') {
     throw new Error('الملف المختار ليس ملف قاعدة بيانات SQLite أو حزمة HBAK صالحة.');
@@ -651,6 +704,8 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
 }
 
 /**
+ * إنشاء نسخة احتياطية وقائية تلقائية لكافة بيانات ومستندات النظام الحالية قبيل إجراء الاستعادة.
+ * تُعد صمام الأمان الحرج الذي يعتمد عليه نظام التراجع التلقائي (_emergencyRollback) في حال فشل الاستعادة.
  * Creates an automatic pre-restore safety backup bundle of active DB and documents.
  * @returns {Promise<string>} Path of the safety backup file
  */
@@ -668,6 +723,14 @@ async function createSafetyBackup() {
 }
 
 /**
+ * استعادة قاعدة البيانات ومستندات الموظفين من ملف نسخة احتياطية تم تدقيقه مسبقاً (.hbak / .zip أو .db).
+ * آلية العمل المقاومة للأعطال:
+ * 1. التدقيق الصارم لسلامة وتوافق النسخة.
+ * 2. أخذ نسخة وقائية شاملة للحالة الحالية قبل البدء.
+ * 3. تفريغ سجلات WAL TRUNCATE وإغلاق الاتصال وتحرير أقفال الملفات.
+ * 4. استخراج واستبدال ملفات قاعدة البيانات والمستندات.
+ * 5. فحص مسار المستندات المخصص وترحيله تلقائياً للمسار الافتراضي إذا كان المسار السابق غير متاح على هذا الجهاز.
+ * 6. التراجع التلقائي والفوري (_emergencyRollback) للنسخة الوقائية عند حدوث أي خطأ لضمان عدم تلف النظام.
  * Restores active database and documents from a validated backup file (.hbak / .zip or .db).
  * Automatically takes a safety backup first, closes connection, and restores files.
  * Handles custom storage paths intelligently and rolls back if interrupted.
@@ -681,25 +744,25 @@ async function restoreDatabase(backupPath) {
     initialize();
   }
 
-  // 1. Strict Validation
+  // 1. Strict Validation / 1. التدقيق الصارم لملف النسخة
   const validation = validateDatabaseBackup(backupPath);
 
-  // 2. Pre-restore Safety Backup
+  // 2. Pre-restore Safety Backup / 2. أخذ نسخة وقائية تلقائية قبل التعديل
   const safetyBackupPath = await createSafetyBackup();
 
-  // 3. Checkpoint WAL and close connection
+  // 3. Checkpoint WAL and close connection / 3. تفريغ سجلات WAL وإغلاق الاتصال
   if (_db) {
     try { _db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
   }
   close();
 
-  // 4. Remove WAL/SHM auxiliary files if present
+  // 4. Remove WAL/SHM auxiliary files if present / 4. تنظيف ملفات الذاكرة المشتركة الملحقة
   const walPath = `${DB_PATH}-wal`;
   const shmPath = `${DB_PATH}-shm`;
   if (fs.existsSync(walPath)) try { fs.unlinkSync(walPath); } catch (_) {}
   if (fs.existsSync(shmPath)) try { fs.unlinkSync(shmPath); } catch (_) {}
 
-  // 5. Restore Database & Documents (with automatic rollback on error)
+  // 5. Restore Database & Documents (with automatic rollback on error) / 5. استخراج البيانات مع التراجع التلقائي
   let pathMigrated = false;
   let pathMessage = null;
   let activeTargetDocPath = null;
@@ -709,7 +772,7 @@ async function restoreDatabase(backupPath) {
       const zip = new AdmZip(backupPath);
       const entries = zip.getEntries();
 
-      // Extract leave_management.db
+      // Extract leave_management.db / استخراج ملف قاعدة البيانات الأساسي
       const dbEntry = entries.find(e => !e.isDirectory && (e.entryName === 'leave_management.db' || e.entryName.endsWith('.db')));
       if (!dbEntry) {
         throw new Error('تعذر استخراج ملف قاعدة البيانات من الحزمة.');
@@ -717,7 +780,7 @@ async function restoreDatabase(backupPath) {
       const dbData = zip.readFile(dbEntry);
       fs.writeFileSync(DB_PATH, dbData);
 
-      // Determine the target storage directory from the restored DB itself
+      // Determine the target storage directory from the restored DB itself / قراءة مسار التخزين المعتمد من القاعدة المستعادة
       const DocumentStorageService = require('./services/DocumentStorageService');
       const defaultDocPath = DocumentStorageService.getDefaultStorageRoot();
       let customStoragePath = null;
@@ -736,6 +799,7 @@ async function restoreDatabase(backupPath) {
             activeTargetDocPath = customStoragePath;
           } catch (pathTestErr) {
             // Path unavailable on current machine -> fallback to default and update setting in restored DB
+            // المسار غير متاح على الجهاز الحالي -> ترحيل تلقائي إلى المسار الافتراضي وتحديث الإعداد في القاعدة
             activeTargetDocPath = defaultDocPath;
             pathMigrated = true;
             pathMessage = `تم تعديل مسار تخزين المستندات تلقائياً إلى المسار الافتراضي (${defaultDocPath}) لتعذر الوصول إلى المسار السابق (${customStoragePath}).`;
@@ -762,7 +826,7 @@ async function restoreDatabase(backupPath) {
         fs.mkdirSync(activeTargetDocPath, { recursive: true });
       }
 
-      // Extract all entries under EmployeeDocuments/ to activeTargetDocPath
+      // Extract all entries under EmployeeDocuments/ to activeTargetDocPath / فك ضغط المستندات لمجلد التخزين المعتمد
       for (const entry of entries) {
         if (entry.entryName.startsWith('EmployeeDocuments/') && !entry.isDirectory) {
           const relativeInsideDoc = entry.entryName.replace(/^EmployeeDocuments\//, '');
@@ -776,11 +840,12 @@ async function restoreDatabase(backupPath) {
         }
       }
     } else {
-      // Legacy .db file
+      // Legacy .db file / استعادة ملف SQLite مباشر
       fs.copyFileSync(backupPath, DB_PATH);
     }
   } catch (restoreErr) {
     // CRITICAL: Interrupted or failed extraction -> Emergency Auto-Rollback to safety backup
+    // حرج: في حال انقطاع الكهرباء أو فشل الاستخراج، تفعيل التراجع الطارئ للنسخة الوقائية تلقائياً
     console.error('[DB Restore Failed] Rolling back to pre-restore safety backup:', restoreErr.message);
     try {
       await _emergencyRollback(safetyBackupPath);
@@ -801,6 +866,9 @@ async function restoreDatabase(backupPath) {
 }
 
 /**
+ * محرك التراجع الطارئ عند فشل الاستعادة:
+ * يعيد كتابة ملف قاعدة البيانات واستخراج المستندات مباشرة من النسخة الوقائية السابقة
+ * لإرجاع النظام بدقة 100% إلى وضعه المستقر السابق دون أي فقدان للبيانات.
  * Emergency rollback helper: Reverts DB and documents to the pre-restore safety backup.
  * @param {string} safetyBackupPath
  */
@@ -812,13 +880,13 @@ async function _emergencyRollback(safetyBackupPath) {
   const zip = new AdmZip(safetyBackupPath);
   const entries = zip.getEntries();
 
-  // Restore DB
+  // Restore DB / استعادة ملف قاعدة البيانات
   const dbEntry = entries.find(e => !e.isDirectory && (e.entryName === 'leave_management.db' || e.entryName.endsWith('.db')));
   if (dbEntry) {
     fs.writeFileSync(DB_PATH, zip.readFile(dbEntry));
   }
 
-  // Restore documents to the pre-restore location
+  // Restore documents to the pre-restore location / استعادة المستندات للمسار السابق للاستعادة
   let preRestoreDocPath = null;
   let rollbackDb = null;
   try {

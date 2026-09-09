@@ -1,23 +1,34 @@
 // ============================================================
 //  services/DocumentService.js – Business Logic for Employee Documents
-//  Main Process ONLY
-//  Responsibilities:
-//    • Add new document version (TIME_CARD, LEAVE_CARD) without overwriting past versions
-//    • Derive DocumentYear automatically from system upload time
-//    • List active versions for an employee sorted by Year/Date descending
-//    • Soft delete documents with audit trail (leaves physical file on disk)
-//    • Log all insertions and soft deletions to AuditLogs
-//    • Coordinate with DocumentStorageService for storage path and security
+//  طبقة منطق الأعمال لإدارة وأرشفة مستندات وكروت الموظفين
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • حفظ وإصدار النسخ الجديدة للمستندات (كروت الزمنية والإجازات) دون الكتابة فوق النسخ القديمة.
+//    • استخراج سنة المستند تلقائياً من وقت الرفع بالنظام.
+//    • استعراض النسخ النشطة للموظف مرتبة تنازلياً حسب السنة وتاريخ الإنشاء.
+//    • الحذف المنطقي (Soft Delete) مع ترك الملفات الفيزيائية على القرص لحين طلب الإفراغ الصريح.
+//    • التنسيق مع DocumentStorageService لتطبيق إجراءات الأمان ومنع Path Traversal.
+//    • إدارة إحصائيات وإفراغ المستندات المحذوفة نهائياً وتوفير مساحات التخزين.
 // ============================================================
 
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const DocumentStorageService = require('./DocumentStorageService');
 const AuditService = require('./AuditService');
 const LoggerService = require('./LoggerService');
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  addDocument
+//
+//  إضافة نسخة مستند جديدة للموظف (كرت زمنية أو كرت إجازة):
+//  - لا يستبدل النسخ السابقة مطلقاً لضمان حفظ الأرشيف التاريخي للموظف.
+//  - ينسخ ويفحص الملف في طبقة التخزين ويفحص تواقيع Magic Bytes.
+//  - يُدرج السجل في حركة ذرية مع توثيق العملية في سجل التدقيق والأمان.
+//  - في حال فشل الإدراج بقاعدة البيانات، يتم حذف الملف المنسوخ تلقائياً لمنع الملفات اليتيمة.
+// ──────────────────────────────────────────────────────────────
  * Adds a new document version for an employee (never replaces existing versions).
  *
  * @param {{
@@ -141,6 +152,13 @@ function addDocument({ employeeId, documentType, sourceFilePath, notes = null },
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  listDocuments
+//
+//  استرجاع قائمة المستندات النشطة (غير المحذوفة) لموظف محدد:
+//  - مرتبة تنازلياً بحسب سنة المستند وتاريخ الرفع.
+//  - يتحقق من الوجود الفعلي للملف على القرص ويحدد مساره المطلق الآمن.
+// ──────────────────────────────────────────────────────────────
  * Lists non-deleted document versions for an employee.
  *
  * @param {{ employeeId: number, documentType?: string }} filter
@@ -205,7 +223,15 @@ function listDocuments({ employeeId, documentType = null }, db) {
 }
 
 /**
- * Soft deletes a document record and logs the event (never deletes physical file).
+// ──────────────────────────────────────────────────────────────
+//  softDeleteDocument
+//
+//  الحذف المنطقي لمستند (Soft Delete):
+//  - يقوم بتعيين IsDeleted = 1 ويسجل تاريخ الحذف.
+//  - يترك الملف الفيزيائي على القرص بأمان دون حذفه فوراً.
+//  - يوثق العملية في سجل التدقيق والأمان مع بيانات الموظف والمستند.
+// ──────────────────────────────────────────────────────────────
+ * Soft deletes a document record and logs the event (leaves physical file on disk).
  *
  * @param {number} documentId
  * @param {import('better-sqlite3').Database} db
@@ -406,6 +432,15 @@ function getDeletedDocumentsStats(db) {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  purgeDeletedDocuments
+//
+//  الإفراغ والتنظيف النهائي للمستندات المحذوفة:
+//  - يحذف الملفات الفيزيائية للمستندات المعلمة كـ IsDeleted = 1 من القرص نهائياً.
+//  - يحذف السجلات المرتبطة بها من جدول EmployeeDocuments.
+//  - يحذف المجلدات الفرعية الفارغة لتنظيم مساحة القرص الصلب.
+//  - يوثق عدد الملفات المحذوفة والمساحة المحررة في سجل التدقيق والأمان.
+// ──────────────────────────────────────────────────────────────
  * Permanently deletes soft-deleted documents (IsDeleted = 1) from disk and database.
  * Logs the operation to AuditLogs.
  *

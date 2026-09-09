@@ -1,5 +1,12 @@
 // ============================================================
 //  searchModal.js – Quick Employee Search Modal (Dialog)
+//  النافذة المنبثقة للبحث السريع والشامل عن الموظفين (HTML5 Dialog)
+//
+//  المسؤوليات الرئيسية:
+//    • فتح نافذة حوارية عائمة للبحث الفوري عن أي موظف بالاسم أو الرقم أو الكرت أو الموقع.
+//    • دعم وضعي الاستهداف: إما لاختيار الموظف لشاشة تسجيل الإجازات أو لتعديل بياناته في إدارة الموظفين.
+//    • عرض النتائج في جدول تفاعلي يدعم الاختيار بالنقر أو بلوحة المفاتيح (Enter / Space).
+//    • عرض شارة "منقول" مع رقم أمر النقل عند توفره، وتوفير مؤشرات التحميل والخطأ.
 // ============================================================
 
 'use strict';
@@ -12,10 +19,14 @@ let modalSearchInput = null;
 let modalResultsTbody = null;
 
 let _searchDebounceTimer = null;
-let _searchTarget = 'entry'; // 'entry' | 'manage'
+let _searchTarget = 'entry'; // 'entry' (تسجيل إجازة) | 'manage' (إدارة الموظف)
 let _onSelectForEntry = null;
 let _onSelectForManage = null;
 
+/**
+ * فتح نافذة البحث وتحديد الشاشة المستهدفة وتفريغ الحقول
+ * @param {'entry'|'manage'} target
+ */
 export function openSearchModal(target = 'entry') {
   if (!searchModal || !modalSearchInput) return;
   _searchTarget = target;
@@ -26,6 +37,10 @@ export function openSearchModal(target = 'entry') {
   triggerSearch('');
 }
 
+/**
+ * إرسال استعلام البحث إلى العملية الرئيسية عبر IPC وتحديث الجدول
+ * @param {string} keyword كلمة البحث
+ */
 export async function triggerSearch(keyword) {
   if (!modalResultsTbody) return;
   modalResultsTbody.textContent = '';
@@ -52,10 +67,15 @@ export async function triggerSearch(keyword) {
   }
 }
 
+/**
+ * تصيير صفوف جدول نتائج البحث في النافذة المنبثقة
+ * @param {Array<object>} employees قائمة الموظفين المطابقين
+ */
 export function renderModalResults(employees) {
   if (!modalResultsTbody) return;
   modalResultsTbody.textContent = '';
 
+  // في حال عدم وجود نتائج
   if (employees.length === 0) {
     const emptyRow = document.createElement('tr');
     const emptyTd = document.createElement('td');
@@ -86,6 +106,7 @@ export function renderModalResults(employees) {
     tdId.className = 'text-center font-bold';
     tdName.textContent = FullName;
 
+    // تمييز الموظف المنقول بشارة خاصة
     if (IsTransferred === 1) {
       const transferBadge = document.createElement('span');
       transferBadge.className = 'status-badge-transferred';
@@ -106,6 +127,7 @@ export function renderModalResults(employees) {
 
     tr.append(tdId, tdName, tdCard, tdLocation, tdTitle);
 
+    // دالة اختيار الموظف وإغلاق النافذة المنبثقة
     const selectEmployee = () => {
       searchModal.close();
       if (_searchTarget === 'manage') {
@@ -142,6 +164,10 @@ export function renderModalResults(employees) {
   modalResultsTbody.appendChild(fragment);
 }
 
+/**
+ * عرض رسالة خطأ داخل جدول النتائج
+ * @param {string} message
+ */
 export function renderModalError(message) {
   if (!modalResultsTbody) return;
   modalResultsTbody.textContent = '';
@@ -155,6 +181,7 @@ export function renderModalError(message) {
 }
 
 /**
+ * تهيئة النافذة المنبثقة وأزرار الفتح والإغلاق
  * Initializes the Search Modal dialog and trigger listeners.
  * @param {object} options
  * @param {Function} options.onSelectForEntry
@@ -191,6 +218,7 @@ export function initSearchModal(options = {}) {
     });
   }
 
+  // البحث المؤجل عند إدخال النص (Debounced at 300ms)
   if (modalSearchInput) {
     modalSearchInput.addEventListener('input', () => {
       clearTimeout(_searchDebounceTimer);
@@ -200,3 +228,4 @@ export function initSearchModal(options = {}) {
     });
   }
 }
+

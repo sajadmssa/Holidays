@@ -1,17 +1,25 @@
 // ============================================================
 //  uiHelpers.js – System Utilities: Toast, Confirm Dialog, Weekend Checks
+//  أدوات مساعدة واجهة المستخدم: الإشعارات المنبثقة، مربعات التأكيد، وفحص العطل
+//
+//  المسؤوليات الرئيسية:
+//    • عرض الإشعارات المنبثقة الخفيفة (Toast Notifications) بنجاح/فشل/تحذير.
+//    • عرض إشعار التصدير التفاعلي مع زر مباشر لفتح الملف وشريط تقدم زمني تنازلي.
+//    • نافذة تأكيد الإجراءات البديلة لـ window.confirm بنظام HTML5 Dialog المتوافق مع الوعود (Promises).
+//    • التحقق من عطلة نهاية الأسبوع الرسمية (الجمعة والسبت) وتنبيه المستخدم بصرياً.
 // ============================================================
 
 'use strict';
 
-// Arabic workweek weekend: Friday = 5, Saturday = 6 (JS getDay())
+// أيام العطلة الأسبوعية في نظام الخدمة المدنية العراقي: الجمعة = 5، السبت = 6
 export const WEEKEND_DAYS = new Set([5, 6]);
 
 /**
+ * عرض إشعار سريع وأنيق وغير معطل لتفاعل المستخدم (Toast Notification)
  * Displays a sleek, non-blocking Toast notification.
- * @param {string} message
- * @param {'success'|'error'|'warning'|'info'} type
- * @param {number} durationMs
+ * @param {string} message نص الرسالة
+ * @param {'success'|'error'|'warning'|'info'} type نوع الإشعار
+ * @param {number} durationMs مدة الظهور بالمللي ثانية (افتراضياً 3.5 ثانية)
  */
 export function showToast(message, type = 'info', durationMs = 3500) {
   const container = document.getElementById('toast-container');
@@ -36,6 +44,7 @@ export function showToast(message, type = 'info', durationMs = 3500) {
   toast.append(iconSpan, textSpan);
   container.appendChild(toast);
 
+  // إخفاء وحذف الإشعار تدريجياً بعد انقضاء المدة
   setTimeout(() => {
     toast.classList.add('toast-fade-out');
     setTimeout(() => {
@@ -45,13 +54,14 @@ export function showToast(message, type = 'info', durationMs = 3500) {
 }
 
 /**
+ * عرض إشعار نجاح التصدير المخصص مع زر مباشر "📂 فتح التقرير" وشريط عد تنازلي لمدة 5 ثوانٍ
  * Displays a specialized export success toast with a "📂 فتح التقرير" action button
  * that automatically counts down and disappears after 5 seconds.
  *
  * @param {object} options
- * @param {string} options.filePath - Absolute path of the exported Excel file
- * @param {string} [options.message='تم تصدير التقرير بنجاح.'] - Notification message
- * @param {number} [options.durationMs=5000] - Duration in ms before auto fade-out
+ * @param {string} options.filePath - المسار المطلق لملف Excel المصدر
+ * @param {string} [options.message='تم تصدير التقرير بنجاح.'] - نص الإشعار
+ * @param {number} [options.durationMs=5000] - مدة العد التنازلي بالمللي ثانية
  */
 export function showExportSuccessToast({ filePath, message = 'تم تصدير التقرير بنجاح.', durationMs = 5000 }) {
   const container = document.getElementById('toast-container');
@@ -73,6 +83,7 @@ export function showExportSuccessToast({ filePath, message = 'تم تصدير ا
 
   contentDiv.appendChild(textSpan);
 
+  // زر فتح الملف مباشرة بالبرنامج الافتراضي (مثل Excel)
   if (filePath && window.api?.system?.openPath) {
     const btnOpen = document.createElement('button');
     btnOpen.type = 'button';
@@ -90,14 +101,14 @@ export function showExportSuccessToast({ filePath, message = 'تم تصدير ا
     contentDiv.appendChild(btnOpen);
   }
 
-  // Progress Bar for 5s countdown
+  // شريط التقدم للعد التنازلي
   const progressBar = document.createElement('div');
   progressBar.className = 'toast-progress-bar';
 
   toast.append(iconSpan, contentDiv, progressBar);
   container.appendChild(toast);
 
-  // Trigger progress animation
+  // تحريك شريط التقدم بتدرج زمني خطي
   requestAnimationFrame(() => {
     progressBar.style.transition = `width ${durationMs}ms linear`;
     progressBar.style.width = '0%';
@@ -112,12 +123,13 @@ export function showExportSuccessToast({ filePath, message = 'تم تصدير ا
 }
 
 /**
+ * عرض نافذة تأكيد مخصصة (HTML5 Dialog) غير معطلة تُرجع وعداً منطقياً (Promise<boolean>)
  * Displays a custom, non-blocking HTML5 dialog confirmation returning a Promise<boolean>.
  * Replaces native window.confirm().
  *
- * @param {string} message
- * @param {string} title
- * @returns {Promise<boolean>}
+ * @param {string} message نص رسالة التأكيد
+ * @param {string} title عنوان نافذة التأكيد
+ * @returns {Promise<boolean>} true إذا وافق المستخدم، وfalse إذا ألغى
  */
 export function showConfirm(message, title = 'تأكيد الإجراء') {
   return new Promise((resolve) => {
@@ -152,6 +164,7 @@ export function showConfirm(message, title = 'تأكيد الإجراء') {
       resolve(false);
     };
 
+    // إزالة مستمعات الأحداث لتفادي تسريب الذاكرة أو التداخل
     const cleanup = () => {
       btnYes.removeEventListener('click', handleYes);
       btnNo.removeEventListener('click', handleNo);
@@ -167,8 +180,9 @@ export function showConfirm(message, title = 'تأكيد الإجراء') {
 }
 
 /**
+ * التحقق مما إذا كان التاريخ المحدد يصادف يوم عطلة نهاية أسبوع (جمعة أو سبت)
  * Checks if a given ISO date falls on Friday or Saturday.
- * @param {string} isoDateStr
+ * @param {string} isoDateStr تاريخ بصيغة YYYY-MM-DD
  * @returns {boolean}
  */
 export function isWeekend(isoDateStr) {
@@ -179,9 +193,10 @@ export function isWeekend(isoDateStr) {
 }
 
 /**
+ * تطبيق أو إزالة تنسيق ورسالة التحذير من العطلة الأسبوعية على حقل التاريخ
  * Toggles weekend warning styling and helper message.
- * @param {HTMLInputElement} inputEl
- * @param {HTMLElement} warningEl
+ * @param {HTMLInputElement} inputEl حقل إدخال التاريخ
+ * @param {HTMLElement} warningEl عنصر رسالة التحذير
  */
 export function applyWeekendWarning(inputEl, warningEl) {
   const isWknd = isWeekend(inputEl.value);
@@ -194,3 +209,4 @@ export function applyWeekendWarning(inputEl, warningEl) {
     warningEl.classList.remove('visible');
   }
 }
+

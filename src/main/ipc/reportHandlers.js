@@ -1,14 +1,16 @@
 // ============================================================
-//  ipc/reportHandlers.js  –  Report IPC Handlers (Phase 7)
+//  ipc/reportHandlers.js  –  Report IPC Handlers
+//  طبقة معالجة قنوات الاتصال الداخلي (IPC) للتقارير وتصدير Excel
 //
-//  Responsibilities:
-//    • Open a native Save dialog (main-process privilege)
-//    • Delegate Excel generation to ReportService
-//    • Return a uniform { success, data|error|canceled } envelope
+//  Responsibilities / المسؤوليات الأساسية:
+//    • فتح نوافذ حفظ الملفات الأصلية (Native Save Dialog) في بيئة نظام التشغيل.
+//    • تفويض توليد مصنفات Excel الرسمية إلى ReportService.
+//    • فرض غلاف استجابة موحد { success: true, data } أو { success: false, error }.
+//    • توفير قنوات تصدير سجل الموظف، المجازين حالياً، الأرصدة الحرجة، والتراكم السنوي، والمنقولين.
 //
 //  Why dialog lives here and NOT in ReportService:
-//    dialog is an Electron API; ReportService must stay
-//    framework-agnostic so it can be unit-tested without Electron.
+//  (نافذة الحوار dialog تعتمد على واجهات Electron الحصرية للعملية الرئيسية Main Process،
+//  لذا تم إبقاؤها هنا للحفاظ على استقلالية ReportService وإمكانية اختبارها دون تشغيل Electron).
 // ============================================================
 
 'use strict';
@@ -25,6 +27,9 @@ const { safeHandleAsync } = createSafeHandler('ReportHandlers');
 // ──────────────────────────────────────────────────────────────
 //  registerReportHandlers(ipcMain, db)
 //
+//  تسجيل قنوات IPC الخاصة بالتقارير وتصدير Excel:
+//  تُستدعى مرة واحدة فقط عند إقلاع التطبيق في main.js بعد تهيئة db.
+//
 //  Call this ONCE after db.initialize() in main.js.
 //
 //  @param {Electron.IpcMain} ipcMain
@@ -34,20 +39,17 @@ function registerReportHandlers(ipcMain, db) {
 
   // ── report:exportHistory ──────────────────────────────────────
   //
-  //  Opens a native Save dialog, then exports a styled Excel report
-  //  of the given employee's full leave history.
+  //  تصدير السجل التاريخي الكامل لموظف محدد إلى Excel:
+  //  يفتح نافذة حفظ الملف، ثم يولد التقرير الرسمي.
   //
   //  Renderer payload: { employeeId: number }
-  //
-  //  Response data variants:
-  //    { canceled: true }          – user dismissed the dialog
-  //    { filePath: string }        – file written successfully
+  //  Response data:    { canceled: boolean, filePath?: string }
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:exportHistory',
     safeHandleAsync(async (payload) => {
 
-      // ── 1. Validate payload ─────────────────────────────────
+      // ── 1. Validate payload / التحقق من المدخلات ─────────────
       if (!payload || typeof payload !== 'object') {
         throw new Error('report:exportHistory: payload must be a non-null object.');
       }
@@ -61,10 +63,7 @@ function registerReportHandlers(ipcMain, db) {
         );
       }
 
-      // ── 2. Open native Save dialog ──────────────────────────
-      //  Must run in the main process — Renderer has no dialog access.
-      //  getFocusedWindow() is the safest parent ref: works even if the
-      //  window reference was garbage-collected and re-created.
+      // ── 2. Open native Save dialog / فتح نافذة حفظ الملف الأصلية ──
       const win    = BrowserWindow.getFocusedWindow();
       const result = await dialog.showSaveDialog(win, {
         title       : 'حفظ التقرير',
@@ -76,12 +75,12 @@ function registerReportHandlers(ipcMain, db) {
         properties  : ['createDirectory', 'showOverwriteConfirmation'],
       });
 
-      // ── 3. Handle cancellation ──────────────────────────────
+      // ── 3. Handle cancellation / معالجة إلغاء المستخدم للنافذة ─
       if (result.canceled || !result.filePath) {
         return { canceled: true };
       }
 
-      // ── 4. Generate and write the Excel file ────────────────
+      // ── 4. Generate and write the Excel file / كتابة التقرير ─
       const filePath = result.filePath;
       await exportEmployeeHistory(employeeId, filePath, db);
 
@@ -91,8 +90,9 @@ function registerReportHandlers(ipcMain, db) {
 
   // ── report:exportActiveLeaves ─────────────────────────────────
   //
-  //  Opens a native Save dialog, then exports a styled Excel report
-  //  of all employees currently on leave today.
+  //  تصدير تقرير الموظفين المجازين حالياً (في تاريخ اليوم) إلى Excel.
+  //
+  //  Response data: { canceled: boolean, filePath?: string }
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:exportActiveLeaves',
@@ -123,8 +123,9 @@ function registerReportHandlers(ipcMain, db) {
 
   // ── report:getCriticalReport ──────────────────────────────────
   //
-  //  Returns critical balance alerts (balance <= threshold) and
-  //  yearly accumulated leave summary.
+  //  استرجاع بيانات الأرصدة الحرجة (<= threshold) وتراكم الإجازات السنوية.
+  //
+  //  Renderer payload: { threshold?: number, year?: number }
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:getCriticalReport',
@@ -137,8 +138,10 @@ function registerReportHandlers(ipcMain, db) {
 
   // ── report:exportCriticalReport ───────────────────────────────
   //
-  //  Opens a native Save dialog and exports the critical balance and
-  //  accumulated leaves report to Excel.
+  //  تصدير تقرير الأرصدة الحرجة وتراكم الإجازات السنوية إلى مصنف Excel رسمي متعدد الأوراق.
+  //
+  //  Renderer payload: { threshold?: number, year?: number }
+  //  Response data:    { canceled: boolean, filePath?: string }
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:exportCriticalReport',
@@ -171,6 +174,9 @@ function registerReportHandlers(ipcMain, db) {
   );
 
   // ── report:getCriticalBalancesPaginated ────────────────────────
+  //
+  //  استرجاع الأرصدة الحرجة مقسمة لصفحات لجدول الواجهة.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:getCriticalBalancesPaginated',
     safeHandleAsync(async (options = {}) => {
@@ -180,6 +186,9 @@ function registerReportHandlers(ipcMain, db) {
   );
 
   // ── report:getAccumulatedPaginated ────────────────────────────
+  //
+  //  استرجاع تراكم الإجازات السنوي مقسماً لصفحات لجدول الواجهة.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:getAccumulatedPaginated',
     safeHandleAsync(async (options = {}) => {
@@ -190,8 +199,9 @@ function registerReportHandlers(ipcMain, db) {
 
   // ── report:exportTransferredEmployees ─────────────────────────
   //
-  //  Opens a native Save dialog, then exports a styled official Excel
-  //  report of all externally transferred employees.
+  //  تصدير الكشف الرسمي لكافة الموظفين المنقولين خارجياً إلى Excel.
+  //
+  //  Response data: { canceled: boolean, filePath?: string }
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'report:exportTransferredEmployees',
@@ -225,4 +235,3 @@ function registerReportHandlers(ipcMain, db) {
 }
 
 module.exports = { registerReportHandlers };
-

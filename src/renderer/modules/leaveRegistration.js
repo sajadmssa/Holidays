@@ -1,5 +1,14 @@
 // ============================================================
 //  leaveRegistration.js – Leave Request Form & History Controller (Tab 1)
+//  وحدة التحكم بنموذج تسجيل الإجازات وسجل حركات الموظف (التبويب الأول)
+//
+//  المسؤوليات الرئيسية:
+//    • إدارة استمارة تقديم الإجازات واحتساب التواريخ تلقائياً وفق مبدأ (Last-Modified-Wins).
+//    • فحص الأرصدة التراكمية للموظف وعرض الرصيد المكتسب والمستهلك والمتاح لحظياً.
+//    • عرض بطاقة ملخص الموظف (الاسم، الوظيفة، الموقع، الكرت، والمسؤول المانح، وشارة النقل).
+//    • دعم التفاصيل الإدارية (تاريخ الطلب، رقم وتاريخ المذكرة، رقم وتاريخ الأمر الإداري).
+//    • عرض سجل الإجازات السابقة للموظف وإمكانية الإلغاء واسترجاع الرصيد تلقائياً.
+//    • تصدير سجل إجازات الموظف التفصيلي إلى ملف Excel بصيغة رسمية وأنيقة.
 // ============================================================
 
 'use strict';
@@ -7,6 +16,7 @@
 import { showToast, showConfirm, applyWeekendWarning, showExportSuccessToast } from './uiHelpers.js';
 import { clearEmployeePicker } from './employeePicker.js';
 
+// عناصر النموذج الأساسي
 let form = null;
 let employeeIdEl = null;
 let employeeSearchInput = null;
@@ -24,6 +34,7 @@ let startDateWarning = null;
 let endDateWarning = null;
 let exportHistoryBtn = null;
 
+// حقول التفاصيل الإدارية والنافذة المنبثقة
 let leaveRequestDateEl = null;
 let leaveMemoNumberEl = null;
 let leaveMemoDateEl = null;
@@ -33,6 +44,7 @@ let leaveDetailsModal = null;
 let btnCloseLeaveDetailsModal = null;
 let leaveDetailsModalBody = null;
 
+// بطاقة ملخص الموظف المختار
 let employeeSummaryBadge = null;
 let summaryEmpName = null;
 let summaryEmpTitle = null;
@@ -42,16 +54,26 @@ let summaryEmpApprover = null;
 let summaryEmpTransferWrap = null;
 let summaryEmpTransfer = null;
 
+// قفل منع الحلقات التكرارية أثناء التحديث التفاعلي التلقائي للتواريخ
 let isAutoUpdating = false;
 
 // ── Balance Display Functions ───────────────────────────────
+//  دوال إدارة عرض بطاقة رصيد الإجازة الاعتيادية
+// ─────────────────────────────────────────────────────────────
 
+/**
+ * إظهار حالة جلب الرصيد الجاري من قاعدة البيانات
+ */
 export function showBalanceLoading() {
   if (!balanceDisplay) return;
   balanceDisplay.className = 'balance-display loading';
   balanceDisplay.textContent = 'جارٍ جلب الرصيد…';
 }
 
+/**
+ * عرض تفاصيل الرصيد المسترجع (المتاح، المكتسب، والمستهلك)
+ * @param {object} data
+ */
 export function showBalanceData(data) {
   if (!balanceDisplay) return;
   const finalBalance = Number(data.finalBalance);
@@ -59,7 +81,7 @@ export function showBalanceData(data) {
   const regularLeavesTaken = Number(data.regularLeavesTaken);
 
   balanceDisplay.className = 'balance-display';
-  balanceDisplay.textContent = ''; // clear previous
+  balanceDisplay.textContent = ''; // تفريغ المحتوى السابق
 
   const spanLabel = document.createElement('span');
   spanLabel.className = 'balance-label';
@@ -80,12 +102,19 @@ export function showBalanceData(data) {
   balanceDisplay.append(spanLabel, spanValue, spanUnit, spanDiag);
 }
 
+/**
+ * إظهار رسالة خطأ في حال فشل استعلام الرصيد
+ * @param {string} message
+ */
 export function showBalanceError(message) {
   if (!balanceDisplay) return;
   balanceDisplay.className = 'balance-display error';
   balanceDisplay.textContent = `⚠ ${message}`;
 }
 
+/**
+ * إخفاء بطاقة الرصيد
+ */
 export function hideBalance() {
   if (!balanceDisplay) return;
   balanceDisplay.className = 'balance-display hidden';
@@ -93,7 +122,12 @@ export function hideBalance() {
 }
 
 // ── Employee Summary Functions ──────────────────────────────
+//  دوال إدارة بطاقة ملخص الموظف المختار
+// ─────────────────────────────────────────────────────────────
 
+/**
+ * إخفاء بطاقة ملخص الموظف وتصفير الحقول
+ */
 export function hideEmployeeSummary() {
   if (employeeSummaryBadge) {
     employeeSummaryBadge.classList.add('hidden');
@@ -106,6 +140,10 @@ export function hideEmployeeSummary() {
   }
 }
 
+/**
+ * تحميل وعرض بطاقة ملخص الموظف المختار وشارة النقل الخارجي
+ * @param {number} id
+ */
 export async function loadEmployeeSummary(id) {
   if (!employeeSummaryBadge) return;
   try {
@@ -143,6 +181,13 @@ export async function loadEmployeeSummary(id) {
 
 // ── Date & Days Reactive Helpers (Last-Modified-Wins) ───────
 
+/**
+ * حساب تاريخ النهاية تلقائياً بإضافة عدد من الأيام إلى تاريخ بداية محدد
+ * مع مراعاة التوقيت القياسي UTC لتفادي فروق التوقيت الشتوي/الصيفي
+ * @param {string} dateStr - تاريخ البداية بتنسيق YYYY-MM-DD
+ * @param {number} daysCount - عدد أيام الإجازة
+ * @returns {string|null} تاريخ النهاية المحسوب بتنسيق YYYY-MM-DD
+ */
 export function addDaysToDate(dateStr, daysCount) {
   if (!dateStr || !daysCount || daysCount <= 0) return null;
   const parts = dateStr.split('-').map(Number);
@@ -156,6 +201,10 @@ export function addDaysToDate(dateStr, daysCount) {
   return `${resY}-${resM}-${resD}`;
 }
 
+/**
+ * إعادة احتساب عدد الأيام المطلوبة تلقائياً عند قيام المستخدم باختيار تاريخي البداية والنهاية
+ * تعتمد صيغة الفرق بين التاريخين + 1 يوم (شاملاً يومي البداية والنهاية)
+ */
 export function recomputeRequestedDays() {
   if (!startDateEl || !endDateEl || !requestedDaysEl) return;
   const start = startDateEl.value;
@@ -185,6 +234,11 @@ export function recomputeRequestedDays() {
 
 // ── Administrative Details Modal ────────────────────────────
 
+/**
+ * فتح النافذة المنبثقة لعرض التفاصيل الإدارية الشاملة للإجازة
+ * (رقم وتاريخ المذكرة، رقم وتاريخ الأمر الإداري، تاريخ الطلب، المسؤول عن المنح والملاحظات)
+ * @param {Object} leave - كائن بيانات الإجازة
+ */
 export function openLeaveDetailsModal(leave) {
   if (!leaveDetailsModal || !leaveDetailsModalBody) return;
   leaveDetailsModalBody.innerHTML = `
@@ -227,6 +281,10 @@ export function openLeaveDetailsModal(leave) {
 
 // ── Employee History & Deletion ─────────────────────────────
 
+/**
+ * جلب سجل الإجازات السابقة لموظف معين من الواجهة الخلفية وعرضه في الجدول
+ * @param {number} employeeId - المعرف الفريد للموظف
+ */
 export async function loadEmployeeHistory(employeeId) {
   if (!historyContainer || !historyTableBody) return;
 
@@ -250,6 +308,10 @@ export async function loadEmployeeHistory(employeeId) {
   }
 }
 
+/**
+ * رسم صفوف سجل الإجازات السابقة داخل جدول العرض، مع أزرار التفاصيل الإدارية والإلغاء
+ * @param {Array<Object>} leaves - قائمة كائنات الإجازات للموظف
+ */
 export function renderEmployeeHistory(leaves) {
   if (!historyContainer || !historyTableBody) return;
   historyTableBody.innerHTML = '';
@@ -326,6 +388,10 @@ export function renderEmployeeHistory(leaves) {
 
 // ── Validation & Reset ──────────────────────────────────────
 
+/**
+ * جمع مدخلات استمارة تسجيل الإجازة والتحقق من صحتها وقواعد الأعمال المطلوبة
+ * @returns {Object|null} كائن البيانات الجاهز للإرسال أو null عند وجود خطأ بالمدخلات
+ */
 export function collectAndValidate() {
   const employeeId = parseInt(employeeIdEl?.value.trim() || '0', 10);
   const leaveType = leaveTypeEl?.value || '';
@@ -388,6 +454,9 @@ export function collectAndValidate() {
   };
 }
 
+/**
+ * تصفير وتفريغ جميع حقول الاستمارة وإخفاء بطاقة الموظف ورصيده وسجل إجازاته
+ */
 export function resetForm() {
   if (form) form.reset();
   if (requestedDaysEl) requestedDaysEl.value = '';
@@ -418,6 +487,10 @@ export function resetForm() {
 // ── Populate Leave Types in Registration Select ─────────────
 let _cachedRegistrationLeaveTypes = [];
 
+/**
+ * تحميل أنواع الإجازات ديناميكياً من قاعدة البيانات وترتيبها في القائمة المنسدلة
+ * مع تقديم الإجازات الأكثر شيوعاً كأولوية في بداية القائمة
+ */
 export async function loadLeaveTypesIntoSelect() {
   if (!leaveTypeEl) return;
 
@@ -472,6 +545,11 @@ export async function loadLeaveTypesIntoSelect() {
 }
 
 // ── Helper to identify balance-deducting leave types ─────────
+/**
+ * التحقق مما إذا كان نوع الإجازة المختار يخصم من الرصيد الاعتيادي السنوي
+ * @param {string} type - مسمى نوع الإجازة
+ * @returns {boolean}
+ */
 const isRegularBalanceType = (type) =>
   type === 'regular' ||
   type === 'other' ||
@@ -480,6 +558,9 @@ const isRegularBalanceType = (type) =>
 
 // ── Module Initialization ───────────────────────────────────
 
+/**
+ * تهيئة موديول تسجيل الإجازات: ربط عناصر DOM ومستمعات الأحداث التفاعلية وحساب الرصيد وتصدير السجل
+ */
 export function initLeaveRegistration() {
   form = document.getElementById('leave-form');
   employeeIdEl = document.getElementById('employee-id');
@@ -566,7 +647,7 @@ export function initLeaveRegistration() {
     });
   }
 
-  // Re-fetch balance when leave type switches
+  // إعادة جلب الرصيد عند تغيير نوع الإجازة إذا كانت تقتطع من الرصيد الاعتيادي
   if (leaveTypeEl) {
     leaveTypeEl.addEventListener('change', async () => {
       const id = parseInt(employeeIdEl?.value.trim() || '0', 10);
@@ -589,7 +670,7 @@ export function initLeaveRegistration() {
     });
   }
 
-  // Weekend warnings & reactive auto-compute (Last-Modified-Wins)
+  // التنبيه على عطلات نهاية الأسبوع وإعادة الحساب التلقائي (قاعدة: التعديل الأخير يحدد النتيجة Last-Modified-Wins)
   if (startDateEl) {
     const handleStartChange = () => {
       if (isAutoUpdating) return;
@@ -639,7 +720,7 @@ export function initLeaveRegistration() {
     requestedDaysEl.addEventListener('change', handleDaysChange);
   }
 
-  // Export history button
+  // تصدير سجل إجازات الموظف الفردي إلى ملف Excel
   if (exportHistoryBtn) {
     exportHistoryBtn.addEventListener('click', async () => {
       const rawId = employeeIdEl?.value.trim() || '';
@@ -681,7 +762,7 @@ export function initLeaveRegistration() {
     });
   }
 
-  // Delete leave from history table
+  // إلغاء إجازة سابقة من جدول السجل واسترجاع رصيدها
   if (historyTableBody) {
     historyTableBody.addEventListener('click', async (event) => {
       const btn = event.target.closest('.btn-danger');
@@ -710,7 +791,7 @@ export function initLeaveRegistration() {
     });
   }
 
-  // Form submission
+  // معالجة تقديم استمارة طلب الإجازة (إجازة مرضية أو اعتيادية/أخرى)
   if (form) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -726,6 +807,7 @@ export function initLeaveRegistration() {
       try {
         let response;
 
+        // إرسال الإجازة عبر قناة IPC المناسبة بحسب نوع الإجازة
         if (payload.leaveType === 'sick' || payload.leaveType === 'إجازة مرضية') {
           response = await window.api.leave.submitSickLeave({
             employeeId: payload.employeeId,
@@ -760,6 +842,7 @@ export function initLeaveRegistration() {
         if (response.success) {
           const d = response.data;
 
+          // عرض إشعار النجاح المناسب مع رصيد الموظف المتبقي
           if (
             payload.leaveType === 'regular' ||
             payload.leaveType === 'other' ||

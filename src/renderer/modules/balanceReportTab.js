@@ -1,5 +1,7 @@
 // ============================================================
-//  balanceReportTab.js – Critical Balances & Yearly Accumulation Reports (Tab 6)
+//  balanceReportTab.js – وحدة تقارير الأرصدة الحرجة وتراكم الإجازات السنوي
+//  تتولى إدارة كشف الموظفين المقتربين من استنفاد رصيدهم الاعتيادي،
+//  وكشف التراكم السنوي للإجازات المستهلكة حسب السنة والنوع
 // ============================================================
 
 'use strict';
@@ -7,6 +9,7 @@
 import { showToast, showExportSuccessToast } from './uiHelpers.js';
 import { createPaginationController } from './paginationComponent.js';
 
+// عناصر واجهة المستخدم لتبويب الأرصدة والتراكم
 let btnRefreshBalanceReport = null;
 let btnExportCriticalReport = null;
 let btnApplyThreshold = null;
@@ -20,6 +23,7 @@ let selectAccumulationYear = null;
 let accumulationLeavesTbody = null;
 let _onManageEmployee = null;
 
+// وحدات التحكم بالترقيم ومتغيرات الحالة
 let _critPagination = null;
 let _accumPagination = null;
 let _isThresholdLoaded = false;
@@ -27,7 +31,8 @@ let _isApplyingThreshold = false;
 let _isRefreshing = false;
 
 /**
- * Loads and restores saved critical balance threshold from _AppSettings.
+ * جلب واستعادة حد الرصيد الحرج المحفوظ في إعدادات النظام (_AppSettings)
+ * الافتراضي: 5 أيام إذا لم يكن هناك إعداد محفوظ
  */
 export async function loadSavedThreshold() {
   try {
@@ -47,15 +52,15 @@ export async function loadSavedThreshold() {
       }
     }
   } catch (_e) {
-    // Graceful fallback to default threshold
+    // التراجع التلقائي الآمن إلى القيمة الافتراضية
   } finally {
     _isThresholdLoaded = true;
   }
 }
 
 /**
- * Loads paginated critical leave balances.
- * @param {number} page
+ * جلب قائمة الموظفين أصحاب الرصيد الحرج مقسمة لصفحات وتحديث جدول العرض وبطاقة المؤشر
+ * @param {number} [page=1] - رقم الصفحة المطلوبة
  */
 export async function loadCriticalBalances(page = 1) {
   const threshold = parseInt(inputBalanceThreshold?.value || '5', 10);
@@ -175,8 +180,9 @@ export async function loadCriticalBalances(page = 1) {
 }
 
 /**
- * Loads paginated yearly accumulated leaves.
- * @param {number} page
+ * جلب كشف التراكم السنوي للإجازات المستهلكة حسب السنة المحددة مقسمة لصفحات
+ * مع تحديث بطاقات المؤشرات (إجمالي الإجازات، وإجمالي الأيام المستهلكة)
+ * @param {number} [page=1] - رقم الصفحة المطلوبة
  */
 export async function loadAccumulationLeaves(page = 1) {
   const year = parseInt(selectAccumulationYear?.value || String(new Date().getFullYear()), 10);
@@ -285,7 +291,7 @@ export async function loadAccumulationLeaves(page = 1) {
 }
 
 /**
- * Loads both Critical Balances and Accumulation Reports.
+ * تحميل كلا التقريرين (الأرصدة الحرجة + التراكم السنوي) بالتوازي عند فتح التبويب أو تحديثه
  */
 export async function loadBalanceAndAccumulationReport() {
   if (!_isThresholdLoaded) {
@@ -298,9 +304,9 @@ export async function loadBalanceAndAccumulationReport() {
 }
 
 /**
- * Initializes the Balance and Accumulation Report Tab.
- * @param {object} options
- * @param {Function} options.onManageEmployee
+ * تهيئة تبويب تقارير الأرصدة والتراكم وربط وحدات الترقيم ومستمعات الأحداث
+ * @param {object} [options={}]
+ * @param {Function} [options.onManageEmployee] - دالة الانتقال لتبويب إدارة الموظف لتسوية رصيده
  */
 export function initBalanceReportTab(options = {}) {
   btnRefreshBalanceReport = document.getElementById('btn-refresh-balance-report');
@@ -343,7 +349,7 @@ export function initBalanceReportTab(options = {}) {
     onPageChange: (newPage) => loadAccumulationLeaves(newPage),
   });
 
-  // Refresh Button with Visual Spinner, Disabling, and Success Toast
+  // زر التحديث اليدوي مع مؤشر دوران وتعطيل الزر مؤقتاً
   if (btnRefreshBalanceReport) {
     btnRefreshBalanceReport.addEventListener('click', async () => {
       if (_isRefreshing) return;
@@ -367,7 +373,7 @@ export function initBalanceReportTab(options = {}) {
     });
   }
 
-  // Threshold Application Handler (Saves to _AppSettings and updates table)
+  // معالجة تطبيق حد الرصيد الحرج وحفظه في إعدادات النظام وتحديث الجدول فورياً
   const applyThreshold = async () => {
     if (_isApplyingThreshold) return;
     _isApplyingThreshold = true;
@@ -398,6 +404,7 @@ export function initBalanceReportTab(options = {}) {
     btnApplyThreshold.addEventListener('click', applyThreshold);
   }
 
+  // دعم تطبيق الحد الحرج بالضغط على مفتاح Enter
   if (inputBalanceThreshold) {
     inputBalanceThreshold.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
@@ -407,6 +414,7 @@ export function initBalanceReportTab(options = {}) {
     });
   }
 
+  // إعادة تحميل كشف التراكم عند تغيير السنة المختارة
   if (selectAccumulationYear) {
     selectAccumulationYear.addEventListener('change', () => {
       _accumPagination?.resetPage();
@@ -414,6 +422,7 @@ export function initBalanceReportTab(options = {}) {
     });
   }
 
+  // تصدير كشف الأرصدة الحرجة والتراكم السنوي إلى ملف Excel
   if (btnExportCriticalReport) {
     btnExportCriticalReport.addEventListener('click', async () => {
       btnExportCriticalReport.disabled = true;

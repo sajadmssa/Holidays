@@ -1,5 +1,7 @@
 // ============================================================
-//  systemSettings.js – System Settings, Custom Backup Dir, Theme & Restore
+//  systemSettings.js – وحدة إعدادات النظام، التخصيص، والنسخ الاحتياطي
+//  تتولى إدارة إعدادات الدائرة، مسار النسخ الاحتياطي الدوري،
+//  مسار تخزين المستندات، المظهر، الاستعادة، وإفراغ المستندات المحذوفة
 // ============================================================
 
 'use strict';
@@ -7,6 +9,7 @@
 import { showToast, showConfirm, showExportSuccessToast } from './uiHelpers.js';
 import { setAppTheme } from './themeManager.js';
 
+// عناصر واجهة المستخدم لإعدادات النظام
 let btnSystemSettings = null;
 let systemSettingsModal = null;
 let btnCloseSettingsModal = null;
@@ -31,6 +34,9 @@ let btnPurgeDeletedDocs = null;
 let btnExportTransferredReport = null;
 let _currentDeletedDocsCount = 0;
 
+/**
+ * جلب إحصائيات المستندات المحذوفة ناعماً (Soft-deleted) وتحديث العداد والحجم الإجمالي وزر الإفراغ
+ */
 export async function loadDeletedDocsStats() {
   if (!deletedDocsCountEl || !deletedDocsSizeEl) return;
   try {
@@ -54,8 +60,12 @@ export async function loadDeletedDocsStats() {
   }
 }
 
+/**
+ * تحميل وقراءة كافة إعدادات النظام من الواجهة الخلفية وتعبئة حقول النافذة المنبثقة
+ * (اسم الدائرة، مجلد النسخ الاحتياطي، مجلد تخزين المستندات، مظهر التطبيق، وإحصائيات المستندات)
+ */
 export async function loadSystemSettings() {
-  // 1. Department Name
+  // 1. اسم الدائرة / الجهة الرسمية
   if (inputDepartmentName) {
     try {
       const res = await window.api.system.getSetting('department_name');
@@ -69,7 +79,7 @@ export async function loadSystemSettings() {
     }
   }
 
-  // 2. Custom Backup Path
+  // 2. مجلد النسخ الاحتياطي المخصص
   if (inputCustomBackupPath) {
     try {
       const res = await window.api.system.getSetting('auto_backup_custom_path');
@@ -83,7 +93,7 @@ export async function loadSystemSettings() {
     }
   }
 
-  // 3. Employee Documents Storage Path
+  // 3. مسار تخزين مستندات ومرفقات الموظفين
   if (inputDocStoragePath) {
     try {
       const res = await window.api.documents.getStoragePath();
@@ -97,7 +107,7 @@ export async function loadSystemSettings() {
     }
   }
 
-  // 4. Theme
+  // 4. مظهر التطبيق (فاتح / داكن / حسب النظام)
   if (selectAppTheme) {
     try {
       const res = await window.api.system.getSetting('app_theme');
@@ -113,13 +123,16 @@ export async function loadSystemSettings() {
     }
   }
 
-  // 5. Soft-Deleted Documents Stats
+  // 5. إحصائيات المستندات المحذوفة ناعماً
   await loadDeletedDocsStats();
 }
 
+/**
+ * فحص حالة النسخ الاحتياطي الدوري التلقائي عند بدء تشغيل التطبيق وتنبيه المستخدم بأي أخطاء أو تحذيرات
+ */
 export async function checkAutoBackupStatus() {
   try {
-    // 1. Check backup errors
+    // 1. فحص أخطاء النسخ الاحتياطي الأخير
     const res = await window.api.system.getSetting('last_auto_backup_error');
     if (res && res.success && res.data) {
       let errorInfo = null;
@@ -132,7 +145,7 @@ export async function checkAutoBackupStatus() {
       }
     }
 
-    // 2. Check backup fallback warnings
+    // 2. فحص تحذيرات المسار البديل (Fallback)
     const warnRes = await window.api.system.getSetting('last_auto_backup_warning');
     if (warnRes && warnRes.success && warnRes.data) {
       let warnInfo = null;
@@ -146,6 +159,10 @@ export async function checkAutoBackupStatus() {
   } catch (_e) {}
 }
 
+/**
+ * تهيئة موديول إعدادات النظام: ربط عناصر النافذة المنبثقة، مستمعات اختيار المجلدات،
+ * اختبار مسار التخزين، حفظ التعديلات، النسخ الاحتياطي، الاستعادة، إفراغ المستندات المحذوفة، وتصدير المنقولين
+ */
 export function initSystemSettings() {
   btnSystemSettings = document.getElementById('btn-system-settings');
   systemSettingsModal = document.getElementById('system-settings-modal');
@@ -166,7 +183,7 @@ export function initSystemSettings() {
   btnSystemBackup = document.getElementById('btn-system-backup');
   btnSystemRestore = document.getElementById('btn-system-restore');
 
-  // Open settings modal
+  // فتح نافذة إعدادات النظام وتحميل البيانات الحالية
   if (btnSystemSettings && systemSettingsModal) {
     btnSystemSettings.addEventListener('click', async () => {
       await loadSystemSettings();
@@ -174,7 +191,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Close settings modal
+  // إغلاق نافذة إعدادات النظام
   if (btnCloseSettingsModal && systemSettingsModal) {
     btnCloseSettingsModal.addEventListener('click', () => {
       systemSettingsModal.close();
@@ -187,7 +204,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Auto-backup Directory Selection
+  // اختيار مجلد مخصص للنسخ الاحتياطي الدوري عبر حوار النظام الأصلي
   if (btnSelectBackupDir && inputCustomBackupPath) {
     btnSelectBackupDir.addEventListener('click', async () => {
       try {
@@ -203,7 +220,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Reset Auto-backup Directory to Default
+  // استعادة المسار الافتراضي للنسخ الاحتياطي (%APPDATA%)
   if (btnResetBackupDir && inputCustomBackupPath) {
     btnResetBackupDir.addEventListener('click', () => {
       inputCustomBackupPath.value = '';
@@ -211,7 +228,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Doc Storage Directory Selection
+  // اختيار مجلد مخصص لتخزين مستندات ومرفقات الموظفين
   if (btnSelectDocStorageDir && inputDocStoragePath) {
     btnSelectDocStorageDir.addEventListener('click', async () => {
       try {
@@ -227,7 +244,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Reset Doc Storage Directory to Default
+  // استعادة المسار الافتراضي لتخزين المستندات (%APPDATA%)
   if (btnResetDocStorageDir && inputDocStoragePath) {
     btnResetDocStorageDir.addEventListener('click', () => {
       inputDocStoragePath.value = '';
@@ -235,7 +252,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Test Doc Storage Path
+  // اختبار صلاحيات الكتابة والقراءة على مجلد تخزين المستندات
   if (btnTestDocStorageDir && inputDocStoragePath) {
     btnTestDocStorageDir.addEventListener('click', async () => {
       btnTestDocStorageDir.disabled = true;
@@ -255,7 +272,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Open Doc Storage Folder in File Explorer
+  // فتح مجلد تخزين المستندات في متصفح الملفات Explorer
   if (btnOpenDocStorageDir) {
     btnOpenDocStorageDir.addEventListener('click', async () => {
       try {
@@ -269,15 +286,15 @@ export function initSystemSettings() {
     });
   }
 
-  // Theme dropdown change (live preview)
+  // التغيير الفوري للمظهر (معاينة حية)
   if (selectAppTheme) {
     selectAppTheme.addEventListener('change', () => {
       const selected = selectAppTheme.value;
-      setAppTheme(selected, false); // preview immediately, persist on save or change
+      setAppTheme(selected, false);
     });
   }
 
-  // Save settings form
+  // معالجة حفظ استمارة إعدادات النظام
   if (systemSettingsForm) {
     systemSettingsForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -293,19 +310,19 @@ export function initSystemSettings() {
         const docStoragePathVal = inputDocStoragePath ? inputDocStoragePath.value.trim() : '';
         const themeVal = selectAppTheme ? selectAppTheme.value : 'system';
 
-        // 1. Save department name
+        // 1. حفظ اسم الدائرة
         await window.api.system.setSetting('department_name', deptVal);
 
-        // 2. Save custom backup path
+        // 2. حفظ مسار النسخ الاحتياطي المخصص
         await window.api.system.setSetting('auto_backup_custom_path', customPathVal);
 
-        // 3. Save document storage path
+        // 3. حفظ مسار تخزين المستندات
         const docRes = await window.api.documents.setStoragePath(docStoragePathVal);
         if (docRes && docRes.success && inputDocStoragePath) {
           inputDocStoragePath.value = docRes.data?.storagePath || docStoragePathVal;
         }
 
-        // 4. Save theme & apply
+        // 4. حفظ وتطبيق المظهر
         await setAppTheme(themeVal, true);
 
         showToast('تم حفظ إعدادات النظام بنجاح.', 'success');
@@ -321,7 +338,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Backup DB button
+  // زر إنشاء نسخة احتياطية فورية لقاعدة البيانات
   if (btnSystemBackup) {
     btnSystemBackup.addEventListener('click', async () => {
       btnSystemBackup.disabled = true;
@@ -351,7 +368,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Restore DB button
+  // زر استعادة نسخة احتياطية مع التحقق الصارم وإعادة تشغيل التطبيق تلقائياً
   if (btnSystemRestore) {
     btnSystemRestore.addEventListener('click', async () => {
       btnSystemRestore.disabled = true;
@@ -381,7 +398,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Deleted Documents Purge
+  // إفراغ المستندات المحذوفة ناعماً نهائياً من القرص الصلب لتوفير المساحة
   deletedDocsCountEl = document.getElementById('deleted-docs-count');
   deletedDocsSizeEl = document.getElementById('deleted-docs-size');
   btnPurgeDeletedDocs = document.getElementById('btn-purge-deleted-docs');
@@ -425,7 +442,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Transferred Employees Excel Export
+  // تصدير كشف الموظفين المنقولين خارجياً إلى ملف Excel
   btnExportTransferredReport = document.getElementById('btn-export-transferred-report');
   if (btnExportTransferredReport) {
     btnExportTransferredReport.addEventListener('click', async () => {
@@ -462,7 +479,7 @@ export function initSystemSettings() {
     });
   }
 
-  // Initial fetches
+  // التحميل الأولي للإعدادات وحالة النسخ الدوري عند التشغيل
   loadSystemSettings();
   checkAutoBackupStatus();
 }

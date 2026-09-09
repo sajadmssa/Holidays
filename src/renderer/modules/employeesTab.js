@@ -1,5 +1,13 @@
 // ============================================================
 //  employeesTab.js – All Employees Paginated Table Controller (Tab 5)
+//  وحدة التحكم بجدول وسجل كافة الموظفين المقسم لصفحات (التبويب الخامس)
+//
+//  المسؤوليات الرئيسية:
+//    • عرض جدول الموظفين الشامل مع الترقيم الآلي (15 موظفاً في الصفحة الواحدة).
+//    • توفير بحث فوري ذكي وتصفية النتائج أثناء الكتابة (Debounced at 300ms).
+//    • عرض الشارات الوظيفية (نشط / مجمد / منقول) مع بيانات أمر النقل الخارجي وتاريخه.
+//    • توفير أزرار الإجراءات السريعة (كروت الخدمة 🟨، كروت الإجازة 🟦، وتعديل الموظف).
+//    • تصدير جدول الموظفين المفلتر إلى Excel بنمط التنسيق الملكي وإظهار التنبيه الذكي.
 // ============================================================
 
 'use strict';
@@ -8,6 +16,7 @@ import { showToast, showExportSuccessToast } from './uiHelpers.js';
 import { createPaginationController } from './paginationComponent.js';
 import { openEmployeeDocumentsModal } from './employeeDocumentsModal.js';
 
+// مراجع عناصر الواجهة في تبويب سجل الموظفين
 let allEmployeesSearchInput = null;
 let btnExportAllEmployees = null;
 let allEmployeesStatus = null;
@@ -18,6 +27,11 @@ let _allEmpsSearchQuery = '';
 let _allEmpsDebounceTimer = null;
 let _onManageEmployee = null;
 
+/**
+ * ضبط رسالة وحالة التحميل أو الخطأ في أعلى الجدول
+ * @param {string} message نص الرسالة
+ * @param {'loading'|'error'|'hidden'} state حالة العنصر
+ */
 export function setAllEmployeesStatus(message, state) {
   if (!allEmployeesStatus) return;
   if (state === 'hidden') {
@@ -29,10 +43,15 @@ export function setAllEmployeesStatus(message, state) {
   allEmployeesStatus.textContent = message;
 }
 
+/**
+ * بناء وتصيير صفوف جدول الموظفين في واجهة المستخدم
+ * @param {Array<object>} employees قائمة الموظفين للصفحة الحالية
+ */
 export function renderAllEmployeesTable(employees) {
   if (!allEmployeesTbody) return;
   allEmployeesTbody.innerHTML = '';
 
+  // في حال عدم وجود بيانات
   if (!employees || employees.length === 0) {
     const isSearching = _allEmpsSearchQuery.trim().length > 0;
     allEmployeesTbody.innerHTML = `
@@ -70,6 +89,7 @@ export function renderAllEmployeesTable(employees) {
     tdCard.className = 'text-center';
     tdCard.textContent = emp.LeaveCardNumber || '-';
 
+    // تاريخ آخر إجازة مسجلة
     tdLastDate.className = 'text-center';
     if (emp.LastLeaveStartDate) {
       tdLastDate.textContent = `${emp.LastLeaveStartDate} إلى ${emp.LastLeaveEndDate || ''}`;
@@ -80,6 +100,7 @@ export function renderAllEmployeesTable(employees) {
 
     tdLastType.textContent = emp.LastLeaveTypeName || '-';
 
+    // شارات الحالة (نشط / مجمّد / منقول)
     tdStatus.className = 'text-center';
     const statusSpan = document.createElement('span');
     statusSpan.className = emp.IsActive === 1 ? 'status-badge-active' : 'status-badge-inactive';
@@ -100,7 +121,7 @@ export function renderAllEmployeesTable(employees) {
 
     tdActions.className = 'text-center table-actions-cell';
 
-    // Time Card quick button
+    // زر الوصول السريع لكروت الزمنية (Time Cards)
     const btnTimeCard = document.createElement('button');
     btnTimeCard.type = 'button';
     btnTimeCard.className = 'btn-action-icon doc-btn-badge-tc';
@@ -114,7 +135,7 @@ export function renderAllEmployeesTable(employees) {
       });
     });
 
-    // Leave Card quick button
+    // زر الوصول السريع لكروت الإجازات (Leave Cards)
     const btnLeaveCard = document.createElement('button');
     btnLeaveCard.type = 'button';
     btnLeaveCard.className = 'btn-action-icon doc-btn-badge-lc';
@@ -128,7 +149,7 @@ export function renderAllEmployeesTable(employees) {
       });
     });
 
-    // Edit employee button
+    // زر الانتقال المباشر لشاشة إدارة وتعديل الموظف
     const btnEdit = document.createElement('button');
     btnEdit.type = 'button';
     btnEdit.className = 'btn-action-secondary';
@@ -151,6 +172,10 @@ export function renderAllEmployeesTable(employees) {
   allEmployeesTbody.appendChild(fragment);
 }
 
+/**
+ * استدعاء بيانات الصفحة المحددة من جدول الموظفين عبر IPC وتحديث المكون
+ * @param {number} page رقم الصفحة المطلوبة
+ */
 export async function loadAllEmployees(page = _pagination?.getCurrentPage() || 1) {
   if (!allEmployeesTbody) return;
 
@@ -189,6 +214,7 @@ export async function loadAllEmployees(page = _pagination?.getCurrentPage() || 1
 }
 
 /**
+ * تهيئة التبويب وتوصيل وحدة التحكم بالصفحات وحقول البحث وأزرار التصدير
  * Initializes the All Employees tab.
  * @param {object} options
  * @param {Function} options.onManageEmployee
@@ -201,7 +227,7 @@ export function initEmployeesTab(options = {}) {
 
   _onManageEmployee = options.onManageEmployee || null;
 
-  // Initialize unified pagination controller (15 rows)
+  // تهيئة مكون التحكم بالصفحات الموحد (15 صفاً في الصفحة)
   _pagination = createPaginationController({
     infoEl: 'all-employees-pagination-info',
     pageIndicatorEl: 'all-employees-page-indicator',
@@ -214,6 +240,7 @@ export function initEmployeesTab(options = {}) {
     onPageChange: (newPage) => loadAllEmployees(newPage)
   });
 
+  // البحث التلقائي المؤجل (Debounce at 300ms)
   if (allEmployeesSearchInput) {
     allEmployeesSearchInput.addEventListener('input', () => {
       clearTimeout(_allEmpsDebounceTimer);
@@ -225,6 +252,7 @@ export function initEmployeesTab(options = {}) {
     });
   }
 
+  // تصدير كشف الموظفين إلى ملف Excel
   if (btnExportAllEmployees) {
     btnExportAllEmployees.addEventListener('click', async () => {
       btnExportAllEmployees.disabled = true;
@@ -257,3 +285,4 @@ export function initEmployeesTab(options = {}) {
     });
   }
 }
+

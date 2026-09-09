@@ -1,17 +1,24 @@
 // ============================================================
 //  ipc/leaveHandlers.js  –  Leave Engine IPC Handlers
-//  Responsibilities:
-//    • Register the three leave-engine IPC channels
-//    • Enforce the uniform { success, data|error } response envelope
-//    • Never crash the Main process — all errors are caught and
-//      serialised back to the Renderer as { success: false, error }
+//  طبقة معالجة قنوات الاتصال الداخلي (IPC) لمحرك الإجازات
 //
-//  Channels exposed:
-//    leave:getRegularBalance   – calculateRegularLeaveBalance
-//    leave:submitSickLeave     – processSickLeave
-//    leave:submitRegularLeave  – balance check + transactional INSERT
+//  Responsibilities / المسؤوليات الأساسية:
+//    • تسجيل قنوات IPC لإدارة الإجازات (الاعتيادية، المرضية، التعديل، والحذف).
+//    • فرض غلاف استجابة موحد { success: true, data } أو { success: false, error }.
+//    • حماية العملية الرئيسية من الانهيار (Crash-Proof) ومعالجة الأخطاء بأمان.
+//    • التحقق الصارم من التواريخ التقويمية وأطوال النصوص لمنع استنزاف الذاكرة.
 //
-//  This module is stateless.  The live `db` instance is injected
+//  Channels exposed / القنوات المسجلة:
+//    leave:getRegularBalance        – احتساب رصيد الإجازة الاعتيادية
+//    leave:submitSickLeave          – معالجة الإجازة المرضية وتوزيعها على الوعاءين
+//    leave:submitRegularLeave       – تسجيل الإجازة الاعتيادية والخصم داخل معاملة ذرية
+//    leave:getActiveToday           – جلب الإجازات السارية اليوم
+//    leave:getActiveTodayPaginated  – جلب الإجازات السارية اليوم مقسمة لصفحات
+//    leave:getHistory               – جلب السجل التاريخي لإجازات موظف
+//    leave:delete                   – حذف قيد إجازة واستعادة الرصيد
+//    leave:update                   – تعديل قيد إجازة مع تتبع اسم المعدل
+//
+//  This module is stateless. The live `db` instance is injected
 //  at startup so the service stays testable without Electron running.
 // ============================================================
 
@@ -25,10 +32,13 @@ const { createSafeHandler } = require('../utils/ipcHandlerHelper');
 const { safeHandle } = createSafeHandler('LeaveHandlers');
 
 // ──────────────────────────────────────────────────────────────
-//  CRIT-2 FIX: Input Validators
+//  Input Validators / دوال التحقق الصارم من المدخلات
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * التحقق الصارم من صحة التاريخ بصيغة YYYY-MM-DD:
+ * يتحقق من البنية الشكلية وصحة التاريخ تقويمياً (يرفض مثلاً 30 فبراير).
+ *
  * Returns true only if `dateString` is both structurally valid
  * (YYYY-MM-DD regex) AND calendrically real (e.g. rejects '2024-02-30').
  * Uses UTC parsing to avoid locale-timezone day-shift false positives.
@@ -41,11 +51,14 @@ const isValidDate = (dateString) =>
   /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(dateString) &&
   !isNaN(new Date(dateString).getTime());
 
-/** Maximum character length for free-text fields (notes, descriptions). */
+/** Maximum character length for free-text fields (notes, descriptions). / الحد الأقصى للنصوص الحرة */
 const MAX_TEXT_LENGTH = 500;
 
 // ──────────────────────────────────────────────────────────────
 //  registerLeaveHandlers(ipcMain, db)
+//
+//  تسجيل قنوات IPC الخاصة بالإجازات:
+//  تُستدعى مرة واحدة فقط عند إقلاع التطبيق في main.js بعد اكتمال تهيئة db.
 //
 //  Call this ONCE after db.initialize() in main.js.
 //
@@ -56,8 +69,7 @@ function registerLeaveHandlers(ipcMain, db) {
 
   // ── leave:getRegularBalance ──────────────────────────────────
   //
-  //  Returns the employee's current available regular-leave balance
-  //  plus full diagnostic data (grossEarned, taken, netServiceDays…).
+  //  استرجاع تفاصيل رصيد الإجازة الاعتيادية للموظف (المكتسب، المستهلك، المتاح، والنهائي).
   //
   //  Renderer payload:  employeeId  {number}
   //  Response data:     { finalBalance, grossEarnedBalance, regularLeavesTaken, … }
@@ -76,11 +88,11 @@ function registerLeaveHandlers(ipcMain, db) {
 
   // ── leave:submitSickLeave ────────────────────────────────────
   //
-  //  Validates and atomically processes a sick-leave request,
-  //  deducting from 100%/50% pay buckets in the correct order.
+  //  تسجيل إجازة مرضية مع توزيع الأيام تلقائياً على وعاء 100% ثم 50%:
+  //  تتحقق من صحة التواريخ والأيام وأرقام المذكرات والأوامر قبل التمرير إلى محرك الخدمة.
   //
   //  Renderer payload:
-  //    { employeeId, requestedDays, startDate, endDate }
+  //    { employeeId, requestedDays, startDate, endDate, leaveApprover, requestDate, memoNumber, memoDate, orderNumber, orderDate }
   //  Response data:
   //    { leaveId, daysAt100, daysAt50, newBalance100, newBalance50 }
   // ────────────────────────────────────────────────────────────
@@ -100,7 +112,7 @@ function registerLeaveHandlers(ipcMain, db) {
         orderDate,
       } = payload ?? {};
 
-      // Surface-level guard before handing off to the service
+      // Surface-level guard before handing off to the service / التحقق الهيكلي من المدخلات
       if (!payload || typeof payload !== 'object') {
         throw new Error('leave:submitSickLeave: payload must be an object.');
       }
@@ -110,8 +122,7 @@ function registerLeaveHandlers(ipcMain, db) {
       if (!Number.isInteger(requestedDays) || requestedDays <= 0) {
         throw new Error(`leave:submitSickLeave: invalid requestedDays (${requestedDays}).`);
       }
-      // CRIT-2 FIX: Strict ISO-8601 date validation — rejects missing,
-      // non-string, structurally invalid, and calendrically impossible dates.
+      // Strict ISO-8601 date validation / التحقق الصارم من التواريخ
       if (!isValidDate(startDate)) {
         throw new Error(
           `leave:submitSickLeave: invalid startDate "${startDate}". ` +
@@ -160,13 +171,10 @@ function registerLeaveHandlers(ipcMain, db) {
 
   // ── leave:submitRegularLeave ─────────────────────────────────
   //
-  //  1. Calls calculateRegularLeaveBalance to get finalBalance.
-  //  2. Rejects if requestedDays > finalBalance.
-  //  3. On approval, executes a db.transaction() that:
-  //       a. Re-verifies the balance inside the transaction (prevents
-  //          TOCTOU race if two requests land simultaneously).
-  //       b. INSERTs the leave row (DB triggers still fire:
-  //          gender guard, inactive-employee guard, audit log).
+  //  تسجيل إجازة اعتيادية (أو سبب آخر / دورة تدريبية):
+  //  1. التحقق من المدخلات ومنع التداخل الزمني مع إجازات أخرى.
+  //  2. تنفيذ حركة ذرية تعيد فحص الرصيد لحظياً داخل Transaction لمنع مشكلة التزامن (Race Condition).
+  //  3. خصم الرصيد وإدراج السجل وتوثيق العملية في سجل التدقيق والأمان.
   //
   //  Renderer payload:
   //    { employeeId, requestedDays, startDate, endDate, orderRef?, notes?, requestDate?, memoNumber?, memoDate?, orderNumber?, orderDate? }
@@ -192,7 +200,7 @@ function registerLeaveHandlers(ipcMain, db) {
         orderDate,
       } = payload ?? {};
 
-      // ── Input guards ─────────────────────────────────────────
+      // ── Input guards / فحص قيود المدخلات ─────────────────────
       if (!payload || typeof payload !== 'object') {
         throw new Error('leave:submitRegularLeave: payload must be an object.');
       }
@@ -204,14 +212,14 @@ function registerLeaveHandlers(ipcMain, db) {
           `leave:submitRegularLeave: invalid requestedDays (${requestedDays}).`
         );
       }
-      // CRIT-2 FIX: Strict ISO-8601 date validation.
+      // Strict ISO-8601 date validation / فحص صحة التواريخ
       if (!isValidDate(startDate)) {
         throw new Error('يرجى إدخال تاريخ بداية الإجازة بصيغة صحيحة (YYYY-MM-DD).');
       }
       if (!isValidDate(endDate)) {
         throw new Error('يرجى إدخال تاريخ نهاية الإجازة بصيغة صحيحة (YYYY-MM-DD).');
       }
-      // CRIT-2 FIX: Cap free-text fields to prevent memory exhaustion
+      // Cap free-text fields to prevent memory exhaustion / تحديد أقصى طول للنصوص الحرة
       if (notes != null && typeof notes === 'string' && notes.length > MAX_TEXT_LENGTH) {
         throw new Error(`حقل الملاحظات طويل جداً (الحد الأقصى ${MAX_TEXT_LENGTH} حرف).`);
       }
@@ -229,7 +237,7 @@ function registerLeaveHandlers(ipcMain, db) {
       const validOrderNumber = validateOrderNumber(orderNumber, 'رقم الأمر الإداري');
       const validOrderRef = validateOrderNumber(orderRef, 'رقم الأمر الإداري');
 
-      // ── Resolve the target LeaveType ─────────────────────────
+      // ── Resolve the target LeaveType / استرجاع نوع الإجازة وتعيينه ──
       let targetLeaveName = typeof leaveType === 'string' ? leaveType.trim() : '';
 
       // Legacy fallback mapping for backward compatibility
@@ -252,7 +260,7 @@ function registerLeaveHandlers(ipcMain, db) {
       targetLeaveName = targetLeaveType.Name;
       const isBalanced = (targetLeaveName === 'إجازة اعتيادية' || targetLeaveName === 'سبب آخر');
 
-      // ── Step 0: Check Overlap (Strict Prevention) ───────────
+      // ── Step 0: Check Overlap (Strict Prevention) / فحص منع التداخل ─
       const overlap = LeaveService.checkLeaveOverlap(employeeId, startDate, endDate, null, db);
       if (overlap) {
         throw new Error(
@@ -260,12 +268,12 @@ function registerLeaveHandlers(ipcMain, db) {
         );
       }
 
-      // ── Atomic transaction ──────────────────────────────────
+      // ── Atomic transaction / المعاملة الذرية لتسجيل الإجازة ──
       const _run = db.transaction(() => {
         let finalBalance = null;
         let remainingBalance = null;
 
-        // Re-check overlap inside transaction for concurrency safety
+        // Re-check overlap inside transaction for concurrency safety / إعادة فحص التداخل داخل المعاملة
         const txOverlap = LeaveService.checkLeaveOverlap(employeeId, startDate, endDate, null, db);
         if (txOverlap) {
           throw new Error(
@@ -276,6 +284,7 @@ function registerLeaveHandlers(ipcMain, db) {
         if (isBalanced) {
           // Step A: Re-compute balance inside the transaction so the
           //         check and the insert are one atomic unit.
+          // إعادة احتساب الرصيد داخل المعاملة لضمان كفايته في البيئات المتزامنة
           const balanceResult = LeaveService.calculateRegularLeaveBalance(
             employeeId,
             db
@@ -283,7 +292,7 @@ function registerLeaveHandlers(ipcMain, db) {
 
           finalBalance = balanceResult.finalBalance;
 
-          // Step B: Reject if insufficient balance
+          // Step B: Reject if insufficient balance / رفض الطلب في حال عدم كفاية الرصيد
           if (requestedDays > finalBalance) {
             throw new Error(
               `رصيد الإجازات الاعتيادية غير كافٍ (المطلوب: ${requestedDays} يوم، المتبقي: ${finalBalance} يوم).`
@@ -293,7 +302,7 @@ function registerLeaveHandlers(ipcMain, db) {
           remainingBalance = finalBalance - requestedDays;
         }
 
-        // Step C: INSERT into Leaves
+        // Step C: INSERT into Leaves / إدراج السجل في جدول Leaves
         //  DB triggers (gender, inactive-employee, audit) fire automatically.
         const insertResult = db
           .prepare(`
@@ -320,6 +329,7 @@ function registerLeaveHandlers(ipcMain, db) {
 
         const newLeaveId = Number(insertResult.lastInsertRowid);
 
+        // توثيق تسجيل الإجازة في سجل التدقيق والأمان
         AuditService.logAction(db, {
           actionType: 'INSERT',
           entityType: 'Leave',
@@ -356,6 +366,9 @@ function registerLeaveHandlers(ipcMain, db) {
   );
 
   // ── leave:getActiveToday ─────────────────────────────────────
+  //
+  //  استرجاع الإجازات السارية اليوم مع حساب أيام المباشرة والأيام المتبقية.
+  // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:getActiveToday',
     safeHandle(() => {
@@ -364,6 +377,9 @@ function registerLeaveHandlers(ipcMain, db) {
   );
 
   // ── leave:getActiveTodayPaginated ─────────────────────────────
+  //
+  //  استرجاع الإجازات السارية اليوم مقسمة لصفحات مع البحث والفرز.
+  // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:getActiveTodayPaginated',
     safeHandle((options = {}) => {
@@ -372,6 +388,9 @@ function registerLeaveHandlers(ipcMain, db) {
   );
 
   // ── leave:getHistory ──────────────────────────────────────────
+  //
+  //  استرجاع الأرشيف التاريخي الكامل لإجازات موظف محدد.
+  // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:getHistory',
     safeHandle((payload) => {
@@ -384,6 +403,9 @@ function registerLeaveHandlers(ipcMain, db) {
   );
 
   // ── leave:delete ──────────────────────────────────────────────
+  //
+  //  حذف قيد إجازة واستعادة الرصيد إذا كانت مرضية وتوثيق العملية في سجل الأمان.
+  // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:delete',
     safeHandle((payload) => {
@@ -397,8 +419,7 @@ function registerLeaveHandlers(ipcMain, db) {
 
   // ── leave:update ──────────────────────────────────────────────
   //
-  //  Updates an existing leave record, checks balances, records
-  //  the mandatory modifier name in AuditLogs, and returns result.
+  //  تعديل قيد إجازة قائم مع إلزامية إدخال اسم القائم بالتعديل وتتبع التغييرات.
   // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:update',
@@ -461,5 +482,3 @@ function registerLeaveHandlers(ipcMain, db) {
 }
 
 module.exports = { registerLeaveHandlers };
-
-

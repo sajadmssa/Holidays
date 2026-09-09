@@ -1,12 +1,14 @@
 // ============================================================
-//  employeeDocumentsModal.js – Employee Documents & Cards Management Modal
-//  Handles TIME_CARD (🟨 Amber) & LEAVE_CARD (🟦 Blue) version history
+//  employeeDocumentsModal.js – نافذة إدارة مستندات وكروت الموظف
+//  تتولى إدارة كروت الزمنية (🟨 TIME_CARD) وكروت الإجازات (🟦 LEAVE_CARD)،
+//  وتسجيل النسخ والسنوات مع إمكانية الفتح المباشر، الطباعة الصامتة، والحذف
 // ============================================================
 
 'use strict';
 
 import { showToast, showConfirm } from './uiHelpers.js';
 
+// عناصر واجهة مستخدم النافذة المنبثقة للمستندات
 let documentsModal = null;
 let btnCloseModal = null;
 let modalTitle = null;
@@ -20,6 +22,7 @@ let btnImportDocument = null;
 let documentsContainer = null;
 let documentsStatus = null;
 
+// متغيرات حالة الموظف المختار والنوع النشط وقائمة المستندات
 let _currentEmployeeId = null;
 let _currentEmployeeName = '';
 let _currentDocType = 'TIME_CARD'; // 'TIME_CARD' | 'LEAVE_CARD'
@@ -27,9 +30,9 @@ let _documentsList = [];
 let _onDocumentChanged = null;
 
 /**
- * Formats bytes to human-readable string.
- * @param {number} bytes
- * @returns {string}
+ * تنسيق حجم الملف من البايت إلى وحدات مقروءة وسهلة الفهم (B, KB, MB, GB)
+ * @param {number} bytes - حجم الملف بالبايت
+ * @returns {string} الحجم المنسق
  */
 function formatFileSize(bytes) {
   if (!bytes || bytes <= 0) return '0 B';
@@ -40,8 +43,8 @@ function formatFileSize(bytes) {
 }
 
 /**
- * Formats extension for badge display.
- * @param {string} ext
+ * تنسيق امتداد الملف لعرضه كشارة نوع (PDF, DOCX, PNG, JPG, إلخ)
+ * @param {string} ext - الامتداد الأصلي للملف
  * @returns {string}
  */
 function formatExtensionBadge(ext) {
@@ -50,9 +53,9 @@ function formatExtensionBadge(ext) {
 }
 
 /**
- * Sets loading / error status in modal.
- * @param {string} message
- * @param {'loading'|'error'|'hidden'} state
+ * تحديث رسالة حالة النافذة (جارٍ التحميل / خطأ / إخفاء)
+ * @param {string} message - نص الرسالة
+ * @param {'loading'|'error'|'hidden'} state - الحالة
  */
 function setModalStatus(message, state) {
   if (!documentsStatus) return;
@@ -66,7 +69,7 @@ function setModalStatus(message, state) {
 }
 
 /**
- * Updates document count badges on modal type tabs.
+ * تحديث شارات العداد على أزرار التبويبات (كرت زمنية / كرت إجازة)
  */
 function updateTabBadges() {
   const timeCount = _documentsList.filter(d => d.DocumentType === 'TIME_CARD').length;
@@ -77,7 +80,7 @@ function updateTabBadges() {
 }
 
 /**
- * Renders the document versions for the currently active tab.
+ * رسم وعرض جدول نسخ المستندات للتبويب المختار حالياً مع أزرار الفتح والطباعة والحذف
  */
 function renderDocumentsView() {
   if (!documentsContainer) return;
@@ -87,12 +90,13 @@ function renderDocumentsView() {
   const typeArabic = isTimeCard ? 'كرت الزمنية' : 'كرت الإجازة';
   const themeClass = isTimeCard ? 'doc-theme-timecard' : 'doc-theme-leavecard';
 
-  // Highlight active tab
+  // تحديد التبويب النشط بصرياً
   if (btnTabTimeCard) btnTabTimeCard.classList.toggle('active', isTimeCard);
   if (btnTabLeaveCard) btnTabLeaveCard.classList.toggle('active', !isTimeCard);
 
   const filteredDocs = _documentsList.filter(d => d.DocumentType === _currentDocType);
 
+  // في حال عدم وجود مستندات مسجلة لهذا الموظف
   if (filteredDocs.length === 0) {
     const emptyCard = document.createElement('div');
     emptyCard.className = `doc-empty-state ${themeClass}`;
@@ -283,8 +287,8 @@ function renderDocumentsView() {
 }
 
 /**
- * Loads documents from backend for a specific employee.
- * @param {number} employeeId
+ * جلب قائمة كافة المستندات المسجلة للموظف المختار من الواجهة الخلفية وتحديث الشارات والجدول
+ * @param {number} employeeId - المعرف الفريد للموظف
  */
 export async function loadEmployeeDocuments(employeeId) {
   if (!employeeId) return;
@@ -312,8 +316,9 @@ export async function loadEmployeeDocuments(employeeId) {
 }
 
 /**
- * Handles adding or importing a document.
- * @param {boolean} isImport
+ * معالجة رفع ملف جديد أو استيراده من مسار خارجي (فلاش USB أو مجلد خارجي)
+ * مع نسخ الملف بشكل آمن إلى مجلد التخزين وتوثيق بياناته
+ * @param {boolean} [isImport=false] - هل العملية استيراد خارجي أم إضافة محلية
  */
 async function handleAddOrImportDocument(isImport = false) {
   if (!_currentEmployeeId) {
@@ -369,12 +374,12 @@ async function handleAddOrImportDocument(isImport = false) {
 }
 
 /**
- * Opens the employee documents modal for a specific employee.
+ * فتح النافذة المنبثقة لمستندات وكروت موظف معين وتعيين التبويب الافتراضي
  *
  * @param {object} options
- * @param {number} options.employeeId
- * @param {string} [options.employeeName='']
- * @param {'TIME_CARD'|'LEAVE_CARD'} [options.defaultType='TIME_CARD']
+ * @param {number} options.employeeId - معرف الموظف
+ * @param {string} [options.employeeName=''] - اسم الموظف
+ * @param {'TIME_CARD'|'LEAVE_CARD'} [options.defaultType='TIME_CARD'] - نوع الكرت الافتراضي
  */
 export function openEmployeeDocumentsModal({ employeeId, employeeName = '', defaultType = 'TIME_CARD' }) {
   if (!employeeId) return;
@@ -397,9 +402,9 @@ export function openEmployeeDocumentsModal({ employeeId, employeeName = '', defa
 }
 
 /**
- * Initializes the Employee Documents Modal controller.
- * @param {object} options
- * @param {Function} [options.onDocumentChanged]
+ * تهيئة وحدة التحكم بالنافذة المنبثقة للمستندات وربط أزرار التبويبات والإضافة والاستيراد
+ * @param {object} [options={}]
+ * @param {Function} [options.onDocumentChanged] - دالة رد الاتصال عند إضافة أو حذف مستند
  */
 export function initEmployeeDocumentsModal(options = {}) {
   _onDocumentChanged = options.onDocumentChanged || null;

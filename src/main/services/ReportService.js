@@ -1,10 +1,13 @@
 // ============================================================
 //  services/ReportService.js  –  Excel Export & Reporting Engine
-//  Responsibilities:
-//    • Fetch employee header data and leave records from SQLite
-//    • Apply official custom department headers & 3-box approval footers
-//    • Generate styled, RTL ExcelJS workbooks for all reports
-//    • Compute critical leave balances & yearly accumulated leave metrics
+//  محرك تصدير التقارير الإحصائية وتوليد مصنفات Excel الرسمية
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • استرجاع بيانات الموظفين وسجلات الإجازات من SQLite وتحليلها بدقة.
+//    • تطبيق الترويسة الإدارية الرسمية المعتمدة (جمهورية العراق + اسم الدائرة + رقم الإشارة المرجعي والختم الزمني).
+//    • تطبيق صندوق التوقيعات الثلاثي الرسمي (إعداد وتنظيم، تدقيق، مصادقة) في أسفل كافة الكشوفات.
+//    • إنشاء وتنسيق مصنفات ExcelJS الفاخرة بالاتجاه العربي (Right-to-Left RTL) مع ضبط مقاس الطباعة A4.
+//    • احتساب مؤشرات الأرصدة الحرجة وتراكم الإجازات السنوية ومؤشرات المنقولين خارجياً بكفاءة عالية.
 // ============================================================
 
 'use strict';
@@ -110,17 +113,27 @@ function getExportDateTimeString() {
 }
 
 /**
- * Applies the official top header (Department, Title, Reference Number & Timestamp, and optional MetaInfo).
- *
- * @param {import('exceljs').Worksheet} ws
- * @param {{
- *   title: string,
- *   metaInfo?: string | null,
- *   db: import('better-sqlite3').Database,
- *   colCount: number
- * }} params
- * @returns {number} The next row number where the table headers should start.
- */
+// ──────────────────────────────────────────────────────────────
+//  applyOfficialHeader
+//
+//  تطبيق الترويسة الإدارية الرسمية لكافة كشوفات النظام:
+//  1. اسم الجهة/الدائرة الرسمية من إعدادات النظام (_AppSettings).
+//  2. عنوان الكشف الرئيسي بخط عريض وخلفية كحلية ملكية Navy Blue.
+//  3. شريط رقم الإشارة المرجعي التلقائي (REF-...) والختم الزمني للاستخراج.
+//  4. شريط البيانات الوصفية للموظف أو الكشف إن وُجدت.
+//
+//  Applies the official top header (Department, Title, Reference Number & Timestamp, and optional MetaInfo).
+//
+//  @param {import('exceljs').Worksheet} ws
+//  @param {{
+//    title: string,
+//    metaInfo?: string | null,
+//    db: import('better-sqlite3').Database,
+//    colCount: number
+//  }} params
+//  @returns {number} The next row number where the table headers should start.
+// ──────────────────────────────────────────────────────────────
+*/
 function applyOfficialHeader(ws, { title, metaInfo = null, db, colCount }) {
   const deptName = getDepartmentName(db);
   const refNo = generateReferenceNumber();
@@ -179,11 +192,21 @@ function applyOfficialHeader(ws, { title, metaInfo = null, db, colCount }) {
 }
 
 /**
- * Applies the official 3-box signature approval block at the bottom of the worksheet.
- *
- * @param {import('exceljs').Worksheet} ws
- * @param {number} colCount
- */
+// ──────────────────────────────────────────────────────────────
+//  applyOfficialFooterApprovals
+//
+//  تطبيق صندوق التوقيعات والمصادقات الثلاثي الرسمي في أسفل الكشف:
+//  - الصندوق 1: إعداد وتنظيم الكشف (الموظف المختص، الاسم، التوقيع، التاريخ).
+//  - الصندوق 2: تدقيق الحسابات / الموارد البشرية (المدقق المختص).
+//  - الصندوق 3: المصادقة والاعتماد (مدير الدائرة / صاحب الصلاحية).
+//  يتم ضبط وتوزيع الصناديق تلقائياً على كامل عرض الأعمدة.
+//
+//  Applies the official 3-box signature approval block at the bottom of the worksheet.
+//
+//  @param {import('exceljs').Worksheet} ws
+//  @param {number} colCount
+// ──────────────────────────────────────────────────────────────
+*/
 function applyOfficialFooterApprovals(ws, colCount) {
   // Add 2 empty spacer rows
   ws.addRow([]);
@@ -267,6 +290,11 @@ function applyOfficialFooterApprovals(ws, colCount) {
 
 // ══════════════════════════════════════════════════════════════
 //  exportEmployeeHistory
+//
+//  تصدير السجل التاريخي الكامل لإجازات موظف محدد إلى Excel:
+//  - يجلب بيانات الموظف (الاسم، الوظيفة، موقع العمل، رقم الكرت، تاريخ التعيين).
+//  - يسترجع كافة الإجازات مرتبة زمنياً من الأحدث إلى الأقدم مع تفاصيل المذكرات والأوامر الإدارية.
+//  - يطبق الترويسة الرسمية، تلوين الصفوف بالتناوب (Zebra striping)، وخلاصة عدد الإجازات ومجموع الأيام.
 // ══════════════════════════════════════════════════════════════
 async function exportEmployeeHistory(employeeId, filePath, db) {
   const employee = db
@@ -421,6 +449,12 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
 
 // ══════════════════════════════════════════════════════════════
 //  exportAllEmployees
+//
+//  تصدير القائمة الشاملة لكافة الموظفين المسجلين بالنظام إلى ملف Excel:
+//  - يدعم فلترة وتصفية البحث المطبق بالواجهة.
+//  - يدرج أعمدة الرقم الوظيفي، الاسم، الوظيفة، موقع العمل، رقم الكرت، المسؤول،
+//    وحالة التفعيل والنقل، وتفاصيل آخر إجازة متمتع بها.
+//  - يختم الكشف بصندوق التوقيعات الثلاثي الرسمي.
 // ══════════════════════════════════════════════════════════════
 async function exportAllEmployees(arg1, arg2, arg3) {
   let search = '';
@@ -601,6 +635,10 @@ async function exportAllEmployees(arg1, arg2, arg3) {
 
 // ══════════════════════════════════════════════════════════════
 //  exportActiveLeavesToExcel
+//
+//  تصدير كشف الموظفين المجازين حالياً (في تاريخ اليوم) إلى Excel:
+//  - يسترجع الإجازات السارية لحظياً مع حساب تاريخ الاستئناف المتوقع والأيام المتبقية.
+//  - يُميّز الإجازات التي توشك على الانتهاء بتنسيق بصري واضح لتسهيل المتابعة الإدارية.
 // ══════════════════════════════════════════════════════════════
 async function exportActiveLeavesToExcel(filePath, db) {
   const activeLeaves = getActiveLeavesForToday(db);
@@ -768,9 +806,9 @@ EmployeeCalculations AS (
 // ══════════════════════════════════════════════════════════════
 //  getCriticalAndAccumulatedLeaves
 //
-//  Computes:
-//    1. Critical balances: active employees with final regular balance <= threshold (Single Query)
-//    2. Accumulated leave metrics for the specified year (Aggregated Query)
+//  محرك التحليل الإحصائي للأرصدة وتراكم الإجازات:
+//    1. الأرصدة الحرجة: حصر الموظفين الذين يقل رصيد إجازاتهم الاعتيادية المتبقي عن الحد الحرج المحدد (افتراضياً <= 5 أيام).
+//    2. تراكم الإجازات السنوي: تجميع إجمالي عدد الإجازات وأيامها المستهلكة لكل موظف خلال السنة المالية المحددة.
 // ══════════════════════════════════════════════════════════════
 function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().getFullYear() } = {}) {
   const safeThreshold = Number.isInteger(Number(threshold)) ? Number(threshold) : 5;
@@ -875,6 +913,8 @@ function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().
  *   totalActiveEmployees: number,
  *   threshold: number
  * }}
+/**
+ * استعلام الأرصدة الحرجة مقسماً إلى صفحات مع فلترة البحث (Server-side Pagination).
  */
 function getCriticalBalancesPaginated(db, { threshold = 5, page = 1, pageSize = 15, search = '' } = {}) {
   const safeThreshold = Number.isInteger(Number(threshold)) ? Number(threshold) : 5;
@@ -980,6 +1020,8 @@ function getCriticalBalancesPaginated(db, { threshold = 5, page = 1, pageSize = 
  *   year: number,
  *   summary: { totalDaysThisYear: number, totalLeavesThisYear: number }
  * }}
+/**
+ * استعلام تراكم الإجازات السنوي مقسماً إلى صفحات مع فلترة البحث (Server-side Pagination).
  */
 function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), page = 1, pageSize = 15, search = '' } = {}) {
   const targetYear = Number.isInteger(Number(year)) ? Number(year) : new Date().getFullYear();
@@ -1075,9 +1117,9 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
 // ══════════════════════════════════════════════════════════════
 //  exportCriticalReportToExcel
 //
-//  Exports a multi-sheet Excel report:
-//    • Sheet 1: Critical Balance Alerts (<= threshold)
-//    • Sheet 2: Yearly Leave Accumulation Summary
+//  تصدير تقرير الأرصدة الحرجة وتراكم الإجازات السنوية إلى مصنف Excel رسمي:
+//    • الورقة 1 (Sheet 1): تنبيهات الأرصدة الحرجة (الموظفون الذين يقل رصيدهم عن الحد الحرج).
+//    • الورقة 2 (Sheet 2): خلاصة تراكم الإجازات للموظفين خلال السنة المحددة.
 // ══════════════════════════════════════════════════════════════
 async function exportCriticalReportToExcel(filePath, db, { threshold = 5, year = new Date().getFullYear() } = {}) {
   const reportData = getCriticalAndAccumulatedLeaves(db, { threshold, year });
@@ -1310,11 +1352,10 @@ async function exportCriticalReportToExcel(filePath, db, { threshold = 5, year =
 // ══════════════════════════════════════════════════════════════
 //  exportTransferredEmployeesToExcel
 //
-//  Exports an official styled Excel report of all employees
-//  flagged as externally transferred (IsTransferred = 1).
-//
-//  @param {string} filePath
-//  @param {import('better-sqlite3').Database} db
+//  تصدير الكشف الرسمي لكافة الموظفين المنقولين خارجياً (IsTransferred = 1):
+//  - يسترجع بيانات الموظف، موقع العمل، رقم وتاريخ الأمر الإداري الخاص بالنقل، وملاحظات النقل.
+//  - ينسق الأعمدة بنمط رسمي فاخر (Navy/Gold) مع إبراز أرقام الأوامر الإدارية بصيغة أرقام واضحة.
+//  - يختم الكشف بصف إجمالي عدد المنقولين وبصندوق التوقيعات الثلاثي الرسمي.
 // ══════════════════════════════════════════════════════════════
 async function exportTransferredEmployeesToExcel(filePath, db) {
   if (!db) {

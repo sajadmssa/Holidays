@@ -1,16 +1,16 @@
 // ============================================================
 //  services/DocumentStorageService.js – Secure Document Storage Engine
-//  Main Process ONLY
-//  Responsibilities:
-//    • Calculate dynamic storage root from _AppSettings or %APPDATA% default
-//    • Build safe folder hierarchy: [StorageRoot]/EMP_[ID]/time_cards|leave_cards
-//    • Generate safe unique filenames: [TYPE]_[YEAR]_[TIMESTAMP]_[RANDOM_HEX].[EXT]
-//    • Strict Path Traversal prevention (path.resolve + prefix check)
-//    • Whitelist extensions (pdf, jpg, jpeg, png, webp)
-//    • Magic Bytes header inspection to detect disguised files
-//    • File size validation (<= 25MB default)
-//    • Copy files for addition / external import (NEVER deletes original file)
-//    • Test write/read permissions on storage paths
+//  محرك التخزين الآمن لمستندات وكروت الموظفين (Storage & File Security)
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • احتساب مسار التخزين الجذري ديناميكياً من إعدادات النظام أو المجلد الافتراضي في %APPDATA%.
+//    • بناء تسلسل شجري آمن للمجلدات: [StorageRoot]/EMP_[ID]/time_cards|leave_cards.
+//    • توليد أسماء ملفات فريدة ومشفرة عشوائياً: [TYPE]_[YEAR]_[TIMESTAMP]_[RANDOM_HEX].[EXT].
+//    • حماية صارمة ضد ثغرات تخطي المسارات (Path Traversal Prevention) عبر الفحص المعياري للمسار.
+//    • القائمة البيضاء للامتدادات المصرح بها (PDF, JPG, JPEG, PNG, WEBP) بحد أقصى 25 ميجابايت.
+//    • التحقق الجنائي من التواقيع الثنائية (Magic Bytes Inspection) لكشف الملفات الملغومة أو المزورة.
+//    • نسخ الملفات بأمان مع بقاء الملف الأصلي كما هو دون مساس.
+//    • معالجة وتنظيف الملفات اليتيمة (reconcileOrphanDocuments) الناتجة عن انقطاع الطاقة المفاجئ.
 // ============================================================
 
 'use strict';
@@ -93,6 +93,17 @@ function getStorageRoot(db) {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  validateMagicBytes
+//
+//  فحص التواقيع الثنائية لرأس الملف (Magic Bytes):
+//  يقرأ أول 16 بايت من الملف للتأكد من تطابقه الحقيقي مع الامتداد المزعوم:
+//  - PDF: يبدأ بـ %PDF- (0x25, 0x50, 0x44, 0x46)
+//  - PNG: يبدأ بـ 0x89 50 4E 47 0D 0A 1A 0A
+//  - JPEG: يبدأ بـ FF D8 FF
+//  - WEBP: يحتوي على RIFF و WEBP
+//  يرفض الملف فوراً إذا كان هناك أي اختلاف لمنع تنفيذ أي برمجيات ضارة.
+// ──────────────────────────────────────────────────────────────
  * Validates magic bytes of the file to ensure it matches the claimed extension.
  *
  * @param {string} filePath - Absolute path to file on disk
@@ -152,6 +163,14 @@ function validateMagicBytes(filePath, ext) {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  resolveAbsolutePath
+//
+//  حل المسار المطلق والوقاية الصارمة من ثغرات Path Traversal:
+//  1. يرفض مسارات الشبكة (UNC) أو المسارات التي تحوي '..' أو البايت الصفري '\0'.
+//  2. يطابق المسار المحلول للتأكد بنسبة 100% من وقوعه داخل مجلد التخزين المصرح به Storage Root.
+//  3. يمنع ثغرات Sibling Directory Traversal عبر فحص وجود الفاصل بعد اسم المجلد الجذري.
+// ──────────────────────────────────────────────────────────────
  * Resolves a relative path to an absolute path within Storage Root,
  * strictly preventing Path Traversal and sibling prefix matching bypasses.
  *
@@ -333,6 +352,16 @@ function testStoragePath(targetPath) {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  reconcileOrphanDocuments
+//
+//  المطابقة الجنائية وتنظيف الملفات الفيزيائية اليتيمة (Orphan Files):
+//  تكتشف وتحذف الملفات الموجودة على القرص والتي ليس لها سجل مطابق في جدول EmployeeDocuments
+//  (على سبيل المثال بسبب انقطاع مفاجئ للتيار الكهربائي أثناء عملية الحفظ).
+//  إجراءات الأمان:
+//  - تتجاهل الملفات التي تم تعديلها خلال آخر 60 ثانية لحماية الملفات الجاري حفظها حالياً.
+//  - تحذف المجلدات الفرعية الفارغة تلقائياً بعد إزالة الملفات اليتيمة.
+// ──────────────────────────────────────────────────────────────
  * Scans the document storage directory and removes unindexed/orphan physical files
  * that do not exist in the EmployeeDocuments table (e.g. caused by abrupt power loss).
  *

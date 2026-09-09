@@ -1,15 +1,27 @@
 // ============================================================
 //  services/LeaveService.js  –  Core Leave Calculation Engine
-//  Responsibilities:
-//    • calculateRegularLeaveBalance: net-service-days algorithm
-//    • processSickLeave:             100%/50% bucket deduction
-//                                    wrapped in a db.transaction()
+//  محرك احتساب ومعالجة الإجازات الرئيسي (Leave Business Engine)
 //
-//  CONTRACT:
+//  Responsibilities / المسؤوليات الأساسية:
+//    • calculateRegularLeaveBalance: خوارزمية احتساب رصيد الإجازة الاعتيادية بدقة
+//      وفق أيام الخدمة الفعلية الصافية (يوم مستحق لكل 10 أيام خدمة فعلية مطروحاً
+//      منها الإجازات بدون راتب مع إضافة أيام التسوية وسقف تراكمي أقصاه 180 يوماً).
+//    • processSickLeave: معالجة الإجازة المرضية وتوزيعها على وعاءين ماليين
+//      (28 يوماً براتب كامل 100% ثم 45 يوماً بنصف راتب 50%) داخل معاملة ذرية.
+//    • checkLeaveOverlap: منع التداخل والازدواجية في فترات الإجازات لنفس الموظف.
+//    • getActiveLeavesForToday / getActiveLeavesTodayPaginated: استعلام الإجازات
+//      السارية حالياً مع حساب تاريخ الاستئناف والأيام المتبقية وتقسيم الصفحات.
+//    • getApproachingResumptions: رصد الإجازات التي أوشكت على الانتهاء للتنبيهات.
+//    • updateLeave / deleteLeave: تحديث وحذف الإجازات مع استعادة وتعديل الأرصدة
+//      المتأثرة وتوثيق التعديل واسم القائم به في سجل التدقيق والأمان.
+//
+//  CONTRACT / ميثاق الخدمة:
 //    • Every exported function receives `db` (a better-sqlite3
 //      Database instance) as its LAST argument.  This keeps the
 //      service stateless and easily testable.
+//      (تستقبل كل دالة كائن الاتصال بقاعدة البيانات كآخر وسيط لضمان أنها عديمة الحالة وقابلة للاختبار).
 //    • All operations are synchronous (better-sqlite3 is sync-only).
+//      (العمليات تزامنية بالكامل لضمان الاتساق اللحظي للبيانات).
 //    • Functions throw on any unrecoverable error; callers (IPC
 //      handlers) must wrap calls in try/catch and surface the
 //      error message to the renderer.
@@ -19,33 +31,31 @@
 
 const AuditService = require('./AuditService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
+const LoggerService = require('./LoggerService');
 
 // ──────────────────────────────────────────────────────────────
-//  Business-rule constants
+//  Business-rule constants / ثوابت وقواعد العمل النظامية
 // ──────────────────────────────────────────────────────────────
-const DAYS_PER_EARNED_LEAVE = 10;  // 1 day earned per 10 actual service days
-const MAX_REGULAR_BALANCE   = 180; // Accumulation ceiling (days)
+const DAYS_PER_EARNED_LEAVE = 10;  // 1 day earned per 10 actual service days (يوم إجازة مستحق لكل 10 أيام خدمة فعلية)
+const MAX_REGULAR_BALANCE   = 180; // Accumulation ceiling (days) (السقف الأعلى لتراكم رصيد الإجازة الاعتيادية 180 يوماً)
 
-const SICK_100_MAX          = 28;  // Days paid at 100 %
-const SICK_50_MAX           = 45;  // Additional days paid at 50 %
-const SICK_TOTAL_MAX        = SICK_100_MAX + SICK_50_MAX; // 73 days/year
+const SICK_100_MAX          = 28;  // Days paid at 100 % (أيام الإجازة المرضية براتب كامل 100%)
+const SICK_50_MAX           = 45;  // Additional days paid at 50 % (أيام الإجازة المرضية بنصف راتب 50%)
+const SICK_TOTAL_MAX        = SICK_100_MAX + SICK_50_MAX; // 73 days/year (إجمالي الرصيد المرضي السنوي 73 يوماً)
 
 // Names as stored in LeaveTypes seed data (must match exactly)
+// مسميات أنواع الإجازات كما هي معرّفة في جداول النظام التأسيسية
 const LEAVE_NAME_UNPAID     = 'إجازة بدون راتب';
 const LEAVE_NAME_SICK       = 'إجازة مرضية';
 
 // ──────────────────────────────────────────────────────────────
-//  Internal helpers
+//  Internal helpers / الدوال المساعدة الداخلية
 // ──────────────────────────────────────────────────────────────
 
 /**
- * Returns the number of whole calendar days between two ISO-8601
- * date strings (or Date objects).  Result is (to - from) in days.
- * Throws if either value cannot be parsed.
+ * احتساب عدد الأيام التقويمية بين تاريخين (to - from):
+ * تستخدم التوقيت العالمي المنسق (UTC) لتفادي أخطاء فروق التوقيت المحلي.
  *
-const LoggerService = require('./LoggerService');
-
-/**
  * Calculates calendar days between two dates (to - from).
  * Always returns a non-negative integer.
  *
@@ -61,7 +71,7 @@ function _daysBetween(from, to) {
   if (isNaN(d1.getTime())) throw new Error(`تاريخ البداية غير صالح: ${from}`);
   if (isNaN(d2.getTime())) throw new Error(`تاريخ النهاية غير صالح: ${to}`);
 
-  // Strip time component so we always count whole days
+  // Strip time component so we always count whole days / تجريد الوقت لحساب الأيام الكاملة
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
   const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
 
@@ -69,6 +79,9 @@ function _daysBetween(from, to) {
 }
 
 /**
+ * جلب بيانات نوع الإجازة بالاسم والتحقق من وجوده:
+ * ترمي خطأ صريحاً إذا كان نوع الإجازة غير معرّف بالنظام.
+ *
  * Looks up a LeaveType row by name. Throws if not found.
  *
  * @param {string} name
@@ -88,13 +101,17 @@ function _requireLeaveType(name, db) {
 }
 
 /**
+ * فحص منع تداخل فترات الإجازات (Overlap Guard):
+ * يتحقق مما إذا كانت الفترة المطلوبة تتقاطع مع أي إجازة سابقة مسجلة لنفس الموظف.
+ * يُرجع تفاصيل الإجازة المتعارضة في حال وجود تداخل، أو null إذا كانت الفترة شاغرة.
+ *
  * Checks if the requested date range overlaps with any existing leave for the employee.
  * Returns the conflicting leave details if an overlap exists, or null if clear.
  *
  * @param {number} employeeId
  * @param {string} startDate - YYYY-MM-DD
  * @param {string} endDate   - YYYY-MM-DD
- * @param {number|null} [excludeLeaveId=null] - LeaveID to exclude (when editing)
+ * @param {number|null} [excludeLeaveId=null] - LeaveID to exclude (when editing / استثناء الإجازة الحالية عند التعديل)
  * @param {import('better-sqlite3').Database} db
  * @returns {{ LeaveID: number, LeaveTypeName: string, StartDate: string, EndDate: string, DaysCount: number } | null}
  */
@@ -129,29 +146,26 @@ function checkLeaveOverlap(employeeId, startDate, endDate, excludeLeaveId, db) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PUBLIC API
+//  PUBLIC API / واجهات الاستخدام العامة
 // ══════════════════════════════════════════════════════════════
 
 // ──────────────────────────────────────────────────────────────
 //  calculateRegularLeaveBalance
 //
-//  Calculates the employee's CURRENT AVAILABLE regular-leave balance.
-//  Fixes critical accounting bug: gross earned days must have all
-//  previously-taken regular leaves subtracted before being returned.
-//  Leave type IDs are resolved dynamically from the DB by Arabic name.
+//  احتساب الرصيد الحالي المتاح من الإجازات الاعتيادية للموظف:
+//  الخوارزمية المحاسبية المعتمدة:
+//    1. التحقق من صحة الرقم الوظيفي.
+//    2. جلب تاريخ التعيين وأيام التسوية من جدول الموظفين.
+//    3. احتساب إجمالي الأيام التقويمية من تاريخ التعيين حتى تاريخ اليوم.
+//    4. جلب معرفات الإجازات ديناميكياً من قاعدة البيانات بالاسم العربي لتفادي المعرفات الثابتة.
+//    5. جمع كافة أيام "إجازة بدون راتب" التي قضاها الموظف.
+//    6. جمع كافة أيام "الإجازة الاعتيادية" و "سبب آخر" المستهلكة سابقاً.
+//    7. أيام الخدمة الصافية = إجمالي الأيام التقويمية − أيام الإجازة بدون راتب.
+//    8. إجمالي الرصيد المستحق = floor(أيام الخدمة الصافية / 10).
+//    9. الرصيد المتاح = إجمالي الرصيد المستحق + أيام التسوية − الإجازات المستهلكة.
+//    10. الرصيد النهائي المعتمد = min(max(الرصيد المتاح, 0), 180) بحيث لا يقل عن صفر ولا يتجاوز 180 يوماً.
 //
-//  Algorithm:
-//    1.  Validate employeeId.
-//    2.  Fetch HireDate from Employees.
-//    3.  Calculate total calendar days from HireDate to Today.
-//    4.  Dynamically resolve LeaveTypeID for 'إجازة بدون راتب' (Unpaid)
-//        and 'إجازة اعتيادية' (Regular). Throw if either is missing.
-//    5.  Sum DaysCount of all Unpaid Leave taken by this employee.
-//    6.  Sum DaysCount of all Regular Leave taken by this employee.
-//    7.  Net Service Days = Total Calendar Days − Unpaid Leave Days.
-//    8.  Gross Earned Balance = floor(Net Service Days / 10).
-//    9.  Current Available Balance = Gross Earned − Regular Leaves Taken.
-//    10. Final Balance = min(Current Available Balance, 180)  [never < 0].
+//  Calculates the employee's CURRENT AVAILABLE regular-leave balance.
 //
 //  @param {number} employeeId
 //  @param {import('better-sqlite3').Database} db
@@ -169,12 +183,12 @@ function checkLeaveOverlap(employeeId, startDate, endDate, excludeLeaveId, db) {
 // ──────────────────────────────────────────────────────────────
 function calculateRegularLeaveBalance(employeeId, db) {
 
-  // ── Step 1: Validate input ──────────────────────────────────
+  // ── Step 1: Validate input / التحقق من المدخلات ──────────────
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     throw new Error('الرقم الوظيفي غير صالح.');
   }
 
-  // ── Step 2: Fetch employee record ───────────────────────────
+  // ── Step 2: Fetch employee record / جلب بيانات الموظف وتاريخ التعيين ─
   const employee = db
     .prepare('SELECT EmployeeID, HireDate, IsActive, AdjustmentDays FROM Employees WHERE EmployeeID = ?')
     .get(employeeId);
@@ -184,6 +198,7 @@ function calculateRegularLeaveBalance(employeeId, db) {
   }
 
   // ── Step 3: Total calendar days from HireDate to today ──────
+  // إجمالي الأيام التقويمية منذ تاريخ التعيين حتى اليوم
   const today     = new Date();
   const totalDays = _daysBetween(employee.HireDate, today);
 
@@ -192,7 +207,7 @@ function calculateRegularLeaveBalance(employeeId, db) {
   }
 
   // ── Step 4: Dynamically resolve required LeaveType IDs ──────
-  //  Use exact Arabic names as stored in the seed data.
+  // استرجاع معرفات أنواع الإجازات ديناميكياً لتفادي الأخطاء البرمجية
   const ARABIC_NAME_UNPAID  = 'إجازة بدون راتب';
   const ARABIC_NAME_REGULAR = 'إجازة اعتيادية';
   const ARABIC_NAME_OTHER   = 'سبب آخر';
@@ -218,6 +233,7 @@ function calculateRegularLeaveBalance(employeeId, db) {
     .get(ARABIC_NAME_OTHER);
 
   // ── Step 5: Sum all Unpaid Leave days taken ─────────────────
+  // جمع أيام الإجازة بدون راتب لخصمها من مدة الخدمة الفعلية
   const unpaidDays = db.prepare(`
     SELECT COALESCE(SUM(l.DaysCount), 0) AS TotalDays
     FROM   Leaves l
@@ -226,7 +242,7 @@ function calculateRegularLeaveBalance(employeeId, db) {
   `).get(employeeId, unpaidLeaveType.LeaveTypeID).TotalDays;
 
   // ── Step 6: Sum all Regular + Other Leave days already taken 
-  //  "سبب آخر" deducts directly from the Regular Leave balance.
+  // جمع أيام الإجازات الاعتيادية و"سبب آخر" المستهلكة من رصيد الموظف
   const regularLeaveTypeIds = [regularLeaveType.LeaveTypeID];
   if (otherLeaveType) {
     regularLeaveTypeIds.push(otherLeaveType.LeaveTypeID);
@@ -241,15 +257,19 @@ function calculateRegularLeaveBalance(employeeId, db) {
   `).get(employeeId, ...regularLeaveTypeIds).TotalDays;
 
   // ── Step 7: Net service days (never negative) ───────────────
+  // أيام الخدمة الصافية = إجمالي الأيام - أيام الإجازة بدون راتب
   const netServiceDays = Math.max(0, totalDays - unpaidDays);
 
   // ── Step 8: Gross earned balance ────────────────────────────
+  // الرصيد التراكمي الإجمالي = يوم واحد لكل 10 أيام خدمة فعلية
   const grossEarnedBalance = Math.floor(netServiceDays / DAYS_PER_EARNED_LEAVE);
 
   // ── Step 9: Deduct regular leaves already consumed ──────────
+  // الرصيد المتاح = الرصيد المكتسب + أيام التسوية - الإجازات المستهلكة
   const availableBalance = grossEarnedBalance + employee.AdjustmentDays - regularLeavesTaken;
 
   // ── Step 10: Cap at MAX and floor at 0 ──────────────────────
+  // تحديد الرصيد بالسقف الأعلى 180 يوماً وتثبيته عند الصفر كحد أدنى
   const finalBalance = Math.min(Math.max(availableBalance, 0), MAX_REGULAR_BALANCE);
 
   return {
@@ -258,40 +278,35 @@ function calculateRegularLeaveBalance(employeeId, db) {
     totalDays,
     unpaidDays,
     netServiceDays,
-    grossEarnedBalance,   // Days earned before deducting consumed leave
-    regularLeavesTaken,   // Days already recorded in Leaves table
-    adjustmentDays:     employee.AdjustmentDays, // Manual adjustments
-    availableBalance,     // grossEarned + adjustment - taken  (may be negative before clamp)
-    finalBalance,         // Authoritative value: min(max(available, 0), 180)
+    grossEarnedBalance,   // إجمالي الرصيد المكتسب قبل الخصم
+    regularLeavesTaken,   // أيام الإجازات المستهلكة المسجلة بالنظام
+    adjustmentDays:     employee.AdjustmentDays, // أيام التسوية اليدوية (+ أو -)
+    availableBalance,     // الرصيد المتاح النظري قبل تطبيق السقف
+    finalBalance,         // الرصيد النهائي المعتمد المتاح للاستهلاك
   };
 }
 
 // ──────────────────────────────────────────────────────────────
 //  processSickLeave
 //
+//  معالجة الإجازة المرضية وتوزيعها على الوعاءين الماليين (100% و 50%):
+//  - الوعاء الأول: أول 28 يوماً تُدفع براتب كامل (100%).
+//  - الوعاء الثاني: الـ 45 يوماً التالية تُدفع بنصف راتب (50%).
+//  - يتم فحص التداخل بدقة وتوزيع الأيام بالترتيب الهرمي.
+//  - العملية تُنفذ بالكامل داخل معاملة ذرية (db.transaction) لضمان الخصم
+//    من الأرصدة وإدراج الإجازة وتوثيق التدقيق كوحدة واحدة لا تتجزأ.
+//
 //  Validates and applies a sick-leave request against the two-tier
 //  (100% / 50%) pay-bucket system inside a single atomic transaction.
 //
-//  Bucket rules (per year):
-//    • First 30 days → full pay  (PayPercentage = 100)
-//    • Next  45 days → half pay  (PayPercentage = 50)
-//    • Beyond 75 days combined → request REJECTED
-//
-//  Transaction guarantee: if ANY step throws, the entire
-//  transaction is rolled back automatically — no partial mutations.
-//
 //  @param {number} employeeId
-//  @param {number} requestedDays   Positive integer
-//  @param {string} startDate       ISO-8601 (YYYY-MM-DD)
-//  @param {string} endDate         ISO-8601 (YYYY-MM-DD)
+//  @param {number} requestedDays
+//  @param {string} startDate
+//  @param {string} endDate
 //  @param {import('better-sqlite3').Database} db
-//  @returns {{
-//    leaveId:       number,
-//    daysAt100:     number,
-//    daysAt50:      number,
-//    newBalance100: number,
-//    newBalance50:  number
-//  }}
+//  @param {string|null} leaveApprover
+//  @param {object} meta
+//  @returns {{ leaveId: number, daysAt100: number, daysAt50: number, newBalance100: number, newBalance50: number, quotaExceeded: boolean }}
 // ──────────────────────────────────────────────────────────────
 function processSickLeave(
   employeeId,
@@ -304,6 +319,7 @@ function processSickLeave(
 ) {
 
   // ── Pre-flight validation (outside transaction — fast checks) ──
+  // فحوصات التحقق السريعة قبل فتح المعاملة
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     throw new Error('الرقم الوظيفي غير صالح.');
   }
@@ -315,6 +331,7 @@ function processSickLeave(
   }
 
   // Inclusive date-range count must match requestedDays
+  // مطابقة عدد الأيام الفعلي بين تاريخ البداية والنهاية
   const dateRangeDays = _daysBetween(startDate, endDate) + 1;
   if (dateRangeDays !== requestedDays) {
     throw new Error(
@@ -322,9 +339,7 @@ function processSickLeave(
     );
   }
 
-  // Hard ceiling before touching the DB - REMOVED for soft limit support
-
-  // ── Overlap Guard (Strict Prevention) ─────────────────────
+  // ── Overlap Guard (Strict Prevention) / فحص منع تداخل التواريخ ─
   const overlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
   if (overlap) {
     throw new Error(
@@ -335,16 +350,17 @@ function processSickLeave(
   // ── Resolve LeaveTypeID for Sick Leave ─────────────────────
   const sickLeaveType = _requireLeaveType(LEAVE_NAME_SICK, db);
 
-  // ── Define the atomic transaction ──────────────────────────
+  // ── Define the atomic transaction / بدء المعاملة الذرية ─────────
   const _runTransaction = db.transaction(() => {
 
     // Auto-ensure default Sick Leave balance rows exist for employee
+    // التأكد من وجود سجلات الرصيد الافتراضي للموظف (28 يوماً براتب كامل و 45 يوماً بنصف راتب)
     db.prepare(`
       INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
       VALUES (?, ?, 28, 100), (?, ?, 45, 50)
     `).run(employeeId, sickLeaveType.LeaveTypeID, employeeId, sickLeaveType.LeaveTypeID);
 
-    // ── A: Read both balance buckets ─────────────────────────
+    // ── A: Read both balance buckets / قراءة أرصدة الوعاءين الماليين ──
     const balances = db
       .prepare(`
         SELECT PayPercentage, TotalBalance
@@ -366,6 +382,7 @@ function processSickLeave(
     const quotaExceeded = requestedDays > totalAvailable;
 
     // ── B/C/D: Distribute requested days across buckets ─────────
+    // توزيع الأيام المطلوبة هرمياً (استهلاك وعاء 100% أولاً ثم الانتقال إلى 50%)
     let daysAt100 = 0;
     let daysAt50  = 0;
     let remaining = requestedDays;
@@ -376,14 +393,13 @@ function processSickLeave(
       remaining = 0;
     } else {
       // Exhaust the 100% bucket, spill remainder into 50%
-      // 50% bucket might go negative, which is allowed with soft limits
       daysAt100 = bucket[100];
       remaining -= bucket[100];
       daysAt50  = remaining;
       remaining = 0;
     }
 
-    // ── E: Persist deductions ─────────────────────────────────
+    // ── E: Persist deductions / تسجيل خصم الأيام من الأرصدة ─────
     const updateBalance = db.prepare(`
       UPDATE LeaveBalances
       SET    TotalBalance = TotalBalance - ?
@@ -412,10 +428,7 @@ function processSickLeave(
       }
     }
 
-    // ── F: Insert Leaves record (DB triggers still fire here) ─
-    //  trg_prevent_female_leave_for_male, trg_prevent_inactive_employee_leave,
-    //  trg_enforce_order_ref, and trg_audit_leave_insert all fire on this INSERT.
-    //  Any trigger RAISE(ABORT, …) rolls back the whole transaction.
+    // ── F: Insert Leaves record / إدراج قيد الإجازة في جدول Leaves ─
     const insertResult = db
       .prepare(`
         INSERT INTO Leaves
@@ -440,6 +453,7 @@ function processSickLeave(
 
     const newLeaveId = Number(insertResult.lastInsertRowid);
 
+    // توثيق تسجيل الإجازة المرضية في سجل التدقيق والأمان
     AuditService.logAction(db, {
       actionType: 'INSERT',
       entityType: 'Leave',
@@ -481,19 +495,12 @@ function processSickLeave(
 // ──────────────────────────────────────────────────────────────
 //  getActiveLeavesForToday
 //
+//  استرجاع قائمة الإجازات السارية في تاريخ اليوم الحالي:
+//  - يحسب تلقائياً تاريخ المباشرة المفترض (اليوم التالي لتاريخ النهاية).
+//  - يحسب الأيام المتبقية على انتهاء الإجازة آنياً عبر دالة julianday.
+//
 //  Returns all leave records where today's local date falls
 //  inclusively between StartDate and EndDate.
-//  Includes computed DaysRemaining and expected ResumptionDate.
-//
-//  Columns returned:
-//    FullName       – from Employees
-//    LeaveCardNumber– from Employees
-//    WorkLocation   – from Employees
-//    LeaveName      – aliased from LeaveTypes.Name
-//    StartDate      – from Leaves
-//    EndDate        – from Leaves
-//    ResumptionDate – day after EndDate (DATE(EndDate, '+1 day'))
-//    DaysRemaining  – days left until EndDate (0 = ends today)
 //
 //  @param {import('better-sqlite3').Database} db
 //  @returns {{ EmployeeID: number, FullName: string, JobTitle: string, LeaveCardNumber: string|null, WorkLocation: string|null, LeaveName: string, StartDate: string, EndDate: string, ResumptionDate: string, DaysRemaining: number, LeaveApprover: string|null }[]}
@@ -535,18 +542,17 @@ function getActiveLeavesForToday(db) {
 // ──────────────────────────────────────────────────────────────
 //  getActiveLeavesTodayPaginated
 //
+//  استرجاع الإجازات السارية اليوم مع تقسيم الصفحات وفلاتر البحث والفرز:
+//  - يدعم البحث بالاسم أو رقم الكرت أو نوع الإجازة أو موقع العمل.
+//  - يدعم فلترة الحالات العاجلة (urgentOnly) التي توشك على الانتهاء خلال 3 أيام.
+//  - يدعم الفرز الديناميكي بحسب تاريخ الاستئناف أو الاسم.
+//
 //  Server-side paginated query for Active Leaves Today tab with
 //  search filter, total count, and 15 rows per page.
 //
-//  @param {{ page?: number, pageSize?: number, search?: string }} options
+//  @param {{ page?: number, pageSize?: number, search?: string, sortBy?: string, urgentOnly?: boolean }} options
 //  @param {import('better-sqlite3').Database} db
-//  @returns {{
-//    data: Array<any>,
-//    totalCount: number,
-//    page: number,
-//    pageSize: number,
-//    totalPages: number
-//  }}
+//  @returns {{ data: Array<any>, totalCount: number, page: number, pageSize: number, totalPages: number }}
 // ──────────────────────────────────────────────────────────────
 function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', sortBy = 'resumption_asc', urgentOnly = false } = {}, db) {
   const safePage = Math.max(1, parseInt(page, 10) || 1);
@@ -577,7 +583,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     searchClause += ` AND CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) <= 3 `;
   }
 
-  // 1. Total matching count
+  // 1. Total matching count / احتساب العدد الكلي للسجلات المطابقة
   const countQuery = `
     SELECT COUNT(*) AS total
     FROM   Leaves     l
@@ -590,7 +596,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
   const totalCount = countRow ? countRow.total : 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
 
-  // Determine dynamic sort order
+  // Determine dynamic sort order / تحديد ترتيب الفرز المطلوب
   let orderByClause = 'ORDER BY l.EndDate ASC, e.FullName ASC';
   if (sortBy === 'resumption_desc') {
     orderByClause = 'ORDER BY l.EndDate DESC, e.FullName ASC';
@@ -598,7 +604,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     orderByClause = 'ORDER BY e.FullName ASC, l.EndDate ASC';
   }
 
-  // 2. Paginated data query
+  // 2. Paginated data query / استعلام جلب بيانات الصفحة المحددة
   const dataQuery = `
     SELECT
       l.LeaveID                   AS LeaveID,
@@ -645,8 +651,8 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
 // ──────────────────────────────────────────────────────────────
 //  getApproachingResumptions
 //
-//  Returns employees whose leave is ending within the next N days
-//  (inclusive of today, default 3 days) for notification triggers.
+//  رصد الإجازات التي أوشكت على الانتهاء لتوليد الإشعارات والتنبيهات:
+//  تسترجع الموظفين الذين تنتهي إجازاتهم خلال الأيام المحددة (افتراضياً 3 أيام).
 //
 //  @param {import('better-sqlite3').Database} db
 //  @param {number} daysThreshold
@@ -678,8 +684,8 @@ function getApproachingResumptions(db, daysThreshold = 3) {
 // ──────────────────────────────────────────────────────────────
 //  getEmployeeLeaves
 //
-//  Fetches all historical leave records for a specific employee,
-//  joining LeaveTypes to include the human-readable leave name.
+//  استرجاع السجل التاريخي الكامل لجميع إجازات موظف محدد:
+//  مرتباً تنازلياً من أحدث إجازة إلى أقدمها.
 //
 //  @param {number} employeeId
 //  @param {import('better-sqlite3').Database} db
@@ -720,6 +726,11 @@ function getEmployeeLeaves(employeeId, db) {
 // ──────────────────────────────────────────────────────────────
 //  deleteLeave
 //
+//  حذف قيد إجازة مع استعادة الرصيد إذا كانت إجازة مرضية:
+//  - تُنفذ داخل معاملة ذرية (db.transaction).
+//  - إذا كانت الإجازة مرضية، يتم رد عدد أيامها إلى رصيد الموظف في LeaveBalances.
+//  - توثق عملية الحذف مع تفاصيلها في سجل التدقيق والأمان.
+//
 //  Deletes a leave record and restores balance if it was a Sick Leave.
 //  Executed inside an atomic transaction.
 //
@@ -733,7 +744,7 @@ function deleteLeave(leaveId, db) {
   }
 
   const _txn = db.transaction(() => {
-    // Step 1: Query the Leaves row with LeaveType name
+    // Step 1: Query the Leaves row with LeaveType name / جلب سجل الإجازة قبل الحذف
     const leave = db
       .prepare(`
         SELECT l.*, lt.Name AS LeaveTypeName
@@ -748,6 +759,7 @@ function deleteLeave(leaveId, db) {
     }
 
     // Step 2 & 3: IF Sick Leave, restore DaysCount back to LeaveBalances
+    // استعادة الأيام إلى رصيد الإجازات المرضية للموظف في حال كانت مرضية
     if (leave.LeaveTypeName === LEAVE_NAME_SICK) {
       db.prepare(`
         UPDATE LeaveBalances
@@ -757,7 +769,7 @@ function deleteLeave(leaveId, db) {
       `).run(leave.DaysCount, leave.EmployeeID, leave.LeaveTypeID);
     }
 
-    // Step 4: DELETE FROM Leaves WHERE LeaveID = ?
+    // Step 4: DELETE FROM Leaves WHERE LeaveID = ? / تنفيذ الحذف
     const result = db
       .prepare('DELETE FROM Leaves WHERE LeaveID = ?')
       .run(leaveId);
@@ -766,6 +778,7 @@ function deleteLeave(leaveId, db) {
       throw new Error(`فشل حذف قيد الإجازة برقم (${leaveId}).`);
     }
 
+    // توثيق الحذف في سجل الأمان والتدقيق
     AuditService.logAction(db, {
       actionType: 'DELETE',
       entityType: 'Leave',
@@ -783,6 +796,11 @@ function deleteLeave(leaveId, db) {
 
 // ──────────────────────────────────────────────────────────────
 //  updateLeave
+//
+//  تحديث بيانات قيد إجازة قائم داخل معاملة ذرية متكاملة:
+//  - يتحقق من قيود الجنس والتواريخ والمدد ومنع التداخل الزمني.
+//  - يعيد تقييم الأرصدة (الاعتيادية والمرضية) ويدعم التجاوز بتأكيد صريح (Soft Limits).
+//  - يسجل اسم القائم بالتعديل بشكل إلزامي في سجل التدقيق والأمان.
 //
 //  Updates an existing leave record within an atomic transaction.
 //  Re-evaluates balance rules (Regular and Sick), handles soft limits
@@ -823,7 +841,7 @@ function updateLeave(leaveId, payload, db) {
   const validOrderNumber = validateOrderNumber(orderNumber, 'رقم الأمر الإداري');
   const validMemoNumber = validateOrderNumber(memoNumber, 'رقم المذكرة');
 
-  // 1. Fetch current leave snapshot with employee metadata
+  // 1. Fetch current leave snapshot with employee metadata / جلب السجل الحالي وبيانات الموظف
   const oldLeave = db.prepare(`
     SELECT
       l.*,
@@ -843,7 +861,7 @@ function updateLeave(leaveId, payload, db) {
     throw new Error(`تعذر العثور على قيد الإجازة برقم (${leaveId}).`);
   }
 
-  // 2. Resolve target LeaveType
+  // 2. Resolve target LeaveType / تحديد نوع الإجازة المستهدف
   let targetLeaveType = null;
   if (typeof leaveType === 'number') {
     targetLeaveType = db.prepare('SELECT * FROM LeaveTypes WHERE LeaveTypeID = ?').get(leaveType);
@@ -868,12 +886,12 @@ function updateLeave(leaveId, payload, db) {
     throw new Error(`نوع الإجازة المحدد غير معرّف بالنظام: "${leaveType}".`);
   }
 
-  // Check gender restriction
+  // Check gender restriction / التحقق من قيود الجنس (مثل إجازة الأمومة)
   if (targetLeaveType.GenderRestriction === 'Female' && oldLeave.EmployeeGender !== 'Female') {
     throw new Error(`نوع الإجازة (${targetLeaveType.Name}) مخصص للإناث فقط.`);
   }
 
-  // Validate dates
+  // Validate dates / التحقق من صحة التواريخ
   if (!startDate || !endDate) {
     throw new Error('يرجى تحديد تاريخ بداية ونهاية الإجازة.');
   }
@@ -894,6 +912,7 @@ function updateLeave(leaveId, payload, db) {
   }
 
   // ── Overlap Guard (Strict Prevention, Excluding Current Leave) ─
+  // التحقق من عدم التداخل مع إجازات الموظف الأخرى (باستثناء الإجازة الحالية الجاري تعديلها)
   const overlap = checkLeaveOverlap(oldLeave.EmployeeID, startDate, endDate, leaveId, db);
   if (overlap) {
     throw new Error(
@@ -902,6 +921,7 @@ function updateLeave(leaveId, payload, db) {
   }
 
   // 3. Balance management inside atomic transaction
+  // إدارة الأرصدة وإعادة الحساب داخل المعاملة الذرية
   const _txn = db.transaction(() => {
     let quotaExceeded = false;
     let deficit = 0;
@@ -913,7 +933,7 @@ function updateLeave(leaveId, payload, db) {
     const isOldRegular = oldLeave.LeaveTypeName === 'إجازة اعتيادية' || oldLeave.LeaveTypeName === 'سبب آخر';
     const isNewRegular = targetLeaveType.Name === 'إجازة اعتيادية' || targetLeaveType.Name === 'سبب آخر';
 
-    // A: Handle Sick Leave Bucket Restoration
+    // A: Handle Sick Leave Bucket Restoration / استرداد الرصيد المرضي السابق في حال تم تغيير نوع الإجازة أو تعديلها
     if (isOldSick) {
       db.prepare(`
         UPDATE LeaveBalances
@@ -922,7 +942,7 @@ function updateLeave(leaveId, payload, db) {
       `).run(oldLeave.DaysCount, oldLeave.EmployeeID, oldLeave.LeaveTypeID);
     }
 
-    // B: Handle Target Sick Leave Deduction
+    // B: Handle Target Sick Leave Deduction / معالجة خصم الرصيد المرضي الجديد
     if (isNewSick) {
       db.prepare(`
         INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
@@ -984,7 +1004,7 @@ function updateLeave(leaveId, payload, db) {
       if (daysAt50 > 0) updateBal.run(daysAt50, oldLeave.EmployeeID, targetLeaveType.LeaveTypeID, 50);
 
     } else if (isNewRegular) {
-      // C: Handle Regular Leave Balance
+      // C: Handle Regular Leave Balance / معالجة رصيد الإجازة الاعتيادية
       const currentBalance = calculateRegularLeaveBalance(oldLeave.EmployeeID, db);
       const effectiveAvailable = currentBalance.availableBalance + (isOldRegular ? oldLeave.DaysCount : 0);
       availableBalance = effectiveAvailable;
@@ -1009,7 +1029,7 @@ function updateLeave(leaveId, payload, db) {
       }
     }
 
-    // D: Persist the UPDATE into Leaves
+    // D: Persist the UPDATE into Leaves / تحديث السجل في جدول Leaves
     db.prepare(`
       UPDATE Leaves
       SET LeaveTypeID = ?,
@@ -1051,7 +1071,7 @@ function updateLeave(leaveId, payload, db) {
       WHERE l.LeaveID = ?
     `).get(leaveId);
 
-    // E: Record Audit Trail with Modifier Name in details
+    // E: Record Audit Trail with Modifier Name in details / توثيق التعديل واسم القائم به في سجل الأمان
     AuditService.logAction(db, {
       actionType: 'UPDATE',
       entityType: 'Leave',
@@ -1105,7 +1125,7 @@ function updateLeave(leaveId, payload, db) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Exports
+//  Exports / تصدير دوال وثوابت الخدمة
 // ──────────────────────────────────────────────────────────────
 module.exports = {
   calculateRegularLeaveBalance,
@@ -1131,4 +1151,3 @@ module.exports = {
     LEAVE_NAME_SICK,
   },
 };
-

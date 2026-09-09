@@ -1,11 +1,19 @@
 // ============================================================
 //  addEmployeeTab.js – Add New Employee Controller (Tab 3)
+//  وحدة التحكم بإضافة موظف جديد إلى النظام (التبويب الثالث)
+//
+//  المسؤوليات الرئيسية:
+//    • جمع مدخلات استمارة تسجيل الموظف والتحقق من صحتها من جانب العميل (Client-side validation).
+//    • التحقق من إيجابية وصحة الرقم الوظيفي والاسم والجنس وتاريخ التعيين والعنوان الوظيفي.
+//    • استدعاء خدمة إضافة الموظف عبر قناة IPC (employee:add) والتعامل مع حالات النجاح والفشل.
+//    • إعادة تعيين النموذج وتنبيه المستخدم بنجاح العملية وتحديث جداول الموظفين في التبويبات الأخرى.
 // ============================================================
 
 'use strict';
 
 import { showToast } from './uiHelpers.js';
 
+// مراجع عناصر الاستمارة في واجهة المستخدم
 let addEmployeeForm = null;
 let empEmployeeIdEl = null;
 let empFullNameEl = null;
@@ -16,6 +24,10 @@ let empWorkLocationEl = null;
 let empLeaveCardNumberEl = null;
 let addEmployeeBtn = null;
 
+/**
+ * استخراج وقراءة بيانات الموظف من الحقول وإجراء التحقق الأولي من صحتها
+ * @returns {object|null} كائن بيانات الموظف أو null في حال وجود خطأ في الإدخال
+ */
 export function collectAndValidateEmployee() {
   const rawId = empEmployeeIdEl ? empEmployeeIdEl.value.trim() : '';
   const employeeId = parseInt(rawId, 10);
@@ -26,26 +38,31 @@ export function collectAndValidateEmployee() {
   const workLocation = empWorkLocationEl ? empWorkLocationEl.value.trim() : '';
   const leaveCardNumber = empLeaveCardNumberEl ? empLeaveCardNumberEl.value.trim() : '';
 
+  // التحقق من صحة الرقم الوظيفي
   if (!rawId || !Number.isInteger(employeeId) || employeeId <= 0) {
     showToast('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.', 'warning');
     empEmployeeIdEl?.focus();
     return null;
   }
+  // التحقق من الاسم الكامل
   if (!fullName) {
     showToast('يرجى إدخال الاسم الكامل للموظف.', 'warning');
     empFullNameEl?.focus();
     return null;
   }
+  // التحقق من الجنس (مهم لحساب قيود إجازات الأمومة لاحقاً)
   if (gender !== 'Male' && gender !== 'Female') {
     showToast('يرجى اختيار جنس الموظف (ذكر / أنثى).', 'warning');
     empGenderEl?.focus();
     return null;
   }
+  // التحقق من تاريخ التعيين (مهم لاحتساب رصيد الإجازة الاعتيادية 1 يوم لكل 10 أيام خدمة)
   if (!hireDate) {
     showToast('يرجى تحديد تاريخ تعيين صالح للموظف.', 'warning');
     empHireDateEl?.focus();
     return null;
   }
+  // التحقق من العنوان الوظيفي
   if (!jobTitle) {
     showToast('يرجى إدخال المسمى الوظيفي للموظف.', 'warning');
     empJobTitleEl?.focus();
@@ -63,6 +80,10 @@ export function collectAndValidateEmployee() {
   };
 }
 
+/**
+ * تهيئة تبويب إضافة موظف جديد وربط حدث إرسال الاستمارة
+ * @param {object} options خيارات التفاعل (مثل تحديث جدول الموظفين عند الإضافة)
+ */
 export function initAddEmployeeTab(options = {}) {
   const onEmployeeAdded = options.onEmployeeAdded || null;
   addEmployeeForm = document.getElementById('add-employee-form');
@@ -82,6 +103,7 @@ export function initAddEmployeeTab(options = {}) {
       const payload = collectAndValidateEmployee();
       if (!payload) return;
 
+      // قفل زر الإرسال وتغيير النص لتفادي تكرار النقر
       if (addEmployeeBtn) {
         addEmployeeBtn.disabled = true;
         addEmployeeBtn.textContent = 'جارٍ الحفظ…';
@@ -112,3 +134,4 @@ export function initAddEmployeeTab(options = {}) {
     });
   }
 }
+

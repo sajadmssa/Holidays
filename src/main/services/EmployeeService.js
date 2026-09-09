@@ -1,13 +1,25 @@
 // ============================================================
 //  services/EmployeeService.js  –  Employee Business Logic
-//  Responsibilities:
-//    • addEmployee: validate inputs, INSERT, return new EmployeeID
+//  طبقة منطق الأعمال للموظفين (Business Logic Layer)
 //
-//  CONTRACT:
+//  Responsibilities / المسؤوليات الأساسية:
+//    • إضافة موظف جديد مع التحقق الصارم من الحقول والرقم الوظيفي الفريد.
+//    • تهيئة أرصدة الإجازات المرضية الافتراضية تلقائياً عند إنشاء الموظف.
+//    • البحث الفوري عن الموظفين بالاسم أو رقم الكرت أو الرقم الوظيفي.
+//    • استرجاع بيانات الموظف مع حساب رصيد الإجازات الاعتيادية والمرضية آنياً.
+//    • تحديث بيانات الموظف مع حماية تاريخ التعيين والجنس لمنع تشويه السجلات التراكمية.
+//    • التجميد والتفعيل الآمن (Soft Delete) للموظف دون كسر القيود المرجعية.
+//    • إدارة النقل الخارجي وإلغاء النقل مع الحفاظ على بقاء الموظف نشطاً.
+//    • الاستعلام الموزع للصفحات (Server-side Pagination) بكفاءة عالية ومنع مشاكل N+1.
+//
+//  CONTRACT / ميثاق الخدمة:
 //    • Receives a plain `db` (better-sqlite3 instance) as last arg.
+//      (تستقبل كائن الاتصال بقاعدة البيانات `db` كوسيط أخير).
 //    • Throws a descriptive Error on any validation failure so the
 //      IPC handler's safeHandle wrapper surfaces it cleanly.
-//    • All SQL is parameterised — zero string concatenation.
+//      (ترمي استثناءً صريحاً ومفصلاً عند أي خطأ في التحقق ليتولى غلاف safeHandle تحويله لرسالة مفهومة للمستخدم).
+//    • All SQL is parameterised — zero string concatenation (SQL-Injection Safe).
+//      (كافة الاستعلامات تعتمد وسائط مجهولة ? بالكامل وتمنع دمج النصوص منعاً قاطعاً لحماية النظام من ثغرات الحقن).
 // ============================================================
 
 'use strict';
@@ -18,6 +30,8 @@ const { validateOrderNumber } = require('../utils/orderNumberValidator');
 // ──────────────────────────────────────────────────────────────
 //  Field constraints  (kept here so they stay in sync with the
 //  DB CHECK constraints in 001_initial_schema.sql)
+//  قيود الحقول وحدود الأطوال:
+//  متطابقة تماماً مع قيود CHECK في مخطط قاعدة البيانات لضمان عدم حدوث تعارض.
 // ──────────────────────────────────────────────────────────────
 const VALID_GENDERS   = new Set(['Male', 'Female']);
 const MAX_NAME_LENGTH = 200;
@@ -26,7 +40,15 @@ const MAX_LOCATION_LENGTH = 200;
 const MAX_CARD_LENGTH = 100;
 const MAX_APPROVER_LENGTH = 200;
 
-/** Strict ISO-8601 date: structure + calendrical reality check (rejects '2024-02-30'). */
+/**
+ * فحص صارم لصحة تاريخ ISO-8601:
+ * يتحقق من البنية الشكلية (YYYY-MM-DD) والصحة التقويمية الفعلية
+ * (مثال: يرفض تواريخ غير حقيقية مثل 30 فبراير '2024-02-30').
+ *
+ * Strict ISO-8601 date: structure + calendrical reality check (rejects '2024-02-30').
+ * @param {string} s
+ * @returns {boolean}
+ */
 function isValidIsoDate(s) {
   if (typeof s !== 'string' || !/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(s)) {
     return false;
@@ -42,6 +64,15 @@ function isValidIsoDate(s) {
 
 // ══════════════════════════════════════════════════════════════
 //  addEmployee
+//
+//  التحقق من صحة البيانات وإدراج موظف جديد:
+//  1. التأكد من هيكل البيانات والرقم الوظيفي وعدم تكراره.
+//  2. التحقق من الاسم، الجنس، وتاريخ التعيين الواقعي (ليس بالمستقبل ولا قبل 1900).
+//  3. التحقق من المسمى الوظيفي وموقع العمل ورقم كرت الإجازة واسم المسؤول.
+//  4. تنفيذ العملية في حركة ذرية (db.transaction) لضمان:
+//     - إدخال سجل الموظف في جدول Employees.
+//     - تهيئة أرصدة الإجازة المرضية الافتراضية (28 يوماً براتب كامل 100% و 45 يوماً بنصف راتب 50%).
+//     - توثيق العملية في سجل التدقيق والأمان AuditLog.
 //
 //  Validates and inserts a new employee record.
 //
@@ -60,7 +91,7 @@ function isValidIsoDate(s) {
 // ══════════════════════════════════════════════════════════════
 function addEmployee(employeeData, db) {
 
-  // ── Step 1: Structural guard ─────────────────────────────────
+  // ── Step 1: Structural guard / التحقق الهيكلي من الكائن ───────
   if (!employeeData || typeof employeeData !== 'object') {
     throw new Error('بيانات الموظف غير صالحة أو غير مكتملة.');
   }
@@ -76,12 +107,12 @@ function addEmployee(employeeData, db) {
     leaveApprover,
   } = employeeData;
 
-  // ── Step 1b: EmployeeID Validation ───────────────────────────
+  // ── Step 1b: EmployeeID Validation / التحقق من الرقم الوظيفي ───
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     throw new Error('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.');
   }
 
-  // Check for duplicate EmployeeID
+  // Check for duplicate EmployeeID / التحقق من عدم تكرار الرقم الوظيفي في النظام
   const existing = db
     .prepare('SELECT EmployeeID FROM Employees WHERE EmployeeID = ?')
     .get(employeeId);
@@ -89,7 +120,7 @@ function addEmployee(employeeData, db) {
     throw new Error(`الرقم الوظيفي (${employeeId}) مسجل مسبقاً لموظف آخر في النظام.`);
   }
 
-  // ── Step 2: FullName ─────────────────────────────────────────
+  // ── Step 2: FullName / التحقق من الاسم الكامل ─────────────────
   if (typeof fullName !== 'string' || fullName.trim().length === 0) {
     throw new Error('يرجى إدخال الاسم الكامل للموظف.');
   }
@@ -99,17 +130,17 @@ function addEmployee(employeeData, db) {
     );
   }
 
-  // ── Step 3: Gender ───────────────────────────────────────────
+  // ── Step 3: Gender / التحقق من نوع الجنس ───────────────────────
   if (!VALID_GENDERS.has(gender)) {
     throw new Error('يرجى اختيار جنس الموظف (ذكر / أنثى).');
   }
 
-  // ── Step 4: HireDate ─────────────────────────────────────────
+  // ── Step 4: HireDate / التحقق من تاريخ التعيين ─────────────────
   if (!isValidIsoDate(hireDate)) {
     throw new Error('يرجى تحديد تاريخ تعيين صالح للموظف بصيغة (YYYY-MM-DD).');
   }
 
-  // Sensible bounds: not before 1900, not in the future
+  // Sensible bounds: not before 1900, not in the future / قيود منطقية: بعد عام 1900 وليس في المستقبل
   const hireDateObj = new Date(hireDate);
   const today       = new Date();
   today.setHours(23, 59, 59, 999); // allow today as a valid hire date
@@ -120,7 +151,7 @@ function addEmployee(employeeData, db) {
     throw new Error('لا يمكن أن يكون تاريخ التعيين في المستقبل.');
   }
 
-  // ── Step 5: JobTitle ─────────────────────────────────────────
+  // ── Step 5: JobTitle / التحقق من المسمى الوظيفي ───────────────
   if (typeof jobTitle !== 'string' || jobTitle.trim().length === 0) {
     throw new Error('يرجى إدخال المسمى الوظيفي للموظف.');
   }
@@ -130,7 +161,7 @@ function addEmployee(employeeData, db) {
     );
   }
 
-  // ── Step 5b: New Fields Validation ───────────────────────────
+  // ── Step 5b: New Fields Validation / التحقق من الحقول الإضافية ─
   const cleanLocation = typeof workLocation === 'string' && workLocation.trim().length > 0
     ? workLocation.trim()
     : null;
@@ -145,7 +176,7 @@ function addEmployee(employeeData, db) {
     if (cleanCardNumber.length > MAX_CARD_LENGTH) {
       throw new Error(`رقم كرت الإجازة طويل جداً (الحد الأقصى المسموح به ${MAX_CARD_LENGTH} حرف).`);
     }
-    // Enforce uniqueness
+    // Enforce uniqueness / منع تكرار رقم كرت الإجازة مع موظف آخر
     const existingCard = db
       .prepare('SELECT EmployeeID FROM Employees WHERE LeaveCardNumber = ?')
       .get(cleanCardNumber);
@@ -162,6 +193,7 @@ function addEmployee(employeeData, db) {
   }
 
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
+  // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
     const info = db
       .prepare(`
@@ -180,6 +212,7 @@ function addEmployee(employeeData, db) {
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
+    // التهيئة التلقائية لأرصدة الإجازة المرضية الافتراضية (28 يوماً براتب كامل و 45 يوماً بنصف راتب)
     const sickLeaveType = db
       .prepare("SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة مرضية'")
       .get();
@@ -193,7 +226,7 @@ function addEmployee(employeeData, db) {
       initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 45, 50);
     }
 
-    // Record Audit Log
+    // Record Audit Log / توثيق إضافة الموظف الجديد في سجل الأمان والتدقيق
     AuditService.logAction(db, {
       actionType: 'INSERT',
       entityType: 'Employee',
@@ -219,11 +252,16 @@ function addEmployee(employeeData, db) {
 // ══════════════════════════════════════════════════════════════
 //  searchEmployees
 //
+//  البحث الفوري عن الموظفين النشطين للنافذة المنبثقة (Lookup Modal):
+//  - يبحث في الاسم الكامل، رقم كرت الإجازة، أو الرقم الوظيفي.
+//  - الاستعلام محمي بالكامل عبر Parameterised LIKE لتفادي SQL Injection.
+//  - يقتصر على الموظفين النشطين (IsActive = 1) ويُرجع بحد أقصى 50 نتيجة مرتبة هجائياً.
+//
 //  Live name & leave card number search used by the Lookup Modal.
 //  Returns up to 50 active employees whose FullName, LeaveCardNumber,
 //  or EmployeeID contains the keyword (case-insensitive).
 //
-//  @param {string} keyword  – raw text typed by the user
+//  @param {string} keyword  – raw text typed by the user / نص البحث المدخل من المستخدم
 //  @param {import('better-sqlite3').Database} db
 //  @returns {{ EmployeeID: number, FullName: string, JobTitle: string, WorkLocation: string|null, LeaveCardNumber: string|null, LeaveApprover: string|null }[]}
 // ══════════════════════════════════════════════════════════════
@@ -233,6 +271,7 @@ function searchEmployees(keyword, db) {
   }
   // Parameterised LIKE — the % wildcards are safe because they are
   // concatenated in JS before binding, NOT inside the SQL string.
+  // الربط يتم عبر الوسائط المجهزة في المحرك لحماية الاستعلام
   const pattern = `%${keyword.trim()}%`;
 
   return db
@@ -256,6 +295,11 @@ const { calculateRegularLeaveBalance } = require('./LeaveService');
 // ══════════════════════════════════════════════════════════════
 //  getEmployeeById
 //
+//  استرجاع بيانات موظف محدد بالرقم الوظيفي مع احتساب الأرصدة الحالية:
+//  - يجلب السجل الأساسي من جدول Employees.
+//  - يستدعي محرك احتساب رصيد الإجازة الاعتيادية بدقة (المستحق الكلي، المستهلك، والمتبقي الصافي).
+//  - يتحقق من وجود أرصدة الإجازة المرضية (100% و 50%) وينشئها تلقائياً إذا كانت مفقودة.
+//
 //  Fetches a single employee record by EmployeeID and attaches
 //  current Regular and Sick Leave balance metrics.
 //
@@ -276,7 +320,7 @@ function getEmployeeById(employeeId, db) {
     throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
   }
 
-  // Calculate Regular Leave balance metrics
+  // Calculate Regular Leave balance metrics / احتساب مقاييس رصيد الإجازة الاعتيادية بدقة
   let regularBalance = 0;
   let unadjustedRegular = 0;
   let grossEarnedBalance = 0;
@@ -291,7 +335,7 @@ function getEmployeeById(employeeId, db) {
     regularBalance = 0;
   }
 
-  // Fetch Sick Leave balances (ensure default rows exist)
+  // Fetch Sick Leave balances (ensure default rows exist) / جلب أرصدة الإجازة المرضية والتأكد من وجودها
   let sick100 = 0;
   let sick50  = 0;
   const sickType = db
@@ -329,6 +373,13 @@ function getEmployeeById(employeeId, db) {
 
 // ══════════════════════════════════════════════════════════════
 //  updateEmployee
+//
+//  تحديث بيانات الموظف القائم:
+//  - يقوم بتحديث الاسم، المسمى، موقع العمل، رقم الكرت، المسؤول، وأيام التسوية.
+//  - قرار معماري هام: يتم استثناء الجنس (Gender) وتاريخ التعيين (HireDate) عمداً
+//    من التعديل المباشر لحماية القواعد المحاسبية والتراكمية لرصيد الإجازات السابقة.
+//  - يتحقق من عدم تكرار رقم كرت الإجازة مع أي موظف آخر في النظام.
+//  - تُنفذ العملية في حركة ذرية (db.transaction) لضمان اتساق التحديث مع سجل التدقيق AuditLog.
 //
 //  Updates FullName, JobTitle, WorkLocation, LeaveCardNumber,
 //  LeaveApprover, and AdjustmentDays for an existing employee.
@@ -396,7 +447,7 @@ function updateEmployee(employeeId, updateData, db) {
     if (cleanCardNumber.length > MAX_CARD_LENGTH) {
       throw new Error(`رقم كرت الإجازة طويل جداً (الحد الأقصى المسموح به ${MAX_CARD_LENGTH} حرف).`);
     }
-    // Enforce uniqueness against other employees
+    // Enforce uniqueness against other employees / التحقق من تفرد رقم الكرت واستثناء الموظف نفسه
     const existingCard = db
       .prepare('SELECT EmployeeID FROM Employees WHERE LeaveCardNumber = ? AND EmployeeID != ?')
       .get(cleanCardNumber, employeeId);
@@ -462,6 +513,11 @@ function updateEmployee(employeeId, updateData, db) {
 // ══════════════════════════════════════════════════════════════
 //  deactivateEmployee
 //
+//  تعطيل / تجميد حساب الموظف (Soft-Delete):
+//  - يقوم بتعيين IsActive = 0 بدلاً من الحذف الفيزيائي.
+//  - يحافظ على السجلات التاريخية والقيود المرجعية لجميع الإجازات والمستندات.
+//  - ينفذ المعاملة مع توثيق تغيير الحالة في سجل التدقيق داخل db.transaction ذري.
+//
 //  Soft-deletes an employee by setting IsActive = 0.
 //  Preserves historical rows and foreign keys.
 //
@@ -501,6 +557,10 @@ function deactivateEmployee(employeeId, db) {
 // ══════════════════════════════════════════════════════════════
 //  activateEmployee
 //
+//  إعادة تنشيط حساب موظف مجمد مسبقاً:
+//  - يعيد تعيين IsActive = 1 ليظهر مجدداً في استعلامات البحث وقوائم النظام النشطة.
+//  - يوثق العملية في سجل التدقيق والأمان داخل معاملة ذرية.
+//
 //  Reactivates a deactivated employee by setting IsActive = 1.
 //
 //  @param {number} employeeId
@@ -539,6 +599,12 @@ function activateEmployee(employeeId, db) {
 // ══════════════════════════════════════════════════════════════
 //  transferEmployee
 //
+//  تسجيل النقل الخارجي لموظف:
+//  - قرار معماري جوهري: الموظف المنقول يظل نشطاً بالكامل (IsActive = 1)
+//    حتى يتمكن مسؤولو الموارد البشرية من استعراض بطاقته وسجلاته السابقة.
+//  - يتم التحقق من رقم الأمر الإداري وتاريخ الأمر والملاحظات.
+//  - تُنفذ العملية وتُسجل في سجل التدقيق داخل db.transaction ذري لحماية البيانات عند انقطاع الطاقة.
+//
 //  Records external transfer for an employee.
 //  CRITICAL: Employee remains active (IsActive remains 1).
 //
@@ -567,10 +633,10 @@ function transferEmployee(employeeId, transferData, db) {
     transferNotes = null,
   } = transferData || {};
 
-  // 1. Validate transferOrderNumber (optional, purely numeric)
+  // 1. Validate transferOrderNumber (optional, purely numeric) / التحقق من رقم أمر النقل (أرقام فقط)
   const validOrderNumber = validateOrderNumber(transferOrderNumber, 'رقم الأمر الإداري الخاص بالنقل');
 
-  // 2. Validate transferOrderDate (optional, valid ISO date YYYY-MM-DD)
+  // 2. Validate transferOrderDate (optional, valid ISO date YYYY-MM-DD) / التحقق من تاريخ أمر النقل
   let validOrderDate = null;
   if (transferOrderDate !== null && transferOrderDate !== undefined) {
     const trimmedDate = String(transferOrderDate).trim();
@@ -582,7 +648,7 @@ function transferEmployee(employeeId, transferData, db) {
     }
   }
 
-  // 3. Validate transferNotes (optional, max length 500)
+  // 3. Validate transferNotes (optional, max length 500) / التحقق من ملاحظات النقل (الحد الأقصى 500 حرف)
   let validNotes = null;
   if (transferNotes !== null && transferNotes !== undefined) {
     const trimmedNotes = String(transferNotes).trim();
@@ -635,6 +701,10 @@ function transferEmployee(employeeId, transferData, db) {
 
 // ══════════════════════════════════════════════════════════════
 //  cancelEmployeeTransfer
+//
+//  إلغاء حالة النقل الخارجي للموظف:
+//  - يعيد IsTransferred إلى 0 ويفرغ حقول رقم وتاريخ وملاحظات النقل.
+//  - يُنفذ في معاملة ذرية مع توثيق العملية في سجل التدقيق الأمني.
 //
 //  Cancels external transfer for an employee, resetting transfer fields.
 //
@@ -694,6 +764,11 @@ function cancelEmployeeTransfer(employeeId, db) {
 // ══════════════════════════════════════════════════════════════
 //  getEmployeesPaginated
 //
+//  استعلام ترقيم الصفحات من جانب الخادم (Server-Side Pagination):
+//  - يتيح فلترة وتصفية مرنة حسب الاسم، رقم الكرت، موقع العمل، أو الرقم الوظيفي.
+//  - أداء فائق: يستخدم تعبيرات الجدول الشائعة (CTE) مع استعلام فرعي لجلب بيانات
+//    آخر إجازة لكل موظف في استعلام واحد متكامل وسريع يمنع مشكلة N+1 استعلام نهائياً.
+//
 //  Server-side paginated query for All Employees tab with
 //  search filter and latest leave information (single fast query, no N+1).
 //
@@ -740,7 +815,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
     countParams.push(pattern, pattern, pattern, pattern);
   }
 
-  // 1. Total matching count
+  // 1. Total matching count / احتساب العدد الكلي للسجلات المطابقة لحساب عدد الصفحات
   const countRow = db
     .prepare(`SELECT COUNT(*) AS total FROM Employees ${countWhereClause}`)
     .get(...countParams);
@@ -748,6 +823,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
   const totalPages = Math.ceil(totalCount / safePageSize) || 1;
 
   // 2. High-performance paginated query with CTE + latest leave subquery
+  // الاستعلام عالي الكفاءة: جلب الصفحة المحددة مع استعلام فرعي لآخر إجازة لكل موظف
   const dataQuery = `
     WITH PagedEmps AS (
       SELECT
@@ -811,7 +887,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Exports
+//  Exports / تصدير دوال الخدمة
 // ──────────────────────────────────────────────────────────────
 module.exports = {
   addEmployee,

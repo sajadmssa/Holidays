@@ -1,9 +1,11 @@
 // ============================================================
 //  ipc/auditHandlers.js  –  Audit Log IPC Handlers
-//  Main Process ONLY
-//  Responsibilities:
-//    • Register audit log query IPC channels
-//    • Return uniform { success, data|error } envelopes
+//  معالجات قنوات الاتصال لسجل التدقيق الأمني الشامل
+//  Main Process ONLY - تعمل حصرياً في العملية الرئيسية لنظام Electron
+//
+//  المسؤوليات الرئيسية:
+//    • تسجيل قناة audit:getLogs لاسترجاع سجلات الرقابة والعمليات بالنظام.
+//    • تغليف الاستجابة في ظرف موحد { success: true, data } أو { success: false, error }.
 // ============================================================
 
 'use strict';
@@ -14,12 +16,16 @@ const { createSafeHandler } = require('../utils/ipcHandlerHelper');
 const { safeHandle } = createSafeHandler('AuditHandlers');
 
 /**
+ * تسجيل قنوات IPC المرتبطة بسجلات التدقيق الأمني
  * Registers audit-related IPC handlers.
  *
  * @param {Electron.IpcMain} ipcMain
- * @param {import('better-sqlite3').Database} db
+ * @param {import('better-sqlite3').Database} db اتصال قاعدة البيانات
  */
 function registerAuditHandlers(ipcMain, db) {
+  // ── audit:getLogs ───────────────────────────────────────────
+  //  استعلام مصفى ومفهرس لسجلات التدقيق والعمليات (إضافة، تعديل، حذف، نسخ، استعادة...)
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'audit:getLogs',
     safeHandle((options) => {
@@ -31,3 +37,4 @@ function registerAuditHandlers(ipcMain, db) {
 }
 
 module.exports = { registerAuditHandlers };
+

@@ -1,11 +1,14 @@
 // ============================================================
 //  NotificationService.js  –  Automated Alert & Notification Service
-//  Main Process ONLY
-//  Responsibilities:
-//    • Baghdad Time (UTC+3) tracking for daily 11:00 AM alert
-//    • Startup check for missed daily notifications
-//    • Native OS Notification & IPC Push to Renderer
-//    • Persistent notification logging in SQLite
+//  خدمة التنبيهات والإشعارات الآلية لمباشرة الموظفين بعد الإجازات
+//  Main Process ONLY - تعمل حصرياً في العملية الرئيسية لنظام Electron
+//
+//  المسؤوليات الرئيسية:
+//    • متابعة توقيت بغداد الرسمي (Asia/Baghdad - UTC+3) لتحديد موعد التنبيه اليومي (11:00 صباحاً).
+//    • فحص الإقلاع (Startup Check) لتدارك التنبيهات إذا تم تشغيل البرنامج بعد الساعة 11:00 صباحاً.
+//    • إطلاق إشعار نظام التشغيل الأصيل (Native Windows/OS Notification) مع دعم النقر للانتقال للوحة التحكم.
+//    • بث حدث IPC فوري إلى واجهة المستخدم (Renderer Window) لعرض شريط التنبيه الداخلي.
+//    • تسجيل عمليات التنبيه في قاعدة البيانات بجدول _NotificationLog لمنع تكرار الإشعار في نفس اليوم.
 // ============================================================
 
 'use strict';
@@ -13,12 +16,15 @@
 const { Notification } = require('electron');
 const LeaveService = require('./LeaveService');
 
-const NOTIFICATION_TYPE = 'resumption_alert';
-const ALERT_HOUR_BAGHDAD = 11; // 11:00 AM
+// إعدادات التنبيه الثابتة
+const NOTIFICATION_TYPE = 'resumption_alert'; // نوع التنبيه في جدول السجلات
+const ALERT_HOUR_BAGHDAD = 11;                // الساعة المحددة للتنبيه بتوقيت بغداد (11:00 صباحاً)
 
+// مؤشر المؤقت الدوري للمجدول في الذاكرة
 let _schedulerInterval = null;
 
 /**
+ * استخراج مكونات التاريخ والوقت الحالي بدقة استناداً إلى توقيت بغداد (UTC+3)
  * Returns the current date and time components in Baghdad timezone (UTC+3).
  * @returns {{ dateStr: string, hour: number, minute: number, second: number }}
  */
@@ -50,9 +56,10 @@ function getBaghdadTime() {
 }
 
 /**
+ * التحقق مما إذا كان قد تم إرسال إشعار من هذا النوع بالفعل في تاريخ اليوم
  * Checks if a notification of the given type has already been sent today.
  * @param {import('better-sqlite3').Database} db
- * @param {string} dateStr
+ * @param {string} dateStr تاريخ اليوم بصيغة YYYY-MM-DD
  * @returns {boolean}
  */
 function hasNotificationBeenSent(db, dateStr) {
@@ -63,10 +70,11 @@ function hasNotificationBeenSent(db, dateStr) {
 }
 
 /**
+ * تسجيل نجاح إرسال الإشعار لليوم الحالي في جدول _NotificationLog
  * Logs a successful notification in the database.
  * @param {import('better-sqlite3').Database} db
  * @param {string} dateStr
- * @param {number} itemCount
+ * @param {number} itemCount عدد الموظفين المشمولين
  */
 function recordNotificationSent(db, dateStr, itemCount) {
   db.prepare(
@@ -75,31 +83,32 @@ function recordNotificationSent(db, dateStr, itemCount) {
 }
 
 /**
+ * تنفيذ فحص استحقاق التنبيه وإطلاقه في حال انطباق الشروط
  * Performs the check and triggers the notification if applicable.
- * @param {import('electron').BrowserWindow} mainWindow
- * @param {import('better-sqlite3').Database} db
- * @param {boolean} force - Force trigger even if hour < 11 (e.g. for testing)
+ * @param {import('electron').BrowserWindow} mainWindow نافذة التطبيق الرئيسية
+ * @param {import('better-sqlite3').Database} db اتصال قاعدة البيانات
+ * @param {boolean} force إجبار الإطلاق فوراً وتجاوز فحص الوقت والتكرار (لأغراض الاختبار)
  */
 function checkAndTriggerAlert(mainWindow, db, force = false) {
   if (!db) return;
 
   const { dateStr, hour } = getBaghdadTime();
 
-  // If not forced, only trigger if time is at or after 11:00 AM Baghdad time
+  // في حالة التشغيل التلقائي العادي: لا يتم الإطلاق إلا عند أو بعد الساعة 11:00 صباحاً بتوقيت بغداد
   if (!force && hour < ALERT_HOUR_BAGHDAD) {
     return;
   }
 
-  // Check if already sent today
+  // منع التكرار: إذا كان الإشعار قد أُرسل اليوم مسبقاً، نتوقف فوراً
   if (!force && hasNotificationBeenSent(db, dateStr)) {
     return;
   }
 
-  // Query employees with leaves ending within 3 days
+  // الاستعلام عن الموظفين الذين تنتهي إجازاتهم خلال الأيام الـ 3 القادمة
   const approachingEmployees = LeaveService.getApproachingResumptions(db, 3);
 
   if (!approachingEmployees || approachingEmployees.length === 0) {
-    // If no employees, record as checked so we don't spam checks
+    // في حال عدم وجود أي إجازات مقتربة من الانتهاء، نسجل الفحص كمنفذ لليوم (بعدد 0) لتجنب التكرار غير المفيد
     recordNotificationSent(db, dateStr, 0);
     console.log(`[NotificationService] Checked for ${dateStr} (Baghdad): No approaching resumptions.`);
     return;
@@ -108,8 +117,9 @@ function checkAndTriggerAlert(mainWindow, db, force = false) {
   const count = approachingEmployees.length;
   console.log(`[NotificationService] Sending resumption alert for ${count} employee(s) on ${dateStr}`);
 
-  // 1. Native OS Notification
+  // 1. إطلاق إشعار نظام التشغيل الأصيل (Native Desktop Notification)
   if (Notification.isSupported()) {
+    // تلخيص أسماء أول 3 موظفين في نص الإشعار
     const summaryNames = approachingEmployees
       .slice(0, 3)
       .map((e) => e.FullName)
@@ -123,11 +133,12 @@ function checkAndTriggerAlert(mainWindow, db, force = false) {
       silent: false,
     });
 
+    // عند نقر المستخدم على الإشعار: إظهار النافذة والتركيز عليها وتوجيه الواجهة للوحة التحكم
     notification.on('click', () => {
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
-        // Send IPC to switch to dashboard
+        // إرسال رسالة IPC لواجهة العرض للتحويل التلقائي إلى تبويب لوحة التحكم
         mainWindow.webContents.send('notification:open-dashboard');
       }
     });
@@ -135,7 +146,7 @@ function checkAndTriggerAlert(mainWindow, db, force = false) {
     notification.show();
   }
 
-  // 2. In-App IPC Message to Renderer
+  // 2. إرسال حدث داخلي (IPC Push) لواجهة المستخدم لعرض التنبيه داخل التطبيق نفسه
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('notification:resumption-alert', {
       date: dateStr,
@@ -144,11 +155,13 @@ function checkAndTriggerAlert(mainWindow, db, force = false) {
     });
   }
 
-  // 3. Record in DB
+  // 3. توثيق إرسال التنبيه في قاعدة البيانات
   recordNotificationSent(db, dateStr, count);
 }
 
 /**
+ * بدء وتشغيل مجدول التنبيهات في الخلفية
+ * يعمل فور إقلاع التطبيق ثم يفحص دورياً كل 60 ثانية
  * Initializes the background notification scheduler.
  * Runs once on app startup and polls every 60 seconds.
  *
@@ -160,16 +173,16 @@ function startNotificationScheduler(mainWindow, db) {
     clearInterval(_schedulerInterval);
   }
 
-  // 1. Immediate startup check (e.g. if opened after 11:00 AM)
+  // 1. فحص فوري بعد إقلاع التطبيق بمهلة 2.5 ثانية (لاستدراك التنبيه إذا فُتح التطبيق بعد 11:00 صباحاً)
   setTimeout(() => {
     try {
       checkAndTriggerAlert(mainWindow, db);
     } catch (err) {
       console.error('[NotificationService] Startup check error:', err.message);
     }
-  }, 2500); // slight delay after window load
+  }, 2500); // مهلة قصيرة بعد اكتمال تحميل النافذة
 
-  // 2. Periodic 60-second polling (lightweight timestamp compare)
+  // 2. مؤقت دوري خفيف يفحص كل 60 ثانية لمقارنة الطابع الزمني الحالي بالساعة 11:00
   _schedulerInterval = setInterval(() => {
     try {
       checkAndTriggerAlert(mainWindow, db);
@@ -182,6 +195,7 @@ function startNotificationScheduler(mainWindow, db) {
 }
 
 /**
+ * إيقاف مجدول التنبيهات بأمان عند إغلاق التطبيق
  * Stops the notification scheduler on app shutdown.
  */
 function stopNotificationScheduler() {
@@ -197,3 +211,4 @@ module.exports = {
   checkAndTriggerAlert,
   getBaghdadTime,
 };
+

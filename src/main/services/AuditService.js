@@ -1,11 +1,13 @@
 // ============================================================
 //  services/AuditService.js  –  System Audit Trail Logger
-//  Main Process ONLY
-//  Responsibilities:
-//    • Record all insert, update, delete, and status change events
-//    • Capture snapshots of previous and new state in JSON format
-//    • Provide filtered & paginated query interface for audit views
-//    • Auto-archive and prune records when count exceeds 150
+//  خدمة توثيق وأرشفة سجل التدقيق والأمان للنظام (Audit Trail Service)
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • تسجيل وتوثيق كافة العمليات الجوهرية (إضافة، تعديل، حذف، تغيير حالة، نقل خارجي، نسخ احتياطي).
+//    • حفظ لقطات دقيقة للحالة السابقة (OldValue) والجديدة (NewValue) بصيغة JSON.
+//    • واجهة استعلام مفلترة ومقسمة لصفحات لجدول سجل التدقيق في واجهة المستخدم.
+//    • الأرشفة التلقائية الذكية: عند تجاوز السجلات 150 سجلاً، يتم ترحيل السجلات الأقدم
+//      إلى ملفات أرشيف سنوية JSONL على القرص لمنع تضخم قاعدة البيانات.
 // ============================================================
 
 'use strict';
@@ -37,6 +39,14 @@ function _getArchiveDir() {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  _archiveAndPruneLogs
+//
+//  آلية الأرشفة والتقليم التلقائي لسجل التدقيق:
+//  تضمن بقاء جدول AuditLogs خفيفاً وسريعاً عبر الاحتفاظ بأحدث 150 سجلاً فقط،
+//  وترحيل السجلات الأقدم الزائدة تلقائياً إلى ملفات JSONL مقسمة بحسب السنة
+//  في مجلد audit_archives بمسار بيانات التطبيق.
+// ──────────────────────────────────────────────────────────────
  * Archives older audit logs exceeding MAX_AUDIT_LOGS into JSONL files
  * and deletes them from the active AuditLogs table.
  *
@@ -100,6 +110,13 @@ function _archiveAndPruneLogs(db) {
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  logAction
+//
+//  تسجيل عملية جديدة في سجل التدقيق والأمان:
+//  - يحفظ نوع العملية، الكيان المتأثر، رقمه المعرف، اللقطة السابقة والجديدة.
+//  - يستدعي محرك الفحص والتقليم التلقائي فوراً بعد الإدراج.
+// ──────────────────────────────────────────────────────────────
  * Records an audit log entry into the AuditLogs table and enforces the 150-record limit.
  *
  * @param {import('better-sqlite3').Database} db
@@ -147,6 +164,13 @@ function logAction(db, { actionType, entityType, entityID = null, oldValue = nul
 }
 
 /**
+// ──────────────────────────────────────────────────────────────
+//  getAuditLogs
+//
+//  استرجاع سجلات التدقيق مقسمة لصفحات مع فلاتر التاريخ والنوع والبحث:
+//  - يستفيد من الفهرس idx_audit_timestamp لتسريع استعلامات النطاق الزمني.
+//  - يفك شفرة لقطات JSON التلقائية لتسهيل قراءتها وعرضها في واجهة المستخدم.
+// ──────────────────────────────────────────────────────────────
  * Retrieves paginated audit logs based on search criteria.
  *
  * @param {import('better-sqlite3').Database} db

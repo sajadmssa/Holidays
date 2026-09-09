@@ -1,11 +1,14 @@
 // ============================================================
 //  services/AutoBackupService.js  –  Automated 15-Day Backup Engine
-//  Main Process ONLY
-//  Responsibilities:
-//    • Startup check for scheduled 15-day silent backups
-//    • Safely create native SQLite backup in data/auto-backups
-//    • Retain only the 10 most recent backups (auto-cleanup oldest)
-//    • Record backup events in AuditLogs and _AppSettings
+//  محرك النسخ الاحتياطي الآلي الدوري (كل 15 يوماً)
+//  Main Process ONLY - يعمل حصرياً داخل العملية الرئيسية (Electron Main Process)
+//
+//  المسؤوليات الرئيسية:
+//    • الفحص التلقائي عند إقلاع التطبيق (Startup Check) للتأكد من مرور 15 يوماً على آخر نسخة.
+//    • إنشاء حزمة نسخ احتياطي مشفرة ومضغوطة بصيغة (.hbak) تشمل قاعدة البيانات والوثائق.
+//    • دعم المسار المخصص مع آلية التراجع التلقائي الذكي (Fallback) للمسار الافتراضي.
+//    • إدارة تدوير النسخ (Backup Rotation) بالاحتفاظ بآخر 10 نسخ وحذف القديم تلقائياً.
+//    • توثيق عمليات النسخ وحالات الفشل والتحذيرات بجدول _AppSettings وسجل التدقيق.
 // ============================================================
 
 'use strict';
@@ -14,14 +17,17 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const AuditService = require('./AuditService');
+const LoggerService = require('./LoggerService');
 
-const BACKUP_INTERVAL_DAYS = 15;
-const MS_PER_DAY = 86_400_000;
-const MAX_BACKUPS_RETAINED = 10;
+// إعدادات المحرك الثابتة
+const BACKUP_INTERVAL_DAYS = 15; // الفاصل الزمني بالأيام بين كل عمليتي نسخ تلقائي
+const MS_PER_DAY = 86_400_000;    // عدد المللي ثانية في اليوم الواحد للحسابات الزمنية الدقيقة
+const MAX_BACKUPS_RETAINED = 10;  // الحد الأقصى لعدد النسخ الاحتياطية المحفوظة قبل التدوير والحذف
 
 /**
+ * تحديد مسار مجلد بيانات التطبيق بأمان وفقاً لبيئة التشغيل
  * Resolves the application data directory.
- * @returns {string}
+ * @returns {string} مسار المجلد المطلق
  */
 function getDbDir() {
   return process.env.HOLIDAYS_DB_DIR
@@ -32,8 +38,9 @@ function getDbDir() {
 }
 
 /**
+ * التأكد من وجود المجلد المطلوب وإنشاؤه تسلسلياً (recursive) إذا كان مفقوداً
  * Ensures the auto-backups directory exists.
- * @param {string} dirPath
+ * @param {string} dirPath المسار المستهدف
  */
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -41,16 +48,16 @@ function ensureDir(dirPath) {
   }
 }
 
-const LoggerService = require('./LoggerService');
-
 /**
+ * تدوير وحذف النسخ الاحتياطية القديمة للحفاظ على أحدث N ملفات فقط منعاً لاستهلاك القرص
  * Rotates the auto-backups directory to keep only the newest N files.
- * @param {string} dirPath
- * @param {number} maxFiles
+ * @param {string} dirPath مسار مجلد النسخ
+ * @param {number} maxFiles الحد الأقصى لعدد الملفات المحتفظ بها (افتراضياً 10)
  */
 function rotateBackups(dirPath, maxFiles = MAX_BACKUPS_RETAINED) {
   try {
     ensureDir(dirPath);
+    // قراءة كافة الملفات التي تطابق النمط auto_backup_*.hbak أو zip أو db
     const files = fs
       .readdirSync(dirPath)
       .filter((file) => /^auto_backup_.*\.(hbak|zip|db)$/i.test(file))
@@ -59,8 +66,9 @@ function rotateBackups(dirPath, maxFiles = MAX_BACKUPS_RETAINED) {
         const stats = fs.statSync(fullPath);
         return { file, fullPath, mtime: stats.mtimeMs };
       })
-      .sort((a, b) => b.mtime - a.mtime); // Newest first
+      .sort((a, b) => b.mtime - a.mtime); // الترتيب من الأحدث إلى الأقدم استناداً إلى وقت التعديل
 
+    // إذا زاد عدد الملفات عن الحد المسموح، نحذف الأقدم (من الفهرس maxFiles فما بعد)
     if (files.length > maxFiles) {
       const filesToDelete = files.slice(maxFiles);
       for (const item of filesToDelete) {
@@ -78,10 +86,11 @@ function rotateBackups(dirPath, maxFiles = MAX_BACKUPS_RETAINED) {
 }
 
 /**
+ * فحص استحقاق النسخ الاحتياطي الدوري (كل 15 يوماً) وتنفيذه تلقائياً عند الحاجة
  * Checks if 15 days have passed since the last automated backup and runs a new backup if due.
  *
- * @param {import('better-sqlite3').Database} db
- * @param {{ force?: boolean, baseDir?: string }} options
+ * @param {import('better-sqlite3').Database} db اتصال قاعدة البيانات النشط
+ * @param {{ force?: boolean, baseDir?: string }} options خيارات التشغيل (force للإجبار)
  * @returns {Promise<{ performed: boolean, backupPath?: string, message?: string, error?: string }>}
  */
 async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {}) {
@@ -93,14 +102,16 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
   const now = new Date();
   const nowIso = now.toISOString();
 
-  // 1. Check last auto-backup timestamp from _AppSettings
+  // 1. الاستعلام عن تاريخ آخر عملية نسخ احتياطي تلقائي مسجلة في جدول إعدادات النظام
   const settingRow = db
     .prepare("SELECT Value FROM _AppSettings WHERE Key = 'last_auto_backup_date'")
     .get();
 
   let isDue = false;
 
+  // تحديد ما إذا كان النسخ مستحقاً الآن
   if (force || !settingRow || !settingRow.Value) {
+    // إجبار يدوي، أو أول تشغيل على الإطلاق بدون سجل سابق
     isDue = true;
   } else {
     const lastBackupTime = new Date(settingRow.Value).getTime();
@@ -108,12 +119,14 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
       isDue = true;
     } else {
       const daysSinceLast = (now.getTime() - lastBackupTime) / MS_PER_DAY;
+      // إذا مر 15 يوماً أو أكثر
       if (daysSinceLast >= BACKUP_INTERVAL_DAYS) {
         isDue = true;
       }
     }
   }
 
+  // إذا لم يحن موعد النسخ بعد، ننهي العملية بسلام دون استهلاك موارد
   if (!isDue) {
     return { performed: false, message: 'Auto backup is not due yet.' };
   }
@@ -122,7 +135,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
     const dbDir = baseDir || getDbDir();
     const defaultBackupsDir = path.join(dbDir, 'auto-backups');
 
-    // Check if custom path is configured in _AppSettings
+    // فحص ما إذا كان المستخدم قد حدد مساراً مخصصاً (مثل فلاش USB أو قرص خارجي)
     const customSetting = db
       .prepare("SELECT Value FROM _AppSettings WHERE Key = 'auto_backup_custom_path'")
       .get();
@@ -132,14 +145,17 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
     let usedFallback = false;
     let fallbackWarning = '';
 
+    // التحقق من صلاحية وجودة المسار المخصص وإمكانية الكتابة عليه
     if (customPath) {
       try {
         if (!fs.existsSync(customPath)) {
           fs.mkdirSync(customPath, { recursive: true });
         }
+        // اختبار إذن الكتابة (W_OK)
         fs.accessSync(customPath, fs.constants.W_OK);
         autoBackupsDir = customPath;
       } catch (accessErr) {
+        // إذا تعذر الوصول للمسار المخصص (مثلاً القرص الخارجي غير متصل)، نتراجع تلقائياً للمسار الافتراضي لضمان عدم ضياع البيانات
         usedFallback = true;
         fallbackWarning = `تعذر الوصول لمسار النسخ الاحتياطي المخصص (${customPath}): ${accessErr.message}. تم الرجوع للمسار الافتراضي.`;
         LoggerService.warn('AutoBackupService', fallbackWarning, accessErr);
@@ -149,7 +165,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
 
     ensureDir(autoBackupsDir);
 
-    // 2. Perform safe live backup (bundled .hbak format)
+    // 2. إنشاء اسم الملف وبدء عملية النسخ الاحتياطي الآمن الكامل (.hbak)
     const timestampStr = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const backupFileName = `auto_backup_${timestampStr}.hbak`;
     const backupFilePath = path.join(autoBackupsDir, backupFileName);
@@ -158,7 +174,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
     const dbModule = require('../database');
     await dbModule.backupDatabase(backupFilePath);
 
-    // 3. Update _AppSettings (success & clear any previous error)
+    // 3. تحديث جدول إعدادات النظام وتصفير أي أخطاء سابقة وتسجيل التحذيرات إن وجدت
     db.prepare(`
       INSERT INTO _AppSettings (Key, Value, UpdatedAt)
       VALUES ('last_auto_backup_date', ?, datetime('now', 'localtime'))
@@ -183,7 +199,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
         UpdatedAt = excluded.UpdatedAt
     `).run(usedFallback ? JSON.stringify({ warning: fallbackWarning, date: nowIso }) : '');
 
-    // 4. Log to AuditService
+    // 4. توثيق عملية النسخ في سجل التدقيق الأمني الشامل
     const auditDetails = usedFallback
       ? `نسخة احتياطية تلقائية دورية (مسار بديل آمن نظراً لتعذر المسار المخصص): ${backupFileName}`
       : (customPath
@@ -199,7 +215,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
       details: auditDetails,
     });
 
-    // 5. Rotate backups (keep last 10)
+    // 5. تدوير النسخ القديمة والاحتفاظ بآخر 10 نسخ فقط
     rotateBackups(autoBackupsDir, MAX_BACKUPS_RETAINED);
 
     return {
@@ -212,6 +228,7 @@ async function checkAndRunAutoBackup(db, { force = false, baseDir = null } = {})
   } catch (err) {
     LoggerService.error('AutoBackupService', 'Failed to execute auto-backup', err);
     try {
+      // حفظ رسالة الخطأ في إعدادات النظام ليتم عرضها لاحقاً في لوحة التحكم
       db.prepare(`
         INSERT INTO _AppSettings (Key, Value, UpdatedAt)
         VALUES ('last_auto_backup_error', ?, datetime('now', 'localtime'))
@@ -230,3 +247,4 @@ module.exports = {
   BACKUP_INTERVAL_DAYS,
   MAX_BACKUPS_RETAINED,
 };
+

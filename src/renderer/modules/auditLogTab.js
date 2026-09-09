@@ -1,5 +1,7 @@
 // ============================================================
-//  auditLogTab.js – Audit Logs & System Monitoring Controller (Tab 7)
+//  auditLogTab.js – وحدة التحكم بسجل التدقيق ومراقبة حركات النظام
+//  تتولى عرض سجل الحركات الرقابية (إضافة، تعديل، حذف، نسخ، استعادة)،
+//  مع إمكانية تصفية السجل وعرض لقطات المقارنة JSON (قبل وبعد التعديل)
 // ============================================================
 
 'use strict';
@@ -7,6 +9,7 @@
 import { showToast } from './uiHelpers.js';
 import { createPaginationController } from './paginationComponent.js';
 
+// عناصر واجهة المستخدم لسجل التدقيق
 let btnRefreshAuditLogs = null;
 let auditFilterSearch = null;
 let auditFilterAction = null;
@@ -18,10 +21,16 @@ let btnResetAuditFilter = null;
 let auditLogsTbody = null;
 let _pagination = null;
 
+// عناصر النافذة المنبثقة لمعاينة لقطة البيانات (Audit Snapshot Modal)
 let auditDetailsModal = null;
 let btnCloseAuditModal = null;
 let auditModalBody = null;
 
+/**
+ * توليد عنصر شارة ملونة يوضح طبيعة العملية المسجلة (إضافة، تعديل، حذف، نسخ، استعادة)
+ * @param {string} action - مسمى العملية الرقابية
+ * @returns {HTMLSpanElement}
+ */
 export function renderAuditActionBadge(action) {
   const span = document.createElement('span');
   const act = String(action || '').toUpperCase();
@@ -57,6 +66,11 @@ export function renderAuditActionBadge(action) {
   return span;
 }
 
+/**
+ * فتح النافذة المنبثقة لمعاينة لقطة التعديل ومقارنة القيم السابقة (Old) مع القيم الجديدة (New)
+ * بصيغة JSON منسقة وسهلة القراءة للمدققين
+ * @param {Object} log - كائن حركة التدقيق
+ */
 export function openAuditSnapshotModal(log) {
   if (!auditDetailsModal || !auditModalBody) return;
   auditModalBody.innerHTML = '';
@@ -89,7 +103,7 @@ export function openAuditSnapshotModal(log) {
   `;
   auditModalBody.appendChild(headerBox);
 
-  // Parse OldValues and NewValues
+  // تحليل لقطة البيانات السابقة والحالية من JSON
   let oldObj = log.OldValueParsed || null;
   let newObj = log.NewValueParsed || null;
   try {
@@ -138,6 +152,10 @@ export function openAuditSnapshotModal(log) {
   auditDetailsModal.showModal();
 }
 
+/**
+ * جلب حركات سجل التدقيق مقسمة لصفحات بناءً على الفلاتر المدخلة وتحديث الجدول وعنصر الترقيم
+ * @param {number} [page=1] - رقم الصفحة المطلوبة
+ */
 export async function loadAuditLogs(page = _pagination?.getCurrentPage() || 1) {
   if (!auditLogsTbody) return;
 
@@ -250,6 +268,9 @@ export async function loadAuditLogs(page = _pagination?.getCurrentPage() || 1) {
   }
 }
 
+/**
+ * تهيئة تبويب سجل التدقيق: ربط عناصر DOM، ومستمعات الفرز والتصفية، ومكون الترقيم الموحد، ونافذة المعاينة
+ */
 export function initAuditLogTab() {
   btnRefreshAuditLogs = document.getElementById('btn-refresh-audit-logs');
   auditFilterSearch = document.getElementById('audit-filter-search');
@@ -265,7 +286,7 @@ export function initAuditLogTab() {
   btnCloseAuditModal = document.getElementById('btn-close-audit-modal');
   auditModalBody = document.getElementById('audit-modal-body');
 
-  // Initialize unified pagination controller (15 rows)
+  // تهيئة وحدة التحكم الموحدة بالترقيم (15 حركة لكل صفحة)
   _pagination = createPaginationController({
     infoEl: 'audit-pagination-info',
     pageIndicatorEl: 'audit-page-indicator',
@@ -278,16 +299,19 @@ export function initAuditLogTab() {
     onPageChange: (newPage) => loadAuditLogs(newPage)
   });
 
+  // إغلاق النافذة المنبثقة لمعاينة اللقطة
   if (btnCloseAuditModal && auditDetailsModal) {
     btnCloseAuditModal.addEventListener('click', () => {
       auditDetailsModal.close();
     });
   }
 
+  // زر التحديث اليدوي
   if (btnRefreshAuditLogs) {
     btnRefreshAuditLogs.addEventListener('click', () => loadAuditLogs(1));
   }
 
+  // تطبيق فلاتر البحث والنوع والكيان والتاريخ
   if (btnApplyAuditFilter) {
     btnApplyAuditFilter.addEventListener('click', () => {
       if (_pagination) _pagination.resetPage();
@@ -295,6 +319,7 @@ export function initAuditLogTab() {
     });
   }
 
+  // إعادة ضبط وتفريغ جميع فلاتر البحث وإعادة تحميل السجل الكامل
   if (btnResetAuditFilter) {
     btnResetAuditFilter.addEventListener('click', () => {
       if (auditFilterSearch) auditFilterSearch.value = '';

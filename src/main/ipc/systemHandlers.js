@@ -1,9 +1,14 @@
 // ============================================================
-//  ipc/systemHandlers.js  –  System Level IPC Handlers (Phase 11)
-//  Responsibilities:
-//    • Register system:backup IPC channel
-//    • Open native Save Dialog for database backups
-//    • Delegate database backup to database.js native backup()
+//  ipc/systemHandlers.js  –  System Level IPC Handlers
+//  معالجات قنوات الاتصال على مستوى النظام (System IPC Channels)
+//  Main Process ONLY - معالجات النظام والنسخ الاحتياطي والاستعادة والإعدادات
+//
+//  المسؤوليات الرئيسية:
+//    • إدارة عمليات النسخ الاحتياطي اليدوي والمجمع (system:backup) وحفظ ملفات .hbak.
+//    • اختيار المجلدات المخصصة للنسخ الاحتياطي التلقائي (system:selectDirectory).
+//    • استعادة البيانات الآمنة مع الفحص المسبق والتحذير وإعادة الإقلاع (system:restore).
+//    • قراءة وحفظ إعدادات النظام العامة في جدول _AppSettings (system:getSetting / system:setSetting).
+//    • فتح الملفات والمستندات المصدرة بالتطبيقات الافتراضية للويندوز عبر shell (system:openPath).
 // ============================================================
 
 'use strict';
@@ -15,13 +20,14 @@ const { createSafeHandler } = require('../utils/ipcHandlerHelper');
 const { safeHandleAsync } = createSafeHandler('SystemHandlers');
 
 /**
+ * تسجيل كافة قنوات IPC الخاصة بإدارة النظام
  * Registers system-level IPC handlers.
  * @param {Electron.IpcMain} ipcMain
  */
 function registerSystemHandlers(ipcMain) {
 
   // ── system:backup ───────────────────────────────────────────
-  //
+  //  فتح نافذة الحفظ لاختيار مسار النسخة الاحتياطية وتوليد الحزمة المجمعة (.hbak)
   //  Prompts user with native Save dialog and executes native DB + Documents backup bundle.
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
@@ -40,10 +46,12 @@ function registerSystemHandlers(ipcMain) {
         properties: ['createDirectory', 'showOverwriteConfirmation'],
       });
 
+      // إذا تراجع المستخدم وأغلق نافذة الحفظ
       if (result.canceled || !result.filePath) {
         return { canceled: true };
       }
 
+      // تفويض تنفيذ النسخ المتكامل لقاعدة البيانات والمستندات
       await db.backupDatabase(result.filePath);
 
       return { filePath: result.filePath };
@@ -51,7 +59,7 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:selectDirectory ──────────────────────────────────
-  //
+  //  فتح نافذة اختيار مجلد لحفظ النسخ الاحتياطية التلقائية فيه
   //  Prompts user with native Open dialog for directory selection.
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
@@ -74,7 +82,8 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:restore ──────────────────────────────────────────
-  //
+  //  استعادة نسخة احتياطية: فحص سلامة الحزمة، وعرض شاشة تأكيد تحذيرية،
+  //  وأخذ نسخة أمان احتياطية تلقائياً قبل الاستبدال، ثم إعادة تشغيل البرنامج
   //  Prompts user with native Open dialog, validates the backup file,
   //  shows a strong warning confirmation, performs auto safety backup,
   //  restores the database and documents, and relaunches the app.
@@ -84,7 +93,7 @@ function registerSystemHandlers(ipcMain) {
     safeHandleAsync(async () => {
       const win = BrowserWindow.getFocusedWindow();
 
-      // 1. Open File Dialog
+      // 1. فتح نافذة اختيار ملف النسخة الاحتياطية
       const openResult = await dialog.showOpenDialog(win, {
         title: 'اختيار ملف النسخة الاحتياطية للاستعادة',
         buttonLabel: 'فحص واستعادة',
@@ -103,10 +112,10 @@ function registerSystemHandlers(ipcMain) {
 
       const selectedFile = openResult.filePaths[0];
 
-      // 2. Pre-flight Validation
+      // 2. الفحص المسبق وسلامة الملف (Pre-flight Validation) وقراءة الإحصائيات
       const validation = db.validateDatabaseBackup(selectedFile);
 
-      // 3. User Confirmation Dialog (Warning)
+      // 3. بناء نص التحذير وتأكيد المستخدم قبل بدء الاستبدال
       let confirmDetail = `النسخة المختارة تحتوي على:\n• عدد الموظفين: ${validation.employeesCount}\n• عدد الإجازات: ${validation.leavesCount}\n`;
       if (validation.isBundle) {
         confirmDetail += `• عدد المستندات والكروت: ${validation.documentsCount ?? 0}\n• نوع الحزمة: مجمعة (قاعدة بيانات ومستندات)\n\n`;
@@ -130,14 +139,15 @@ function registerSystemHandlers(ipcMain) {
         noLink: true,
       });
 
+      // إذا اختار المستخدم إلغاء العملية
       if (confirmResult.response !== 0) {
         return { canceled: true };
       }
 
-      // 4. Restore Database (which also creates safety backup)
+      // 4. تنفيذ الاستعادة (تنشئ تلقائياً نسخة أمان للوضع الحالي قبل الكتابة فوقه)
       const restoreResult = await db.restoreDatabase(selectedFile);
 
-      // 5. Relaunch and exit to cleanly reinitialize everything
+      // 5. إعادة تشغيل التطبيق والخروج النظيف لتهيئة البيئة من جديد
       app.relaunch();
       app.exit(0);
 
@@ -146,7 +156,7 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:getSetting ───────────────────────────────────────
-  //
+  //  قراءة قيمة إعداد معين من جدول إعدادات النظام _AppSettings
   //  Reads a setting value from the _AppSettings table.
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
@@ -162,7 +172,7 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:setSetting ───────────────────────────────────────
-  //
+  //  حفظ أو تحديث إعداد في جدول _AppSettings مع التوثيق في سجل التدقيق
   //  Upserts a setting key-value pair in _AppSettings.
   //  Supports both { key, value } payload object and (key, value) direct arguments.
   // ─────────────────────────────────────────────────────────────
@@ -170,6 +180,7 @@ function registerSystemHandlers(ipcMain) {
     'system:setSetting',
     safeHandleAsync(async (arg1, arg2) => {
       let key, value;
+      // دعم كلا الأسلوبين: كائن { key, value } أو وسيطين منفصلين (key, value)
       if (arg1 && typeof arg1 === 'object' && arg1.key !== undefined) {
         key = arg1.key;
         value = arg1.value;
@@ -188,6 +199,7 @@ function registerSystemHandlers(ipcMain) {
 
       const oldRow = rawDb.prepare('SELECT Value FROM _AppSettings WHERE Key = ?').get(cleanKey);
 
+      // الحفظ أو التحديث عند التعارض (Upsert via ON CONFLICT)
       rawDb.prepare(`
         INSERT INTO _AppSettings (Key, Value, UpdatedAt)
         VALUES (?, ?, datetime('now', 'localtime'))
@@ -196,7 +208,7 @@ function registerSystemHandlers(ipcMain) {
           UpdatedAt = excluded.UpdatedAt
       `).run(cleanKey, cleanVal);
 
-      // Log setting update
+      // توثيق تعديل الإعداد في سجل التدقيق الأمني الشامل
       const AuditService = require('../services/AuditService');
       const auditResult = AuditService.logAction(rawDb, {
         actionType: 'UPDATE',
@@ -217,7 +229,7 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:openPath ─────────────────────────────────────────
-  //
+  //  فتح مسار ملف أو مجلد في التطبيق الافتراضي لنظام التشغيل (مثل Excel أو عارض الصور)
   //  Opens a file at the given absolute path using the default OS application (e.g. Excel).
   // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
@@ -239,3 +251,4 @@ function registerSystemHandlers(ipcMain) {
 }
 
 module.exports = { registerSystemHandlers };
+

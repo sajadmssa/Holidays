@@ -1,25 +1,25 @@
 // ============================================================
-//  paginationComponent.js – Standardized Reusable Pagination Controller
-//  Maintains unified 15 rows per page UI across all views with
-//  complete edge-case handling (zero state, bounds, auto fallback).
+//  paginationComponent.js – وحدة التحكم الموحدة بالترقيم وقوائم البيانات
+//  تضمن معياراً ثابتاً لتقسيم الصفحات (15 سجلاً لكل صفحة) عبر كافة واجهات
+//  التطبيق مع معالجة الحالات الحدية (سجلات فارغة، حدود التنقل، والتراجع بعد الحذف)
 // ============================================================
 
 'use strict';
 
 /**
- * Creates and initializes a reusable pagination controller.
+ * إنشاء وتهيئة وحدة تحكم قابلة لإعادة الاستخدام لترقيم الصفحات
  *
- * @param {object} config
- * @param {HTMLElement|string} config.infoEl - Element or ID for info text
- * @param {HTMLElement|string} config.pageIndicatorEl - Element or ID for page indicator
- * @param {HTMLElement|string} config.btnFirst - First page button or ID
- * @param {HTMLElement|string} config.btnPrev - Previous page button or ID
- * @param {HTMLElement|string} config.btnNext - Next page button or ID
- * @param {HTMLElement|string} config.btnLast - Last page button or ID
- * @param {string} [config.unitLabel='سجل'] - Arabic unit name e.g. 'موظف', 'إجازة', 'حركة'
- * @param {number} [config.pageSize=15] - Number of records per page (standard 15)
- * @param {Function} config.onPageChange - Callback invoked when page changes (newPage: number) => void
- * @returns {object} Pagination controller API
+ * @param {object} config - كائن إعدادات الترقيم
+ * @param {HTMLElement|string} config.infoEl - عنصر أو معرف نص معلومات العرض (مثال: عرض 1 - 15 من 100)
+ * @param {HTMLElement|string} config.pageIndicatorEl - عنصر أو معرف مؤشر الصفحة الحالية (مثال: صفحة 1 من 7)
+ * @param {HTMLElement|string} config.btnFirst - زر الانتقال للصفحة الأولى
+ * @param {HTMLElement|string} config.btnPrev - زر الانتقال للصفحة السابقة
+ * @param {HTMLElement|string} config.btnNext - زر الانتقال للصفحة التالية
+ * @param {HTMLElement|string} config.btnLast - زر الانتقال للصفحة الأخيرة
+ * @param {string} [config.unitLabel='سجل'] - مسمى الوحدة بالعربية (مثال: 'موظف'، 'إجازة'، 'حركة')
+ * @param {number} [config.pageSize=15] - عدد السجلات في الصفحة الواحدة (المعيار المعتمد: 15)
+ * @param {Function} config.onPageChange - دالة رد الاتصال عند تغيير رقم الصفحة (newPage: number) => void
+ * @returns {object} واجهة برمجة وحدة التحكم بالترقيم
  */
 export function createPaginationController({
   infoEl,
@@ -47,7 +47,7 @@ export function createPaginationController({
   const _pageSize = pageSize || 15;
 
   /**
-   * Updates the UI display elements based on current pagination state.
+   * تحديث وتوليد نصوص واجهة المستخدم وحالة تعطيل أزرار التنقل
    */
   function renderUI() {
     if (_info) {
@@ -64,6 +64,7 @@ export function createPaginationController({
       _pageIndicator.textContent = `صفحة ${_currentPage} من ${_totalPages}`;
     }
 
+    // تعطيل أزرار البداية والنهاية عند الوصول لحدود الصفحات
     const isFirstDisabled = _totalCount === 0 || _currentPage <= 1;
     const isLastDisabled = _totalCount === 0 || _currentPage >= _totalPages;
 
@@ -74,7 +75,7 @@ export function createPaginationController({
   }
 
   /**
-   * Updates pagination data from server response and re-renders.
+   * تحديث بيانات الترقيم بناءً على استجابة الخادم وإعادة رسم الواجهة
    * @param {{ page?: number, totalPages?: number, totalCount?: number }} params
    */
   function update({ page = _currentPage, totalPages = 1, totalCount = 0 } = {}) {
@@ -85,7 +86,7 @@ export function createPaginationController({
   }
 
   /**
-   * Resets page to 1 (used when search or filter values change).
+   * إعادة التعيين إلى الصفحة الأولى (تستخدم عند تغيير فلاتر البحث أو التصفية)
    */
   function resetPage() {
     _currentPage = 1;
@@ -93,9 +94,8 @@ export function createPaginationController({
   }
 
   /**
-   * Handles post-deletion edge case: if current page is now empty
-   * and beyond totalPages, steps back automatically.
-   * @param {number} newTotalCount
+   * معالجة الحالات الحدية بعد حذف سجل: في حال أصبحت الصفحة الحالية فارغة وتجاوزت إجمالي الصفحات، يتم التراجع تلقائياً
+   * @param {number} newTotalCount - إجمالي عدد السجلات الجديد بعد الحذف
    */
   function handleRecordDeleted(newTotalCount) {
     if (typeof newTotalCount === 'number') {
@@ -112,7 +112,7 @@ export function createPaginationController({
     }
   }
 
-  // Bind button events
+  // ربط أحداث النقر على أزرار التنقل
   if (_btnFirst) {
     _btnFirst.addEventListener('click', () => {
       if (_currentPage > 1) {
@@ -149,7 +149,7 @@ export function createPaginationController({
     });
   }
 
-  // Initial render
+  // الرسم الأولي لواجهة الترقيم
   renderUI();
 
   return {

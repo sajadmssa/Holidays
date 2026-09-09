@@ -1,10 +1,13 @@
 // ============================================================
 //  ipc/documentHandlers.js – Employee Documents IPC Layer
-//  Responsibilities:
-//    • Register IPC channels for employee document operations
-//    • Pick files and folders using native Electron dialogs
-//    • Open stored documents in default OS applications (PDF readers, image viewers)
-//    • Safe async error handling with Arabic translations
+//  طبقة معالجة قنوات الاتصال الداخلي (IPC) لأرشفة ومستندات الموظفين
+//
+//  Responsibilities / المسؤوليات الأساسية:
+//    • تسجيل كافة قنوات IPC الخاصة بمستندات الموظفين (إضافة، استعراض، حذف، فتح، طباعة).
+//    • فتح نوافذ الحوار الأصلية (Native Open/Save Dialogs) لاختيار الملفات والمجلدات.
+//    • فتح المستندات المخزنة مباشرة في التطبيقات الافتراضية للنظام (قارئ PDF، عارض الصور).
+//    • تجهيز ومعالجة أوامر الطباعة المباشرة على مقاس A4 عبر محرك Chromium Print.
+//    • معالجة آمنة للأخطاء وترجمة الرسائل إلى اللغة العربية.
 // ============================================================
 
 'use strict';
@@ -17,6 +20,9 @@ const { createSafeHandler } = require('../utils/ipcHandlerHelper');
 const { safeHandleAsync } = createSafeHandler('DocumentHandlers');
 
 /**
+ * تسجيل كافة قنوات IPC الخاصة بمستندات وأرشيف الموظفين:
+ * تُستدعى مرة واحدة عند بدء التطبيق في main.js.
+ *
  * Registers document-related IPC channels.
  *
  * @param {Electron.IpcMain} ipcMain
@@ -25,7 +31,11 @@ const { safeHandleAsync } = createSafeHandler('DocumentHandlers');
 function registerDocumentHandlers(ipcMain, db) {
 
   // ── document:add ─────────────────────────────────────────────
-  // Adds a new document version for an employee (does not delete previous versions)
+  //
+  //  إضافة نسخة مستند جديدة للموظف (كرت زمنية أو كرت إجازة) دون استبدال النسخ السابقة.
+  //
+  //  Renderer payload: { employeeId: number, documentType: string, sourceFilePath: string, notes?: string }
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:add',
     safeHandleAsync(async (payload) => {
@@ -37,7 +47,11 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:list ────────────────────────────────────────────
-  // Lists non-deleted document versions for an employee
+  //
+  //  استرجاع قائمة المستندات غير المحذوفة لموظف محدد مرتبة بحسب السنة وتاريخ الرفع.
+  //
+  //  Renderer payload: { employeeId: number, documentType?: string } أو رقم الموظف مباشرة
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:list',
     safeHandleAsync(async (payload) => {
@@ -50,7 +64,11 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:delete ──────────────────────────────────────────
-  // Soft deletes a specific document version (leaves physical file on disk)
+  //
+  //  الحذف المنطقي لنسخة مستند (Soft Delete) مع الاحتفاظ بالملف الفيزيائي على القرص.
+  //
+  //  Renderer payload: { documentId: number } أو رقم المستند مباشرة
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:delete',
     safeHandleAsync(async (documentId) => {
@@ -60,7 +78,11 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:openExternal ────────────────────────────────────
-  // Opens the document file on the host OS using the default viewer
+  //
+  //  فتح ملف المستند بالتطبيق الافتراضي المثبت على نظام تشغيل المستخدم (Acrobat, عارض الصور..).
+  //
+  //  Renderer payload: { documentId: number } أو رقم المستند مباشرة
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:openExternal',
     safeHandleAsync(async (documentId) => {
@@ -81,7 +103,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:pickFile ────────────────────────────────────────
-  // Prompts user with native Open dialog for selecting a card/document file
+  //
+  //  فتح نافذة الحوار الأصلية لاختيار ملف كرت الموظف (PDF أو صورة مدعومة).
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:pickFile',
     safeHandleAsync(async (options = {}) => {
@@ -111,6 +135,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:getStoragePath ──────────────────────────────────
+  //
+  //  استرجاع المسار الجذري الفعلي المستخدم حالياً لتخزين المستندات.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:getStoragePath',
     safeHandleAsync(async () => {
@@ -119,6 +146,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:setStoragePath ──────────────────────────────────
+  //
+  //  تحديث مسار تخزين المستندات بعد اختبار صلاحيات الكتابة فيه وتوثيقه في التدقيق.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:setStoragePath',
     safeHandleAsync(async (newPath) => {
@@ -128,6 +158,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:testStoragePath ─────────────────────────────────
+  //
+  //  اختبار صلاحيات الكتابة والقراءة على مسار مجلد مقترح قبل اعتماده.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:testStoragePath',
     safeHandleAsync(async (targetPath) => {
@@ -137,6 +170,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:openStorageFolder ───────────────────────────────
+  //
+  //  فتح مجلد التخزين الجذري في مستكشف ملفات ويندوز (Windows Explorer).
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:openStorageFolder',
     safeHandleAsync(async () => {
@@ -150,7 +186,11 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:print ───────────────────────────────────────────
-  // Prints the card/document directly on A4 paper using webContents.print()
+  //
+  //  طباعة المستند مباشرة على ورق مقاس A4 عبر استدعاء نافذة الطباعة الأصلية:
+  //  - يدعم ملفات PDF وملفات الصور (JPG, PNG, WEBP).
+  //  - ينسق الصور داخل قالب HTML خفيف مهيأ تلقائياً لطباعة A4 بدون هوامش مفرطة.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:print',
     safeHandleAsync(async (documentId) => {
@@ -215,7 +255,7 @@ function registerDocumentHandlers(ipcMain, db) {
             setTimeout(executePrint, 500);
           });
         } else {
-          // Render HTML page formatted for A4
+          // Render HTML page formatted for A4 / تجهيز صفحة طباعة مهيأة لمقاس A4
           const htmlContent = `
             <!DOCTYPE html>
             <html dir="rtl" lang="ar">
@@ -271,6 +311,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:getDeletedStats ─────────────────────────────────
+  //
+  //  حساب إجمالي عدد وحجم المستندات المحذوفة منطقياً (IsDeleted = 1) بانتظار الإفراغ.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:getDeletedStats',
     safeHandleAsync(async () => {
@@ -279,6 +322,9 @@ function registerDocumentHandlers(ipcMain, db) {
   );
 
   // ── document:purgeDeleted ────────────────────────────────────
+  //
+  //  الإفراغ والتنظيف النهائي للمستندات المحذوفة من القرص وقاعدة البيانات.
+  // ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'document:purgeDeleted',
     safeHandleAsync(async () => {

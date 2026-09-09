@@ -1,5 +1,14 @@
 // ============================================================
 //  manageEmployeeTab.js – Employee Management & Editing Controller (Tab 4)
+//  وحدة التحكم بإدارة وتعديل بيانات الموظفين وأرصدتهم ونقلهم (التبويب الرابع)
+//
+//  المسؤوليات الرئيسية:
+//    • تحميل بيانات الموظف الكاملة (البيانات الشخصية، الوظيفية، الأرصدة، المستندات).
+//    • تعديل بيانات الموظف وحساب أيام التسوية (AdjustmentDays) للأرصدة الاعتيادية بدقة.
+//    • تحديث أرصدة الإجازات المرضية (100% و 50%) مباشرة في جدول الأرصدة.
+//    • تجميد الموظف (Deactivate) أو إعادة تفعيله (Activate) مع الحوارات التأكيدية.
+//    • تسجيل النقل الخارجي وتعديل بياناته أو إلغاء حالة النقل وإعادة الموظف كنشط.
+//    • فتح نافذة أرشفة المستندات والكروت الرسمية مع شارات الإحصاء الرقمية.
 // ============================================================
 
 'use strict';
@@ -7,6 +16,7 @@
 import { showToast, showConfirm } from './uiHelpers.js';
 import { openEmployeeDocumentsModal } from './employeeDocumentsModal.js';
 
+// مراجع عناصر الإدخال والاستمارات
 let manageEmpIdInput = null;
 let btnLoadManageEmp = null;
 let manageEmpWarning = null;
@@ -29,13 +39,16 @@ let btnManageOpenLeavecards = null;
 let manageBadgeTimecardCount = null;
 let manageBadgeLeavecardCount = null;
 
+// حالة الموظف المفتوح حالياً في الذاكرة
 let currentManagingEmpId = null;
 let currentManagingEmpData = null;
 
+// عناصر شريط حالة النقل الخارجي
 let manageEmpTransferredBanner = null;
 let manageEmpTransferredDetails = null;
 let btnTransferEmp = null;
 
+// عناصر نافذة تسجيل النقل الخارجي المنبثقة
 let transferModal = null;
 let btnCloseTransferModal = null;
 let btnCancelTransferModal = null;
@@ -47,6 +60,10 @@ let transferNotesInput = null;
 let btnSaveTransfer = null;
 let btnCancelTransferStatus = null;
 
+/**
+ * جلب وتحميل كافة بيانات الموظف وأرصدته ومستنداته وعرضها في شاشة الإدارة
+ * @param {number} id الرقم الوظيفي للموظف
+ */
 export async function loadEmployeeForManagement(id) {
   if (!id || !Number.isInteger(id) || id <= 0) {
     showToast('يرجى إدخال رقم موظف صحيح.', 'warning');
@@ -79,6 +96,7 @@ export async function loadEmployeeForManagement(id) {
     currentManagingEmpId = emp.EmployeeID;
     currentManagingEmpData = emp;
 
+    // تعبئة حقول البيانات الأساسية
     if (manageFullNameInput) manageFullNameInput.value = emp.FullName || '';
     if (manageJobTitleInput) manageJobTitleInput.value = emp.JobTitle || '';
     if (manageWorkLocationInput) manageWorkLocationInput.value = emp.WorkLocation || '';
@@ -88,7 +106,7 @@ export async function loadEmployeeForManagement(id) {
     }
     if (manageHireDateInput) manageHireDateInput.value = emp.HireDate || '';
 
-    // Render Global Leave Balances
+    // عرض وتعبئة أرصدة الإجازات العامة
     if (manageEmpBalances && emp.balances) {
       manageEmpBalances.classList.remove('hidden');
 
@@ -96,8 +114,8 @@ export async function loadEmployeeForManagement(id) {
       if (manageSick100BalanceInput) manageSick100BalanceInput.value = emp.balances.sick100;
       if (manageSick50BalanceInput) manageSick50BalanceInput.value = emp.balances.sick50;
 
-      // Store baseline regular balance for AdjustmentDays calculation
-      // baseline = uncapped earned balance minus regular leaves taken (grossEarnedBalance - regularLeavesTaken)
+      // حفظ خط الأساس لرصيد الإجازة الاعتيادية لاحتساب فرق التسوية (AdjustmentDays)
+      // baseline = إجمالي المستحق غير المقيد مطروحاً منه الإجازات المأخوذة
       const baseline = (emp.balances.unadjustedRegular !== undefined)
         ? emp.balances.unadjustedRegular
         : (emp.balances.regular - (emp.AdjustmentDays || 0));
@@ -106,7 +124,7 @@ export async function loadEmployeeForManagement(id) {
       }
     }
 
-    // Load Document Counts for badges
+    // قراءة وتحديث أعداد المستندات المؤرشفة لعرضها في الشارات (Badges)
     try {
       const docRes = await window.api.documents.list({ employeeId: currentManagingEmpId });
       if (docRes && docRes.success && Array.isArray(docRes.data)) {
@@ -123,6 +141,7 @@ export async function loadEmployeeForManagement(id) {
       if (manageBadgeLeavecardCount) manageBadgeLeavecardCount.textContent = '0';
     }
 
+    // إدارة حالة التجميد/النشاط وتفعيل الأزرار المقابلة
     if (emp.IsActive === 0) {
       if (manageEmpWarning) manageEmpWarning.classList.remove('hidden');
       if (manageFullNameInput) manageFullNameInput.disabled = false;
@@ -147,7 +166,8 @@ export async function loadEmployeeForManagement(id) {
       if (btnActivateEmp) btnActivateEmp.classList.add('hidden');
     }
 
-    // Render External Transfer Banner & Button state
+    // عرض شريط بيانات النقل الخارجي إن كان الموظف منقولاً
+
     if (emp.IsTransferred === 1) {
       if (manageEmpTransferredBanner) {
         manageEmpTransferredBanner.classList.remove('hidden');
@@ -196,6 +216,11 @@ export async function loadEmployeeForManagement(id) {
   }
 }
 
+/**
+ * تهيئة تبويب إدارة وتعديل الموظفين وربط مستمعات النقر والاستمارات
+ * @param {object} options
+ * @param {Function} [options.onEmployeeUpdated] رد نداء عند تحديث بيانات الموظف لتحديث الجداول الأخرى
+ */
 export function initManageEmployeeTab(options = {}) {
   const onEmployeeUpdated = options.onEmployeeUpdated || null;
   manageEmpIdInput = document.getElementById('manage-emp-id');
@@ -236,6 +261,7 @@ export function initManageEmployeeTab(options = {}) {
   btnSaveTransfer = document.getElementById('btn-save-transfer');
   btnCancelTransferStatus = document.getElementById('btn-cancel-transfer-status');
 
+  // فتح نافذة كروت الخدمة (Time Cards)
   if (btnManageOpenTimecards) {
     btnManageOpenTimecards.addEventListener('click', () => {
       if (!currentManagingEmpId) return;
@@ -247,6 +273,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // فتح نافذة كروت الإجازات الرسمية (Leave Cards)
   if (btnManageOpenLeavecards) {
     btnManageOpenLeavecards.addEventListener('click', () => {
       if (!currentManagingEmpId) return;
@@ -258,6 +285,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // زر البحث وتحميل الموظف بالرقم
   if (btnLoadManageEmp) {
     btnLoadManageEmp.addEventListener('click', () => {
       const id = parseInt(manageEmpIdInput?.value.trim() || '0', 10);
@@ -265,6 +293,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // إرسال استمارة تعديل بيانات الموظف والأرصدة
   if (formManageEmp) {
     formManageEmp.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -293,12 +322,13 @@ export function initManageEmployeeTab(options = {}) {
       }
 
       try {
-        // 1. Calculate AdjustmentDays for Regular Leave
+        // 1. حساب قيمة أيام التسوية (AdjustmentDays) للإجازة الاعتيادية
+        // الفارق بين القيمة الجديدة المدخلة وخط الأساس المحسوب تراكمياً
         const newRegularVal = parseInt(manageRegularBalanceInput?.value || '0', 10);
         const baseline = parseInt(manageRegularBalanceInput?.dataset.baseline || '0', 10);
         const adjustmentDays = newRegularVal - baseline;
 
-        // 2. Update Employee (FullName, JobTitle, WorkLocation, LeaveCardNumber, AdjustmentDays)
+        // 2. تحديث جدول الموظفين (EmployeeService.updateEmployee)
         const response = await window.api.employee.update(currentManagingEmpId, {
           fullName,
           jobTitle,
@@ -312,8 +342,7 @@ export function initManageEmployeeTab(options = {}) {
           return;
         }
 
-        // 3. Upsert Sick Leave Balances
-        // First, find the LeaveTypeID for Sick Leave
+        // 3. تحديث أو إدراج أرصدة الإجازات المرضية (100% و 50%)
         const ltRes = await window.api.leaveTypes.getAll();
         const sickType = ltRes?.data?.find(lt => lt.Name === 'إجازة مرضية');
 
@@ -360,6 +389,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // زر تجميد الموظف (Deactivate)
   if (btnDeactivateEmp) {
     btnDeactivateEmp.addEventListener('click', async () => {
       if (!currentManagingEmpId) return;
@@ -392,6 +422,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // زر إعادة تفعيل الموظف (Activate)
   if (btnActivateEmp) {
     btnActivateEmp.addEventListener('click', async () => {
       if (!currentManagingEmpId) return;
@@ -425,6 +456,8 @@ export function initManageEmployeeTab(options = {}) {
   }
 
   // ── Transfer Employee Handlers ──────────────────────────────
+  //  معالجات النقل الخارجي للموظف وفتح النافذة وتعبئة الحقول
+  // ─────────────────────────────────────────────────────────────
   if (btnTransferEmp) {
     btnTransferEmp.addEventListener('click', () => {
       if (!currentManagingEmpId || !currentManagingEmpData) {
@@ -446,6 +479,7 @@ export function initManageEmployeeTab(options = {}) {
         transferNotesInput.value = currentManagingEmpData.TransferNotes || '';
       }
 
+      // إظهار زر إلغاء النقل فقط إذا كان الموظف منقولاً بالفعل
       if (btnCancelTransferStatus) {
         if (currentManagingEmpData.IsTransferred === 1) {
           btnCancelTransferStatus.classList.remove('hidden');
@@ -472,6 +506,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // استمارة حفظ بيانات النقل الخارجي
   if (formTransferEmployee) {
     formTransferEmployee.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -481,10 +516,10 @@ export function initManageEmployeeTab(options = {}) {
       const orderDate = transferOrderDateInput ? (transferOrderDateInput.value.trim() || null) : null;
       const notes = transferNotesInput ? (transferNotesInput.value.trim() || null) : null;
 
-      // Validate numeric order number if provided
+      // التحقق الصارم من أن رقم الأمر الإداري يتكون من أرقام فقط
       let orderNumber = null;
       if (rawOrderNumber) {
-        const normalized = rawOrderNumber.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+        const normalized = rawOrderNumber.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
         if (!/^\d+$/.test(normalized)) {
           showToast('رقم الأمر الإداري الخاص بالنقل يجب أن يتكون من أرقام فقط.', 'warning');
           transferOrderNumberInput?.focus();
@@ -528,6 +563,7 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 
+  // زر إلغاء حالة النقل وإعادة الموظف كنشط اعتيادي
   if (btnCancelTransferStatus) {
     btnCancelTransferStatus.addEventListener('click', async () => {
       if (!currentManagingEmpId) return;
@@ -563,3 +599,4 @@ export function initManageEmployeeTab(options = {}) {
     });
   }
 }
+

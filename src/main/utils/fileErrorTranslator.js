@@ -1,10 +1,17 @@
+// ============================================================
+//  utils/fileErrorTranslator.js
+//  مترجم أخطاء نظام الملفات (Node.js FS Error Translator)
+//  يحول رموز أخطاء الملفات مثل EBUSY و EACCES و ENOSPC إلى رسائل عربية واضحة
+// ============================================================
+
 'use strict';
 
 /**
+ * تحويل رموز أخطاء نظام الملفات الشائعة إلى رسائل عربية موجهة للمستخدم
  * Translates standard Node.js filesystem error codes into user-friendly Arabic messages.
  *
- * @param {Error|any} err - The error object to translate
- * @returns {string|null} - The translated Arabic message, or null if unhandled / no code
+ * @param {Error|any} err - كائن الخطأ البرمجي
+ * @returns {string|null} - نص الرسالة المترجمة أو null إذا لم يكن خطأ ملفات معروفاً
  */
 function translateFileError(err) {
   if (!err || typeof err !== 'object' || !err.code) {
@@ -27,3 +34,4 @@ function translateFileError(err) {
 }
 
 module.exports = { translateFileError };
+

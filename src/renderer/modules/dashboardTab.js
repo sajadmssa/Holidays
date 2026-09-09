@@ -1,6 +1,7 @@
 // ============================================================
-//  dashboardTab.js – Live Dashboard Controller (On Leave Today),
-//  Alert Banner & Leave Edit Modal
+//  dashboardTab.js – وحدة التحكم بلوحة المؤشرات والإجازات النشطة
+//  تتولى عرض الموظفين المجازين اليوم، شارات المباشرة القريبة،
+//  نافذة تعديل الإجازات وتوثيق التدقيق، وتنبيهات المباشرة
 // ============================================================
 
 'use strict';
@@ -8,6 +9,7 @@
 import { showToast, showConfirm, showExportSuccessToast } from './uiHelpers.js';
 import { createPaginationController } from './paginationComponent.js';
 
+// عناصر واجهة المستخدم للوحة المؤشرات
 let dashboardStatus = null;
 let dashboardSearchInput = null;
 let activeLeavesTable = null;
@@ -15,11 +17,13 @@ let activeLeavestbody = null;
 let btnExportActiveLeaves = null;
 let _pagination = null;
 
+// عناصر شريط تنبيهات المباشرة القريبة
 let resumptionAlertBanner = null;
 let alertBannerDesc = null;
 let btnAlertView = null;
 let btnAlertDismiss = null;
 
+// متغيرات حالة البحث والتصفية والترتيب
 let _dashboardSearchQuery = '';
 let _dashboardDebounceTimer = null;
 let _onSwitchToDashboard = null;
@@ -28,7 +32,7 @@ let dashboardSortSelect = null;
 let _isUrgentOnlyFilter = false;
 let _dashboardSortBy = 'resumption_asc';
 
-// Modal Elements
+// عناصر النافذة المنبثقة لتعديل الإجازة (Modal)
 let editLeaveModal = null;
 let btnCloseEditLeaveModal = null;
 let btnCancelEditLeave = null;
@@ -51,10 +55,18 @@ let editLeaveOrderDateEl = null;
 let editLeaveNotesEl = null;
 let btnSaveEditLeave = null;
 
+// مؤشرات التحديث التلقائي للتواريخ وذاكرة التخزين المؤقت لأنواع الإجازات
 let isAutoUpdatingDates = false;
 let _cachedLeaveTypes = [];
 
 // ── Date & Days Reactive Calculation Helpers ───────────────
+
+/**
+ * إضافة عدد محدد من الأيام إلى تاريخ بداية معين بالاعتماد على التوقيت العالمي UTC
+ * @param {string} dateStr - تاريخ البداية بتنسيق YYYY-MM-DD
+ * @param {number} daysCount - عدد الأيام
+ * @returns {string|null} تاريخ النهاية المحسوب بتنسيق YYYY-MM-DD
+ */
 function addDaysToDate(dateStr, daysCount) {
   if (!dateStr || !daysCount || daysCount <= 0) return null;
   const parts = dateStr.split('-').map(Number);
@@ -68,6 +80,12 @@ function addDaysToDate(dateStr, daysCount) {
   return `${resY}-${resM}-${resD}`;
 }
 
+/**
+ * احتساب عدد الأيام بين تاريخين بالاعتماد على UTC شاملاً يومي البداية والنهاية
+ * @param {string} startStr - تاريخ البداية بتنسيق YYYY-MM-DD
+ * @param {string} endStr - تاريخ النهاية بتنسيق YYYY-MM-DD
+ * @returns {number|null} عدد الأيام المحسوب
+ */
 function recomputeDays(startStr, endStr) {
   if (!startStr || !endStr) return null;
   const parts1 = startStr.split('-').map(Number);
@@ -80,6 +98,11 @@ function recomputeDays(startStr, endStr) {
   return Math.round((d2.getTime() - d1.getTime()) / MS_PER_DAY) + 1;
 }
 
+/**
+ * تحديث شريط حالة لوحة المؤشرات (جارٍ التحميل / خطأ / إخفاء)
+ * @param {string} message - نص الرسالة
+ * @param {string} state - حالة العرض (loading | error | hidden)
+ */
 export function setDashboardStatus(message, state) {
   if (!dashboardStatus) return;
   if (state === 'hidden') {
@@ -91,6 +114,10 @@ export function setDashboardStatus(message, state) {
   dashboardStatus.textContent = message;
 }
 
+/**
+ * رسم جدول الإجازات النشطة حالياً وشارات موعد المباشرة المتوقعة وزر التعديل
+ * @param {Array<Object>} leaves - قائمة سجلات الإجازات النشطة
+ */
 export function renderActiveLeavesTable(leaves) {
   if (!activeLeavestbody) return;
   activeLeavestbody.innerHTML = '';
@@ -183,6 +210,11 @@ export function renderActiveLeavesTable(leaves) {
   activeLeavestbody.appendChild(fragment);
 }
 
+/**
+ * جلب قائمة الإجازات النشطة المقسمة لصفحات من الواجهة الخلفية وتحديث الجدول وعنصر الترقيم
+ * تدعم التصفية حسب البحث النصي، والفرز، وحصر المباشرات العاجلة فقط
+ * @param {number} [page=1] - رقم الصفحة المطلوبة
+ */
 export async function loadActiveLeaves(page = _pagination?.getCurrentPage() || 1) {
   if (!activeLeavestbody) return;
 
@@ -223,6 +255,9 @@ export async function loadActiveLeaves(page = _pagination?.getCurrentPage() || 1
 }
 
 // ── Populate Leave Types in Edit Select ─────────────────────
+/**
+ * التأكد من تحميل قائمة أنواع الإجازات من الخادم وتعبئتها في القائمة المنسدلة لنافذة التعديل
+ */
 async function ensureLeaveTypesLoaded() {
   if (_cachedLeaveTypes.length > 0 && editLeaveTypeEl) {
     return;
@@ -265,6 +300,11 @@ async function ensureLeaveTypesLoaded() {
 }
 
 // ── Open Edit Leave Modal ───────────────────────────────────
+/**
+ * فتح النافذة المنبثقة لتعديل بيانات إجازة مسجلة وتعبئة حقولها بالبيانات الحالية
+ * مع التركيز التلقائي على حقل اسم القائم بالتعديل الإلزامي لسجل التدقيق
+ * @param {Object} leave - كائن بيانات الإجازة المراد تعديلها
+ */
 export async function openEditLeaveModal(leave) {
   if (!editLeaveModal || !leave) return;
 
@@ -321,6 +361,11 @@ export async function openEditLeaveModal(leave) {
 }
 
 // ── Submit Edit Leave Form ──────────────────────────────────
+/**
+ * معالجة تقديم استمارة تعديل الإجازة مع التحقق الصارم من الحقول الإلزامية
+ * والتعامل مع تحذير تجاوز الرصيد المتاح (confirmExcess) وتوثيق اسم المعدل في سجل التدقيق
+ * @param {Event} event - حدث تقديم الاستمارة
+ */
 async function handleEditLeaveSubmit(event) {
   event.preventDefault();
 
@@ -383,7 +428,7 @@ async function handleEditLeaveSubmit(event) {
   try {
     let response = await window.api.leave.update(payload);
 
-    // If quota is exceeded, show confirmation dialog with exact deficit
+    // إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
     if (!response.success && response.data?.requiresConfirmation) {
       const confirmData = response.data;
       const warningMsg = confirmData.message || `عدد الأيام المطلوبة (${confirmData.requestedDays} يوم) يتجاوز الرصيد المتاح (${confirmData.availableBalance} يوم) بمقدار (${confirmData.deficit} يوم). هل تريد المتابعة وتأكيد الحفظ برصيد سالب؟`;
@@ -426,9 +471,9 @@ async function handleEditLeaveSubmit(event) {
 }
 
 /**
- * Initializes the Dashboard tab & resumption alert banner & edit leave modal.
- * @param {object} options
- * @param {Function} options.onSwitchToDashboard
+ * تهيئة لوحة المؤشرات وشريط تنبيهات المباشرة ونافذة تعديل الإجازات
+ * @param {object} [options={}]
+ * @param {Function} [options.onSwitchToDashboard] - دالة التحويل التلقائي لتبويب لوحة المؤشرات
  */
 export function initDashboardTab(options = {}) {
   dashboardStatus = document.getElementById('dashboard-status');
@@ -469,7 +514,7 @@ export function initDashboardTab(options = {}) {
 
   _onSwitchToDashboard = options.onSwitchToDashboard || null;
 
-  // Initialize unified pagination controller (15 rows)
+  // تهيئة وحدة التحكم الموحدة بالترقيم (15 سجلاً لكل صفحة)
   _pagination = createPaginationController({
     infoEl: 'dashboard-pagination-info',
     pageIndicatorEl: 'dashboard-page-indicator',
@@ -482,6 +527,7 @@ export function initDashboardTab(options = {}) {
     onPageChange: (newPage) => loadActiveLeaves(newPage)
   });
 
+  // حقل البحث التلقائي مع تأخير زمني (Debounce 300ms) لمنع إرهاق قاعدة البيانات
   if (dashboardSearchInput) {
     dashboardSearchInput.addEventListener('input', () => {
       clearTimeout(_dashboardDebounceTimer);
@@ -493,6 +539,7 @@ export function initDashboardTab(options = {}) {
     });
   }
 
+  // زر تصفية المباشرات العاجلة (خلال 3 أيام أو أقل)
   if (btnFilterUrgentResumption) {
     btnFilterUrgentResumption.addEventListener('click', () => {
       _isUrgentOnlyFilter = !_isUrgentOnlyFilter;
@@ -502,6 +549,7 @@ export function initDashboardTab(options = {}) {
     });
   }
 
+  // القائمة المنسدلة لترتيب النتائج (حسب موعد المباشرة أو الاسم أو تاريخ البدء)
   if (dashboardSortSelect) {
     dashboardSortSelect.addEventListener('change', () => {
       _dashboardSortBy = dashboardSortSelect.value;
@@ -510,7 +558,7 @@ export function initDashboardTab(options = {}) {
     });
   }
 
-  // Edit Modal Date & Days Interactive 2-Way Sync
+  // التزامن التفاعلي ثنائي الاتجاه بين التواريخ وعدد الأيام في نافذة التعديل
   if (editLeaveStartDateEl) {
     const onStartChange = () => {
       if (isAutoUpdatingDates) return;
@@ -568,7 +616,7 @@ export function initDashboardTab(options = {}) {
     editLeaveDaysEl.addEventListener('change', onDaysChange);
   }
 
-  // Edit Modal Close Handlers
+  // إغلاق النافذة المنبثقة لتعديل الإجازة
   if (btnCloseEditLeaveModal && editLeaveModal) {
     btnCloseEditLeaveModal.addEventListener('click', () => editLeaveModal.close());
   }
@@ -579,7 +627,7 @@ export function initDashboardTab(options = {}) {
     editLeaveForm.addEventListener('submit', handleEditLeaveSubmit);
   }
 
-  // Export Button
+  // زر تصدير قائمة الإجازات النشطة الحالية إلى ملف Excel
   if (btnExportActiveLeaves) {
     btnExportActiveLeaves.addEventListener('click', async () => {
       btnExportActiveLeaves.disabled = true;
@@ -612,7 +660,7 @@ export function initDashboardTab(options = {}) {
     });
   }
 
-  // Resumption Alert Banner Notifications
+  // مستمعات شريط تنبيهات المباشرة الواردة من نافذة التطبيق الرئيسية عبر IPC
   if (window.api && window.api.notifications) {
     window.api.notifications.onResumptionAlert(({ count, employees }) => {
       if (resumptionAlertBanner && count > 0) {
