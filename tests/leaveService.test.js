@@ -282,7 +282,7 @@ assert(emp4Map[25] === 45, '25% tier balance is 45 (full capacity)');
 
 // ── 12. استعلام الإجازات السارية وفحص حالة الموظف المنقول (getActiveLeavesForToday) ──
 console.log('\nTest 12: Active leaves query and transferred employee exclusion audit (getActiveLeavesForToday)');
-const todayDate = new Date().toISOString().split('T')[0];
+const todayDate = db.prepare("SELECT date('now', 'localtime') AS today").get().today;
 
 db.prepare(`
   INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive, IsTransferred)

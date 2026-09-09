@@ -31,7 +31,8 @@
           <h1>إدارة الإجازات</h1>
           <p>النظام الحكومي الموحد</p>
         </div>
-        <button type="button" id="btn-quick-theme-toggle" class="btn-quick-theme" title="تبديل الوضع الليلي / الفاتح" aria-label="تبديل الوضع الليلي">
+        <button type="button" id="btn-quick-theme-toggle" class="btn-quick-theme" title="تبديل الوضع الليلي / الفاتح"
+          aria-label="تبديل الوضع الليلي">
           <span id="theme-toggle-icon">🌙</span>
         </button>
       </div>
@@ -73,8 +74,8 @@
           <span class="tab-label">الأرصدة والتراكم</span>
         </button>
 
-        <button id="btn-tab-audit-logs" class="tab-btn" role="tab" aria-selected="false"
-          aria-controls="tab-audit-logs" data-tab="tab-audit-logs">
+        <button id="btn-tab-audit-logs" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-audit-logs"
+          data-tab="tab-audit-logs">
           <span class="tab-icon">🛡️</span>
           <span class="tab-label">سجل التدقيق</span>
         </button>
@@ -140,7 +141,8 @@
         </div>
         <div class="alert-banner-actions">
           <button type="button" id="btn-alert-view" class="btn-banner-action">📋 عرض في لوحة الإجازات حالياً</button>
-          <button type="button" id="btn-alert-dismiss" class="btn-banner-close" aria-label="إغلاق التنبيه" title="إغلاق">✕</button>
+          <button type="button" id="btn-alert-dismiss" class="btn-banner-close" aria-label="إغلاق التنبيه"
+            title="إغلاق">✕</button>
         </div>
       </div>
 
@@ -170,13 +172,14 @@
                     <div class="input-action-group">
                       <div class="picker-input-wrapper">
                         <input id="employee-search-input" type="text" class="employee-picker-input"
-                          placeholder="🔍 ابحث بالاسم، الرقم الوظيفي، أو رقم كرت الإجازة…"
-                          autocomplete="off" aria-autocomplete="list" aria-controls="employee-picker-dropdown" required />
-                        <button type="button" id="btn-clear-emp-picker" class="picker-clear-btn hidden" title="إلغاء التحديد واختيار موظف آخر">✕</button>
+                          placeholder="🔍 ابحث بالاسم، الرقم الوظيفي، أو رقم كرت الإجازة…" autocomplete="off"
+                          aria-autocomplete="list" aria-controls="employee-picker-dropdown" required />
+                        <button type="button" id="btn-clear-emp-picker" class="picker-clear-btn hidden"
+                          title="إلغاء التحديد واختيار موظف آخر">✕</button>
                       </div>
                       <input id="employee-id" type="hidden" required />
-                      <button type="button" id="btn-open-search" class="btn-search-trigger" aria-label="بحث متقدم عن موظف"
-                        title="فتح نافذة البحث السريع المتقدمة">
+                      <button type="button" id="btn-open-search" class="btn-search-trigger"
+                        aria-label="بحث متقدم عن موظف" title="فتح نافذة البحث السريع المتقدمة">
                         ⚡ بحث متقدم
                       </button>
                       <button type="button" id="btn-export-history" class="btn-export-excel"
@@ -199,14 +202,21 @@
                 aria-label="رصيد الإجازة المتاح"></div>
 
               <!-- Employee Quick Summary Details -->
-              <div id="employee-summary-badge" class="card-panel-sub summary-badge hidden" role="region" aria-label="بيانات الموظف المحدد">
+              <div id="employee-summary-badge" class="card-panel-sub summary-badge hidden" role="region"
+                aria-label="بيانات الموظف المحدد">
                 <div class="summary-badge-grid">
-                  <div class="summary-item"><span class="summary-label">👤 الموظف:</span> <strong id="summary-emp-name">-</strong></div>
-                  <div class="summary-item"><span class="summary-label">💼 المسمى:</span> <span id="summary-emp-title">-</span></div>
-                  <div class="summary-item"><span class="summary-label">🏢 موقع العمل:</span> <span id="summary-emp-location">-</span></div>
-                  <div class="summary-item"><span class="summary-label">💳 رقم كرت الإجازة:</span> <span id="summary-emp-card">-</span></div>
-                  <div class="summary-item"><span class="summary-label">✍ المسؤول عن الإجازة:</span> <span id="summary-emp-approver">-</span></div>
-                  <div id="summary-emp-transfer-wrap" class="summary-item hidden"><span class="summary-label">🚚 حالة النقل:</span> <span id="summary-emp-transfer" class="status-badge-transferred">منقول</span></div>
+                  <div class="summary-item"><span class="summary-label">👤 الموظف:</span> <strong
+                      id="summary-emp-name">-</strong></div>
+                  <div class="summary-item"><span class="summary-label">💼 المسمى:</span> <span
+                      id="summary-emp-title">-</span></div>
+                  <div class="summary-item"><span class="summary-label">🏢 موقع العمل:</span> <span
+                      id="summary-emp-location">-</span></div>
+                  <div class="summary-item"><span class="summary-label">💳 رقم كرت الإجازة:</span> <span
+                      id="summary-emp-card">-</span></div>
+                  <div class="summary-item"><span class="summary-label">✍ المسؤول عن الإجازة:</span> <span
+                      id="summary-emp-approver">-</span></div>
+                  <div id="summary-emp-transfer-wrap" class="summary-item hidden"><span class="summary-label">🚚 حالة
+                      النقل:</span> <span id="summary-emp-transfer" class="status-badge-transferred">منقول</span></div>
                 </div>
               </div>
 
@@ -361,10 +371,13 @@
 
             <div class="all-employees-toolbar">
               <div class="all-employees-search-box">
-                <input type="text" id="dashboard-search-input" class="dialog-search-input" placeholder="🔍 تصفية مباشرة باسم الموظف، رقم كرت الإجازة، موقع العمل أو نوع الإجازة…" aria-label="تصفية الإجازات حالياً" />
+                <input type="text" id="dashboard-search-input" class="dialog-search-input"
+                  placeholder="🔍 تصفية مباشرة باسم الموظف، رقم كرت الإجازة، موقع العمل أو نوع الإجازة…"
+                  aria-label="تصفية الإجازات حالياً" />
               </div>
               <div class="dashboard-filter-controls">
-                <button type="button" id="btn-filter-urgent-resumption" class="btn-filter-chip" title="تصفية الموظفين الذين تنتهي إجازتهم خلال 3 أيام قادمة">
+                <button type="button" id="btn-filter-urgent-resumption" class="btn-filter-chip"
+                  title="تصفية الموظفين الذين تنتهي إجازتهم خلال 3 أيام قادمة">
                   <span class="chip-icon">⚡</span>
                   <span>المباشرة قريباً (≤ 3 أيام)</span>
                 </button>
@@ -377,7 +390,8 @@
                   </select>
                 </div>
               </div>
-              <button type="button" id="btn-export-active-leaves" class="btn-export-excel" title="تصدير تقرير الإجازات حالياً إلى Excel">
+              <button type="button" id="btn-export-active-leaves" class="btn-export-excel"
+                title="تصدير تقرير الإجازات حالياً إلى Excel">
                 <span class="excel-icon">XLS</span>
                 <span>تصدير الإجازات حالياً إلى Excel</span>
               </button>
@@ -412,11 +426,15 @@
                 عرض 0 من 0 موظف
               </div>
               <div class="pagination-controls">
-                <button type="button" id="btn-dashboard-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
-                <button type="button" id="btn-dashboard-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <button type="button" id="btn-dashboard-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮
+                  الأولى</button>
+                <button type="button" id="btn-dashboard-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀
+                  السابقة</button>
                 <span id="dashboard-page-indicator" class="page-indicator">صفحة 1 من 1</span>
-                <button type="button" id="btn-dashboard-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
-                <button type="button" id="btn-dashboard-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+                <button type="button" id="btn-dashboard-page-next" class="btn-page" title="الصفحة التالية"
+                  disabled>التالية ▶</button>
+                <button type="button" id="btn-dashboard-page-last" class="btn-page" title="الصفحة الأخيرة"
+                  disabled>الأخيرة ⏭</button>
               </div>
             </div>
           </div>
@@ -486,7 +504,8 @@
                 <!-- Work Location -->
                 <div class="form-group">
                   <label for="emp-work-location">موقع العمل</label>
-                  <input id="emp-work-location" type="text" maxlength="200" placeholder="مثال: الإدارة العامة / فرع..." />
+                  <input id="emp-work-location" type="text" maxlength="200"
+                    placeholder="مثال: الإدارة العامة / فرع..." />
                 </div>
 
                 <!-- Leave Card Number -->
@@ -526,7 +545,8 @@
                 </label>
                 <div class="input-action-group">
                   <input id="manage-emp-id" type="number" min="1" step="1" placeholder="أدخل رقم الموظف" />
-                  <button type="button" id="btn-open-search-manage" class="btn-action-icon" aria-label="بحث عن موظف" title="فتح نافذة البحث السريع">
+                  <button type="button" id="btn-open-search-manage" class="btn-action-icon" aria-label="بحث عن موظف"
+                    title="فتح نافذة البحث السريع">
                     ⚡ بحث
                   </button>
                   <button type="button" id="btn-load-manage-emp" class="btn-action-secondary">
@@ -590,7 +610,8 @@
                   <p>إدارة وأرشفة كروت الزمنية وكروت الإجازة بجميع نسخها السنوية</p>
                 </div>
                 <div class="doc-cards-action-grid">
-                  <button type="button" id="btn-manage-open-timecards" class="doc-card-btn doc-card-timecard" title="عرض وإدارة كروت الزمنية">
+                  <button type="button" id="btn-manage-open-timecards" class="doc-card-btn doc-card-timecard"
+                    title="عرض وإدارة كروت الزمنية">
                     <div class="doc-card-icon">🟨</div>
                     <div class="doc-card-info">
                       <span class="doc-card-title">كرت الزمنية (Time Card)</span>
@@ -599,7 +620,8 @@
                     <span id="manage-badge-timecard-count" class="doc-count-badge">0</span>
                   </button>
 
-                  <button type="button" id="btn-manage-open-leavecards" class="doc-card-btn doc-card-leavecard" title="عرض وإدارة كروت الإجازة">
+                  <button type="button" id="btn-manage-open-leavecards" class="doc-card-btn doc-card-leavecard"
+                    title="عرض وإدارة كروت الإجازة">
                     <div class="doc-card-icon">🟦</div>
                     <div class="doc-card-info">
                       <span class="doc-card-title">كرت الإجازة (Leave Card)</span>
@@ -652,7 +674,8 @@
                 <button id="btn-save-manage-emp" type="submit" class="btn-primary-large flex-1">
                   💾 حفظ التعديلات
                 </button>
-                <button id="btn-transfer-emp" type="button" class="btn-transfer" title="تسجيل أو تعديل نقل خارجي للموظف">
+                <button id="btn-transfer-emp" type="button" class="btn-transfer"
+                  title="تسجيل أو تعديل نقل خارجي للموظف">
                   🚚 نقل خارجي
                 </button>
                 <button id="btn-deactivate-emp" type="button" class="btn-danger">
@@ -684,7 +707,8 @@
                   placeholder="🔍 بحث سريع بالاسم، رقم كرت الإجازة، موقع العمل، أو الرقم الوظيفي…"
                   aria-label="بحث في قائمة الموظفين" />
               </div>
-              <button type="button" id="btn-export-all-employees" class="btn-export-excel" title="تصدير جميع الموظفين المطابقين للبحث إلى Excel">
+              <button type="button" id="btn-export-all-employees" class="btn-export-excel"
+                title="تصدير جميع الموظفين المطابقين للبحث إلى Excel">
                 <span class="excel-icon">XLS</span>
                 <span>تصدير الكل إلى Excel</span>
               </button>
@@ -719,11 +743,15 @@
                 عرض 0 من 0 موظف
               </div>
               <div class="pagination-controls">
-                <button type="button" id="btn-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
-                <button type="button" id="btn-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <button type="button" id="btn-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮
+                  الأولى</button>
+                <button type="button" id="btn-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀
+                  السابقة</button>
                 <span id="all-employees-page-indicator" class="page-indicator">صفحة 1 من 1</span>
-                <button type="button" id="btn-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
-                <button type="button" id="btn-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+                <button type="button" id="btn-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية
+                  ▶</button>
+                <button type="button" id="btn-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة
+                  ⏭</button>
               </div>
             </div>
 
@@ -742,10 +770,12 @@
                 <p>متابعة الموظفين ذوي الأرصدة المنخفضة وتراكم الإجازات المستهلكة خلال العام</p>
               </div>
               <div class="header-action-buttons">
-                <button type="button" id="btn-refresh-balance-report" class="btn-action-secondary" title="تحديث بيانات التقرير">
+                <button type="button" id="btn-refresh-balance-report" class="btn-action-secondary"
+                  title="تحديث بيانات التقرير">
                   🔄 تحديث
                 </button>
-                <button type="button" id="btn-export-critical-report" class="btn-export-excel" title="تصدير كشف الأرصدة والتراكم إلى ملف Excel رسمي">
+                <button type="button" id="btn-export-critical-report" class="btn-export-excel"
+                  title="تصدير كشف الأرصدة والتراكم إلى ملف Excel رسمي">
                   <span class="excel-icon">XLS</span>
                   <span>تصدير الكشف إلى Excel</span>
                 </button>
@@ -782,11 +812,14 @@
               <h4>⚠️ كشف تنبيهات الأرصدة الحرجة للموظفين</h4>
               <div class="filter-inline">
                 <label for="input-balance-threshold">حد الرصيد الحرج (أيام):</label>
-                <input type="number" id="input-balance-threshold" value="5" min="0" max="30" class="input-inline-num" aria-label="حد الرصيد الحرج بالأيام" />
-                <button type="button" id="btn-apply-threshold" class="btn-apply-threshold" title="تطبيق الحد الجديد وتحديث الكشف">
+                <input type="number" id="input-balance-threshold" value="5" min="0" max="30" class="input-inline-num"
+                  aria-label="حد الرصيد الحرج بالأيام" />
+                <button type="button" id="btn-apply-threshold" class="btn-apply-threshold"
+                  title="تطبيق الحد الجديد وتحديث الكشف">
                   <span>تطبيق</span>
                 </button>
-                <span class="threshold-hint text-muted">الموظفون الذين يقل رصيدهم عن هذا العدد من الأيام سيظهرون بالكشف</span>
+                <span class="threshold-hint text-muted">الموظفون الذين يقل رصيدهم عن هذا العدد من الأيام سيظهرون
+                  بالكشف</span>
               </div>
             </div>
 
@@ -817,11 +850,15 @@
                 عرض 0 من 0 موظف
               </div>
               <div class="pagination-controls">
-                <button type="button" id="btn-critical-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
-                <button type="button" id="btn-critical-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <button type="button" id="btn-critical-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮
+                  الأولى</button>
+                <button type="button" id="btn-critical-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀
+                  السابقة</button>
                 <span id="critical-page-indicator" class="page-indicator">صفحة 1 من 1</span>
-                <button type="button" id="btn-critical-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
-                <button type="button" id="btn-critical-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+                <button type="button" id="btn-critical-page-next" class="btn-page" title="الصفحة التالية"
+                  disabled>التالية ▶</button>
+                <button type="button" id="btn-critical-page-last" class="btn-page" title="الصفحة الأخيرة"
+                  disabled>الأخيرة ⏭</button>
               </div>
             </div>
 
@@ -867,11 +904,15 @@
                 عرض 0 من 0 موظف
               </div>
               <div class="pagination-controls">
-                <button type="button" id="btn-accum-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
-                <button type="button" id="btn-accum-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <button type="button" id="btn-accum-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮
+                  الأولى</button>
+                <button type="button" id="btn-accum-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀
+                  السابقة</button>
                 <span id="accum-page-indicator" class="page-indicator">صفحة 1 من 1</span>
-                <button type="button" id="btn-accum-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
-                <button type="button" id="btn-accum-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+                <button type="button" id="btn-accum-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية
+                  ▶</button>
+                <button type="button" id="btn-accum-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة
+                  ⏭</button>
               </div>
             </div>
 
@@ -897,7 +938,8 @@
             <div class="audit-filter-bar">
               <div class="filter-col filter-col-search">
                 <label for="audit-filter-search">بحث نصي:</label>
-                <input type="text" id="audit-filter-search" class="dialog-search-input" placeholder="🔍 بحث في التفاصيل أو الرقم..." />
+                <input type="text" id="audit-filter-search" class="dialog-search-input"
+                  placeholder="🔍 بحث في التفاصيل أو الرقم..." />
               </div>
               <div class="filter-col filter-col-action">
                 <label for="audit-filter-action">نوع العملية:</label>
@@ -959,11 +1001,15 @@
                 عرض 0 من 0 حركة
               </div>
               <div class="pagination-controls">
-                <button type="button" id="btn-audit-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
-                <button type="button" id="btn-audit-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <button type="button" id="btn-audit-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮
+                  الأولى</button>
+                <button type="button" id="btn-audit-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀
+                  السابقة</button>
                 <span id="audit-page-indicator" class="page-indicator">صفحة 1 من 1</span>
-                <button type="button" id="btn-audit-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
-                <button type="button" id="btn-audit-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+                <button type="button" id="btn-audit-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية
+                  ▶</button>
+                <button type="button" id="btn-audit-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة
+                  ⏭</button>
               </div>
             </div>
 
@@ -992,8 +1038,9 @@
       </div>
 
       <div class="dialog-search-bar">
-        <input type="text" id="modal-search-input" class="dialog-search-input" placeholder="اكتب اسم الموظف، أو رقم كرت الإجازة، أو الرقم الوظيفي…"
-          autocomplete="off" aria-label="بحث بالاسم أو رقم كرت الإجازة" aria-controls="modal-search-results" />
+        <input type="text" id="modal-search-input" class="dialog-search-input"
+          placeholder="اكتب اسم الموظف، أو رقم كرت الإجازة، أو الرقم الوظيفي…" autocomplete="off"
+          aria-label="بحث بالاسم أو رقم كرت الإجازة" aria-controls="modal-search-results" />
       </div>
 
       <div class="dialog-results-wrapper">
@@ -1031,7 +1078,8 @@
   <!-- ════════════════════════════════════════════════════════
        System Settings Modal — Department Name, Backup & Theme
        ════════════════════════════════════════════════════════ -->
-  <dialog id="system-settings-modal" class="custom-dialog settings-dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+  <dialog id="system-settings-modal" class="custom-dialog settings-dialog" aria-modal="true"
+    aria-labelledby="settings-modal-title">
     <div class="dialog-content settings-dialog-content">
       <div class="dialog-header">
         <h3 id="settings-modal-title" class="dialog-title">⚙️ إعدادات النظام والمظهر العام</h3>
@@ -1043,7 +1091,7 @@
         </button>
       </div>
       <form id="system-settings-form" class="dialog-form settings-dialog-form">
-        
+
         <!-- Section 1: Official Department & Division Identity -->
         <div class="settings-section-card">
           <div class="settings-section-header">
@@ -1055,8 +1103,7 @@
           </div>
           <div class="form-group">
             <input type="text" id="input-department-name" class="form-input"
-              placeholder="مثال: دائرة توزيع كهرباء الجنوب - قسم الموارد البشرية"
-              autocomplete="off" />
+              placeholder="مثال: دائرة توزيع كهرباء الجنوب - قسم الموارد البشرية" autocomplete="off" />
             <span class="helper-text">
               📌 يظهر هذا الاسم تلقائياً في أعلى الترويسة لكافة ملفات وتصديرات Excel الرسمية.
             </span>
@@ -1068,19 +1115,21 @@
           <div class="settings-section-header">
             <span class="settings-section-icon">💾</span>
             <div class="settings-section-title-wrap">
-              <label for="input-custom-backup-path" class="settings-section-title">مجلد النسخ الاحتياطي التلقائي الدوري</label>
+              <label for="input-custom-backup-path" class="settings-section-title">مجلد النسخ الاحتياطي التلقائي
+                الدوري</label>
               <span class="settings-section-desc">تحديد مسار مخصص لحفظ نسخ الأمان الدورية (كل 15 يوماً)</span>
             </div>
           </div>
           <div class="form-group">
             <div class="settings-path-group">
               <input type="text" id="input-custom-backup-path" class="form-input settings-path-input"
-                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\auto-backups)"
-                readonly />
-              <button type="button" id="btn-select-backup-dir" class="btn-action-secondary settings-path-btn" title="اختيار مجلد مخصص لحفظ النسخ">
+                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\auto-backups)" readonly />
+              <button type="button" id="btn-select-backup-dir" class="btn-action-secondary settings-path-btn"
+                title="اختيار مجلد مخصص لحفظ النسخ">
                 📁 تحديد مجلد…
               </button>
-              <button type="button" id="btn-reset-backup-dir" class="btn-action-secondary settings-path-btn-icon" title="إعادة تعيين للمسار الافتراضي">
+              <button type="button" id="btn-reset-backup-dir" class="btn-action-secondary settings-path-btn-icon"
+                title="إعادة تعيين للمسار الافتراضي">
                 🔄 الافتراضي
               </button>
             </div>
@@ -1095,25 +1144,29 @@
           <div class="settings-section-header">
             <span class="settings-section-icon">📁</span>
             <div class="settings-section-title-wrap">
-              <label for="input-doc-storage-path" class="settings-section-title">مجلد تخزين مستندات وكروت الموظفين</label>
+              <label for="input-doc-storage-path" class="settings-section-title">مجلد تخزين مستندات وكروت
+                الموظفين</label>
               <span class="settings-section-desc">تحديد مسار مجلد حفظ كروت الزمنية وكروت الإجازة للموظفين</span>
             </div>
           </div>
           <div class="form-group">
             <div class="settings-path-group">
               <input type="text" id="input-doc-storage-path" class="form-input settings-path-input"
-                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\EmployeeDocuments)"
-                readonly />
-              <button type="button" id="btn-select-doc-storage-dir" class="btn-action-secondary settings-path-btn" title="اختيار مجلد مخصص للمستندات">
+                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\EmployeeDocuments)" readonly />
+              <button type="button" id="btn-select-doc-storage-dir" class="btn-action-secondary settings-path-btn"
+                title="اختيار مجلد مخصص للمستندات">
                 📁 تحديد مجلد…
               </button>
-              <button type="button" id="btn-reset-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="إعادة تعيين للمسار الافتراضي">
+              <button type="button" id="btn-reset-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon"
+                title="إعادة تعيين للمسار الافتراضي">
                 🔄 الافتراضي
               </button>
-              <button type="button" id="btn-test-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="اختبار صلاحيات الكتابة والقراءة">
+              <button type="button" id="btn-test-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon"
+                title="اختبار صلاحيات الكتابة والقراءة">
                 🧪 اختبار المسار
               </button>
-              <button type="button" id="btn-open-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="فتح المجلد في مستكشف الملفات">
+              <button type="button" id="btn-open-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon"
+                title="فتح المجلد في مستكشف الملفات">
                 📂 فتح المجلد
               </button>
             </div>
@@ -1161,13 +1214,15 @@
                 <span id="deleted-docs-size" class="deleted-stat-value danger">0 B</span>
               </div>
             </div>
-            <button type="button" id="btn-purge-deleted-docs" class="btn-purge-deleted" title="حذف الملفات المحذوفة نهائياً من القرص الصلب">
+            <button type="button" id="btn-purge-deleted-docs" class="btn-purge-deleted"
+              title="حذف الملفات المحذوفة نهائياً من القرص الصلب">
               <span>🗑️</span>
               <span>إفراغ المستندات المحذوفة نهائياً من القرص</span>
             </button>
           </div>
           <span class="helper-text">
-            ⚠️ عند الضغط على زر الإفراغ، سيتم حذف الملفات المحذوفة فيزيائياً من القرص الصلب نهائياً ولا يمكن التراجع عن هذا الإجراء.
+            ⚠️ عند الضغط على زر الإفراغ، سيتم حذف الملفات المحذوفة فيزيائياً من القرص الصلب نهائياً ولا يمكن التراجع عن
+            هذا الإجراء.
           </span>
         </div>
 
@@ -1177,15 +1232,18 @@
             <span class="settings-section-icon">🚚</span>
             <div class="settings-section-title-wrap">
               <span class="settings-section-title">كشف الموظفين المنقولين خارجياً</span>
-              <span class="settings-section-desc">تصدير تقرير Excel رسمي ببيانات الموظفين الصادر بحقهم أمر نقل خارجي</span>
+              <span class="settings-section-desc">تصدير تقرير Excel رسمي ببيانات الموظفين الصادر بحقهم أمر نقل
+                خارجي</span>
             </div>
           </div>
           <div class="form-group settings-export-group">
             <div class="settings-export-row">
               <span class="helper-text settings-export-helper">
-                📌 يُنشئ التقرير كشفاً رسمياً معتمداً يتضمن بيانات الموظف وأمر النقل والملاحظات، مع ترويسة الدائرة وصندوق التوقيعات الثلاثي.
+                📌 يُنشئ التقرير كشفاً رسمياً معتمداً يتضمن بيانات الموظف وأمر النقل والملاحظات، مع ترويسة الدائرة
+                وصندوق التوقيعات الثلاثي.
               </span>
-              <button type="button" id="btn-export-transferred-report" class="btn-export-excel" title="تصدير كشف الموظفين المنقولين خارجياً إلى ملف Excel">
+              <button type="button" id="btn-export-transferred-report" class="btn-export-excel"
+                title="تصدير كشف الموظفين المنقولين خارجياً إلى ملف Excel">
                 <span class="excel-icon">XLS</span>
                 <span>تصدير كشف المنقولين (Excel)</span>
               </button>
@@ -1195,7 +1253,8 @@
 
         <!-- Form Actions -->
         <div class="form-actions settings-actions">
-          <button type="submit" id="btn-save-settings" class="btn-primary-large settings-btn-save">💾 حفظ التعديلات</button>
+          <button type="submit" id="btn-save-settings" class="btn-primary-large settings-btn-save">💾 حفظ
+            التعديلات</button>
           <button type="button" id="btn-cancel-settings" class="btn-action-secondary settings-btn-cancel">إلغاء</button>
         </div>
       </form>
@@ -1245,7 +1304,8 @@
   <!-- ════════════════════════════════════════════════════════
        Edit Leave Modal — Full Fields + Mandatory Modifier
        ════════════════════════════════════════════════════════ -->
-  <dialog id="edit-leave-modal" class="custom-dialog edit-leave-dialog" aria-modal="true" aria-labelledby="edit-leave-modal-title">
+  <dialog id="edit-leave-modal" class="custom-dialog edit-leave-dialog" aria-modal="true"
+    aria-labelledby="edit-leave-modal-title">
     <div class="dialog-content edit-leave-dialog-content">
       <div class="dialog-header">
         <h3 id="edit-leave-modal-title" class="dialog-title">✏️ تعديل بيانات الإجازة</h3>
@@ -1271,8 +1331,10 @@
           <label for="edit-leave-modifier" class="modifier-box-label">
             ✍ اسم القائم بالتعديل <span class="text-danger">*</span> (إلزامي للتوثيق والتدقيق):
           </label>
-          <input type="text" id="edit-leave-modifier" class="form-input" placeholder="اكتب اسمك الصريح هنا (مثال: أحمد علي - شعبة الإجازات)" required autocomplete="off" />
-          <span class="helper-text modifier-box-helper">📌 لن يسمح النظام بحفظ أي تعديل دون تسجيل هوية القائم به في سجل التدقيق.</span>
+          <input type="text" id="edit-leave-modifier" class="form-input"
+            placeholder="اكتب اسمك الصريح هنا (مثال: أحمد علي - شعبة الإجازات)" required autocomplete="off" />
+          <span class="helper-text modifier-box-helper">📌 لن يسمح النظام بحفظ أي تعديل دون تسجيل هوية القائم به في سجل
+            التدقيق.</span>
         </div>
 
         <!-- Leave Type & Approver -->
@@ -1306,7 +1368,7 @@
         <!-- Administrative Fields Section -->
         <div class="edit-modal-admin-section">
           <div class="edit-modal-admin-title">📋 المستندات والبيانات الإدارية (اختياري)</div>
-          
+
           <!-- Row 1: Request Date Full Width -->
           <div class="form-group edit-leave-admin-row">
             <label for="edit-leave-request-date">تاريخ تقديم الطلب</label>
@@ -1346,8 +1408,10 @@
 
         <!-- Form Actions -->
         <div class="form-actions edit-leave-actions">
-          <button type="submit" id="btn-save-edit-leave" class="btn-primary-large btn-edit-leave-save">💾 حفظ التعديلات</button>
-          <button type="button" id="btn-cancel-edit-leave" class="btn-action-secondary btn-edit-leave-cancel">إلغاء</button>
+          <button type="submit" id="btn-save-edit-leave" class="btn-primary-large btn-edit-leave-save">💾 حفظ
+            التعديلات</button>
+          <button type="button" id="btn-cancel-edit-leave"
+            class="btn-action-secondary btn-edit-leave-cancel">إلغاء</button>
         </div>
       </form>
     </div>
@@ -1356,14 +1420,16 @@
   <!-- ════════════════════════════════════════════════════════
        Employee Documents & Cards Modal (TIME_CARD & LEAVE_CARD)
        ════════════════════════════════════════════════════════ -->
-  <dialog id="employee-documents-modal" class="custom-dialog documents-dialog" aria-modal="true" aria-labelledby="documents-modal-title">
+  <dialog id="employee-documents-modal" class="custom-dialog documents-dialog" aria-modal="true"
+    aria-labelledby="documents-modal-title">
     <div class="dialog-content documents-dialog-content">
       <div class="dialog-header">
         <div>
           <h3 id="documents-modal-title" class="dialog-title">📁 مستندات وكروت الموظف</h3>
           <p id="documents-modal-subtitle" class="dialog-subtitle text-muted">سجل كافة النسخ والبطاقات المحفوظة</p>
         </div>
-        <button type="button" id="btn-close-documents-modal" class="dialog-close-btn" aria-label="إغلاق نافذة المستندات">
+        <button type="button" id="btn-close-documents-modal" class="dialog-close-btn"
+          aria-label="إغلاق نافذة المستندات">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1388,11 +1454,13 @@
 
         <!-- Action Buttons -->
         <div class="doc-modal-actions">
-          <button type="button" id="btn-add-document" class="btn-primary doc-btn-action" title="رفع وإضافة نسخة جديدة من الكرت">
+          <button type="button" id="btn-add-document" class="btn-primary doc-btn-action"
+            title="رفع وإضافة نسخة جديدة من الكرت">
             <span>➕</span>
             <span>إضافة كرت جديد</span>
           </button>
-          <button type="button" id="btn-import-document" class="btn-action-secondary doc-btn-action" title="استيراد ونسخ كرت من مسار خارجي أو فلاش">
+          <button type="button" id="btn-import-document" class="btn-action-secondary doc-btn-action"
+            title="استيراد ونسخ كرت من مسار خارجي أو فلاش">
             <span>📥</span>
             <span>استيراد كرت</span>
           </button>
@@ -1410,7 +1478,8 @@
   <!-- ════════════════════════════════════════════════════════
        External Transfer Modal Dialog (Phase 3)
        ════════════════════════════════════════════════════════ -->
-  <dialog id="transfer-employee-modal" class="custom-dialog transfer-dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+  <dialog id="transfer-employee-modal" class="custom-dialog transfer-dialog" aria-modal="true"
+    aria-labelledby="transfer-modal-title">
     <div class="dialog-content transfer-dialog-content">
       <div class="dialog-header">
         <h3 id="transfer-modal-title" class="dialog-title">🚚 نقل خارجي للموظف</h3>
@@ -1428,7 +1497,7 @@
             <span class="transfer-emp-badge">نشط بالنظام</span>
           </div>
           <p class="transfer-info-hint">
-            💡 <strong>تنبيه إداري:</strong> الموظف سيبقى نشطاً تماماً بكافة القوائم والتقارير وتسجيل الإجازات، ويُضاف له وسم وشارة "منقول" فقط.
+            💡 <strong>تنبيه إداري:</strong> الموظف سيبقى نشطاً في دليل الموظفين مع وسم "منقول خارجياً"، ويُستثنى تلقائياً من قوائم الإجازات النشطة والتنبيهات وتقارير الأرصدة والتراكم.
           </p>
         </div>
 
@@ -1438,8 +1507,7 @@
             <label for="transfer-order-number">
               رقم الأمر الإداري الخاص بالنقل <span class="text-muted">(اختياري — أرقام فقط)</span>
             </label>
-            <input type="text" id="transfer-order-number" class="form-input"
-              placeholder="مثال: 45210 (أرقام فقط)"
+            <input type="text" id="transfer-order-number" class="form-input" placeholder="مثال: 45210 (أرقام فقط)"
               inputmode="numeric" autocomplete="off" />
             <span class="helper-text">
               📌 يقبل أرقاماً فقط (0-9) بما فيها الأصفار البادئة (مثال: 0123).
