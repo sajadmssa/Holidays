@@ -109,7 +109,7 @@
 
 ## 🛡️ درع حماية قنوات الاتصال IPC ضد الانحدار (Permanent IPC Regression Guard)
 
-* يتضمن المشروع وحدة اختبار آلية صارمة (`tests/ipcChannelGuard.test.js`) تفحص مطابقة **57 قناة IPC** مستخدمة في النظام بين:
+* يتضمن المشروع وحدة اختبار آلية صارمة (`tests/ipcChannelGuard.test.js`) تفحص مطابقة **47 قناة IPC** مستخدمة في النظام بين:
   * معالجات العمليات الرئيسية في الخلفية (`src/main/ipc/*Handlers.js` و `src/main/main.js`).
   * القائمة البيضاء المعتمدة في جسر الأمان (`src/main/preload.js` -> `VALID_CHANNELS`).
 * **الهدف:** منع حدوث خطأ `Channel not allowed` أو فقدان معالج أي قناة أثناء أي تحديث أو تعديل برمجي مستقبلي.
@@ -118,13 +118,13 @@
 
 ## 💻 متطلبات النظام وبيئات التشغيل (System Requirements)
 
-يدعم النظام العمل على أنظمة التشغيل **Windows 7 (SP1) / Windows 8 / Windows 8.1 / Windows 10 / Windows 11** (بمعمارية 64-بت).
+يدعم النظام العمل على أنظمة التشغيل **Windows 7 (SP1) / Windows 8 / Windows 8.1 / Windows 10 / Windows 11** مع دعم صريح لكلا معماريتي المعالج **64-بت (x64)** و **32-بت (ia32)** لضمان العمل على أجهزة Windows 7 القديمة والحديثة على حد سواء.
 
 ### ⚠️ متطلبات إلزامية لأجهزة Windows 7 و Windows 8.1:
 نظراً لاعتماد النظام على محرك Electron 22 و C++ Native Modules لقاعدة بيانات SQLite، تتطلب أجهزة Windows 7 توافر المتطلبات التالية قبل التشغيل:
 
-1. **حزمة Visual C++ Redistributable (2015–2022) x64:**
-   * يجب تثبيت حزمة `vc_redist.x64.exe` الرسمية من موقع Microsoft لتشغيل الإضافات الأصلية لقاعدة البيانات (`better-sqlite3`).
+1. **حزمة Visual C++ Redistributable (2015–2022) x64/x86:**
+   * يجب تثبيت حزمة `vc_redist` الرسمية من موقع Microsoft لتشغيل الإضافات الأصلية لقاعدة البيانات (`better-sqlite3`).
 2. **تحديثات Universal C Runtime (UCRT) لنظام Windows 7:**
    * **تحديث [KB2999226](https://support.microsoft.com/help/2999226):** تحديث Universal C Runtime الأساسي.
    * **تحديث [KB3080149](https://support.microsoft.com/help/3080149):** تحديث دعم بروتوكولات الاتصال وتوافق مكتبات C++.
@@ -151,13 +151,13 @@
 # تشغيل بيئة التطوير
 npm run dev
 
-# فحص قنوات الاتصال IPC والتأكد من مطابقتها (Regression Guard)
+# تشغيل حزمة الاختبارات الشاملة (فحص قنوات IPC واختبارات محرك الإجازات)
 npm test
 
 # إعادة ضبط قاعدة البيانات للبيانات الأولية
 npm run db:reset
 
-# تجميع حزمة التثبيت لنظام Windows (.exe installer)
+# تجميع حزمة التثبيت لنظام Windows (.exe installer لكلا المعماريتين x64 و ia32)
 npm run build
 ```
 
@@ -167,20 +167,23 @@ npm run build
 
 ```
 Holidays/
+├── docs/                             # التوثيق المعماري وهيكلية البيانات
+│   ├── ARCHITECTURE.md               # المعمارية الطبقية وتدفق البيانات وحراس IPC
+│   └── DATA-MODEL.md                 # نموذج قاعدة البيانات الشامل وترحيلات 001-016
 ├── src/
 │   ├── main/
 │   │   ├── database.js               # تهيئة قاعدة البيانات والنسخ الاحتياطي المجمّع (.hbak)
 │   │   ├── main.js                   # إدارة دورة حياة تطبيق Electron والنوافذ والطباعة المباشرة
-│   │   ├── preload.js                # جسر الأمان وقنوات IPC المعتمدة (VALID_CHANNELS - 57 قناة)
-│   │   ├── ipc/                      # معالجات قنوات الاتصال IPC (الموظفين، الإجازات، المستندات، التدقيق، النسخ)
+│   │   ├── preload.js                # جسر الأمان وقنوات IPC المعتمدة (VALID_CHANNELS - 47 قناة)
+│   │   ├── ipc/                      # معالجات قنوات الاتصال IPC (طبقة تفويض رقيقة إلى الخدمات)
 │   │   │   ├── auditHandlers.js
 │   │   │   ├── documentHandlers.js
 │   │   │   ├── employeeHandlers.js
 │   │   │   ├── leaveHandlers.js
 │   │   │   ├── reportHandlers.js
 │   │   │   └── systemHandlers.js
-│   │   ├── migrations/               # ملفات ترحيل قاعدة البيانات (001 إلى 015)
-│   │   │   └── 015_add_employee_transfer_fields.sql
+│   │   ├── migrations/               # ملفات ترحيل قاعدة البيانات (001 إلى 016)
+│   │   │   └── 016_add_sick_leave_25_percent_tier.sql
 │   │   ├── services/                 # الخدمات المركزية (EmployeeService, LeaveService, DocumentService...)
 │   │   └── utils/                    # المساعدات ومترجمات الأخطاء والمتحقق من أرقام الأوامر
 │   │       ├── ipcHandlerHelper.js
@@ -193,7 +196,8 @@ Holidays/
 │       ├── renderer.js               # المحرك الرئيسي للواجهة وربط التبويبات
 │       └── modules/                  # وحدات واجهة المستخدم (المستندات، الإعدادات، التدقيق، الإجازات...)
 ├── tests/
-│   └── ipcChannelGuard.test.js       # فاحص تطابق قنوات IPC ومنع الانحدار البرمجي
+│   ├── ipcChannelGuard.test.js       # فاحص تطابق قنوات IPC ومنع الانحدار البرمجي (47 قناة)
+│   └── leaveService.test.js          # اختبارات محرك الإجازات والشرائح الثلاث ومنع التداخل
 └── package.json
 ```
 
