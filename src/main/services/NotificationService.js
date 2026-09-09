@@ -15,6 +15,7 @@
 
 const { Notification } = require('electron');
 const LeaveService = require('./LeaveService');
+const LoggerService = require('./LoggerService');
 
 // إعدادات التنبيه الثابتة
 const NOTIFICATION_TYPE = 'resumption_alert'; // نوع التنبيه في جدول السجلات
@@ -110,12 +111,12 @@ function checkAndTriggerAlert(mainWindow, db, force = false) {
   if (!approachingEmployees || approachingEmployees.length === 0) {
     // في حال عدم وجود أي إجازات مقتربة من الانتهاء، نسجل الفحص كمنفذ لليوم (بعدد 0) لتجنب التكرار غير المفيد
     recordNotificationSent(db, dateStr, 0);
-    console.log(`[NotificationService] Checked for ${dateStr} (Baghdad): No approaching resumptions.`);
+    LoggerService.info('NotificationService', `Checked for ${dateStr} (Baghdad): No approaching resumptions.`);
     return;
   }
 
   const count = approachingEmployees.length;
-  console.log(`[NotificationService] Sending resumption alert for ${count} employee(s) on ${dateStr}`);
+  LoggerService.info('NotificationService', `Sending resumption alert for ${count} employee(s) on ${dateStr}`);
 
   // 1. إطلاق إشعار نظام التشغيل الأصيل (Native Desktop Notification)
   if (Notification.isSupported()) {
@@ -191,7 +192,7 @@ function startNotificationScheduler(mainWindow, db) {
     }
   }, 60 * 1000);
 
-  console.log('[NotificationService] Scheduler initialized (Daily 11:00 AM Baghdad time).');
+  LoggerService.info('NotificationService', 'Scheduler initialized (Daily 11:00 AM Baghdad time).');
 }
 
 /**

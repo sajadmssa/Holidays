@@ -27,6 +27,7 @@ const AdmZip = require('adm-zip');
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const LoggerService = require('./services/LoggerService');
 
 // ──────────────────────────────────────────────────────────────
 //  Database File Location
@@ -72,8 +73,8 @@ function initialize() {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
 
-  console.log(`[DB] Opening database at: ${DB_PATH}`);
-  _db = new Database(DB_PATH, { verbose: process.env.NODE_ENV === 'development' ? console.log : undefined });
+  LoggerService.info('DB', `Opening database at: ${DB_PATH}`);
+  _db = new Database(DB_PATH, { verbose: process.env.NODE_ENV === 'development' ? (msg) => LoggerService.info('SQL', msg) : undefined });
 
   // ── Critical PRAGMAs / إعدادات الأداء والأمان الأساسية ──────
   _db.pragma('journal_mode = WAL');    // Write-Ahead Logging for concurrency + speed (تسجيل مسبق يتيح القراءة والكتابة المتزامنة بدون تعليق)
@@ -85,7 +86,7 @@ function initialize() {
   // ── Run Migrations / تشغيل الترحيلات الهيكلية ───────────────
   runMigrations();
 
-  console.log('[DB] Database ready.');
+  LoggerService.info('DB', 'Database ready.');
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -120,13 +121,13 @@ function runMigrations() {
   for (const file of files) {
     if (!executed.has(file)) {
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
-      console.log(`[DB] Applying migration: ${file}`);
+      LoggerService.info('DB', `Applying migration: ${file}`);
       _db.transaction(() => {
         try {
           _db.exec(sql);
         } catch (err) {
           if (err.message.includes('duplicate column name')) {
-            console.log(`[DB Migration Notice] Column already exists in ${file}: ${err.message}`);
+            LoggerService.info('DB', `[DB Migration Notice] Column already exists in ${file}: ${err.message}`);
           } else {
             throw err;
           }
@@ -151,11 +152,11 @@ function close() {
       // تحسين الجداول وتحديث إحصائيات منسق الاستعلامات لقاعدة البيانات
       _db.pragma('optimize');
     } catch (optErr) {
-      console.warn('[DB Close Warning] PRAGMA optimize failed:', optErr.message);
+      LoggerService.warn('DB', '[DB Close Warning] PRAGMA optimize failed: ' + optErr.message);
     }
     _db.close();
     _db = null;
-    console.log('[DB] Database closed.');
+    LoggerService.info('DB', 'Database closed.');
   }
 }
 
@@ -651,12 +652,12 @@ async function restoreDatabase(backupPath) {
   } catch (restoreErr) {
     // CRITICAL: Interrupted or failed extraction -> Emergency Auto-Rollback to safety backup
     // حرج: في حال انقطاع الكهرباء أو فشل الاستخراج، تفعيل التراجع الطارئ للنسخة الوقائية تلقائياً
-    console.error('[DB Restore Failed] Rolling back to pre-restore safety backup:', restoreErr.message);
+    LoggerService.error('DB', '[DB Restore Failed] Rolling back to pre-restore safety backup: ' + restoreErr.message);
     try {
       await _emergencyRollback(safetyBackupPath);
-      console.log('[DB Rollback Succeeded] System reverted to safety backup state.');
+      LoggerService.info('DB', '[DB Rollback Succeeded] System reverted to safety backup state.');
     } catch (rollbackErr) {
-      console.error('[DB Rollback Failed] Could not restore safety backup:', rollbackErr.message);
+      LoggerService.error('DB', '[DB Rollback Failed] Could not restore safety backup: ' + rollbackErr.message);
     }
     throw new Error(`فشلت عملية الاستعادة: ${restoreErr.message}. تم التراجع التلقائي إلى الحالة السابقة للنسخ الاحتياطي.`);
   }
