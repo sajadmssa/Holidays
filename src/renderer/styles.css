@@ -4133,3 +4133,73 @@ textarea:focus,
   gap: 10px;
   margin-top: 20px;
 }
+
+/* ────────────────────────────────────────────────────────────
+   CSP Utility & Extracted Component Styles
+   (أنماط مستخرجة لتحقيق الامتثال الصارم لـ CSP دون inline styles)
+   ──────────────────────────────────────────────────────────── */
+
+/* 1. Reports & Balance Spacing */
+.sub-section-header-spaced {
+  margin-top: 32px;
+}
+
+/* 2. Settings Export Transferred Row */
+.settings-export-group {
+  margin-bottom: 0;
+}
+
+.settings-export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settings-export-helper {
+  margin: 0;
+  flex: 1;
+  min-width: 240px;
+}
+
+/* 3. Audit Details Modal Layout */
+.audit-details-dialog-content {
+  max-width: 780px;
+}
+
+.audit-modal-body {
+  padding: 24px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* 4. Leave Administrative Details Modal Layout */
+.leave-details-dialog-content {
+  max-width: 560px;
+}
+
+.leave-details-body {
+  padding: 20px;
+}
+
+/* 5. Edit Leave Modal Elements & Fields */
+.edit-modal-emp-name {
+  font-weight: 700;
+}
+
+.edit-leave-admin-row {
+  margin-bottom: 14px;
+}
+
+.edit-leave-notes-group {
+  margin-bottom: 6px;
+}
+
+.btn-edit-leave-save {
+  flex: 2;
+}
+
+.btn-edit-leave-cancel {
+  flex: 1;
+}

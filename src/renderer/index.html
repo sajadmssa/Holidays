@@ -16,18 +16,7 @@
 
   <link rel="stylesheet" href="styles.css" />
 
-  <script>
-    try {
-      const savedTheme = localStorage.getItem('app_theme') || 'system';
-      if (savedTheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else if (savedTheme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-      } else {
-        document.documentElement.setAttribute('data-theme', 'system');
-      }
-    } catch (_e) {}
-  </script>
+  <script src="theme-init.js"></script>
 </head>
 
 <body>
@@ -837,7 +826,7 @@
             </div>
 
             <!-- Section 2: Year Accumulation Table -->
-            <div class="sub-section-header" style="margin-top: 32px;">
+            <div class="sub-section-header sub-section-header-spaced">
               <h4>📊 كشف تراكم الإجازات المستهلكة لجميع الموظفين</h4>
               <div class="filter-inline">
                 <label for="select-accumulation-year">سنة التقرير:</label>
@@ -1191,9 +1180,9 @@
               <span class="settings-section-desc">تصدير تقرير Excel رسمي ببيانات الموظفين الصادر بحقهم أمر نقل خارجي</span>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
-              <span class="helper-text" style="margin: 0; flex: 1; min-width: 240px;">
+          <div class="form-group settings-export-group">
+            <div class="settings-export-row">
+              <span class="helper-text settings-export-helper">
                 📌 يُنشئ التقرير كشفاً رسمياً معتمداً يتضمن بيانات الموظف وأمر النقل والملاحظات، مع ترويسة الدائرة وصندوق التوقيعات الثلاثي.
               </span>
               <button type="button" id="btn-export-transferred-report" class="btn-export-excel" title="تصدير كشف الموظفين المنقولين خارجياً إلى ملف Excel">
@@ -1217,7 +1206,7 @@
        Audit Details Modal — Snapshot JSON viewer
        ════════════════════════════════════════════════════════ -->
   <dialog id="audit-details-modal" class="custom-dialog" aria-modal="true" aria-labelledby="audit-modal-title">
-    <div class="dialog-content" style="max-width: 780px;">
+    <div class="dialog-content audit-details-dialog-content">
       <div class="dialog-header">
         <h3 id="audit-modal-title" class="dialog-title">🛡️ تفاصيل حركة التدقيق ومقارنة اللقطة</h3>
         <button type="button" id="btn-close-audit-modal" class="dialog-close-btn" aria-label="إغلاق">
@@ -1227,7 +1216,7 @@
           </svg>
         </button>
       </div>
-      <div id="audit-modal-body" class="audit-modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+      <div id="audit-modal-body" class="audit-modal-body">
         <!-- Populated dynamically -->
       </div>
     </div>
@@ -1237,7 +1226,7 @@
        Leave Administrative Details Modal
        ════════════════════════════════════════════════════════ -->
   <dialog id="leave-details-modal" class="custom-dialog" aria-modal="true" aria-labelledby="leave-details-modal-title">
-    <div class="dialog-content" style="max-width: 560px;">
+    <div class="dialog-content leave-details-dialog-content">
       <div class="dialog-header">
         <h3 id="leave-details-modal-title" class="dialog-title">📋 البيانات والمستندات الإدارية للإجازة</h3>
         <button type="button" id="btn-close-leave-details-modal" class="dialog-close-btn" aria-label="إغلاق">
@@ -1247,7 +1236,7 @@
           </svg>
         </button>
       </div>
-      <div id="leave-details-modal-body" class="dialog-body" style="padding: 20px;">
+      <div id="leave-details-modal-body" class="dialog-body leave-details-body">
         <!-- Populated dynamically -->
       </div>
     </div>
@@ -1273,7 +1262,7 @@
 
         <!-- Employee Info Summary Banner -->
         <div class="admin-details-header edit-modal-emp-banner">
-          <span id="edit-leave-emp-name" style="font-weight: 700;">-</span>
+          <span id="edit-leave-emp-name" class="edit-modal-emp-name">-</span>
           <span id="edit-leave-card-num" class="text-muted">-</span>
         </div>
 
@@ -1319,13 +1308,13 @@
           <div class="edit-modal-admin-title">📋 المستندات والبيانات الإدارية (اختياري)</div>
           
           <!-- Row 1: Request Date Full Width -->
-          <div class="form-group" style="margin-bottom: 14px;">
+          <div class="form-group edit-leave-admin-row">
             <label for="edit-leave-request-date">تاريخ تقديم الطلب</label>
             <input type="date" id="edit-leave-request-date" class="form-input" />
           </div>
 
           <!-- Row 2: Memo Number + Memo Date -->
-          <div class="form-grid edit-leave-grid-2" style="margin-bottom: 14px;">
+          <div class="form-grid edit-leave-grid-2 edit-leave-admin-row">
             <div class="form-group">
               <label for="edit-leave-memo-num">رقم المذكرة</label>
               <input type="text" id="edit-leave-memo-num" class="form-input" placeholder="رقم المذكرة..." />
@@ -1350,15 +1339,15 @@
         </div>
 
         <!-- Notes -->
-        <div class="form-group" style="margin-bottom: 6px;">
+        <div class="form-group edit-leave-notes-group">
           <label for="edit-leave-notes">ملاحظات الإجازة</label>
           <textarea id="edit-leave-notes" class="form-textarea" rows="2" placeholder="أي ملاحظات إضافية..."></textarea>
         </div>
 
         <!-- Form Actions -->
         <div class="form-actions edit-leave-actions">
-          <button type="submit" id="btn-save-edit-leave" class="btn-primary-large" style="flex: 2;">💾 حفظ التعديلات</button>
-          <button type="button" id="btn-cancel-edit-leave" class="btn-action-secondary" style="flex: 1;">إلغاء</button>
+          <button type="submit" id="btn-save-edit-leave" class="btn-primary-large btn-edit-leave-save">💾 حفظ التعديلات</button>
+          <button type="button" id="btn-cancel-edit-leave" class="btn-action-secondary btn-edit-leave-cancel">إلغاء</button>
         </div>
       </form>
     </div>
