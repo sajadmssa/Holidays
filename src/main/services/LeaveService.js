@@ -735,6 +735,7 @@ function getActiveLeavesForToday(db) {
       JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
       WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+        AND  e.IsTransferred = 0
       ORDER  BY l.EndDate ASC, e.FullName ASC
     `)
     .all();
@@ -791,6 +792,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
     WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+      AND  e.IsTransferred = 0
     ${searchClause}
   `;
   const countRow = db.prepare(countQuery).get(...countParams);
@@ -833,6 +835,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
     WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+      AND  e.IsTransferred = 0
     ${searchClause}
     ${orderByClause}
     LIMIT ? OFFSET ?
@@ -876,6 +879,7 @@ function getApproachingResumptions(db, daysThreshold = 3) {
       JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
       WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+        AND  e.IsTransferred = 0
         AND  l.EndDate <= date('now', 'localtime', '+' || ? || ' days')
       ORDER  BY l.EndDate ASC, e.FullName ASC
     `)

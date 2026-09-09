@@ -799,7 +799,7 @@ EmployeeCalculations AS (
     MIN(MAX(((MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / 10) + COALESCE(e.AdjustmentDays, 0) - COALESCE(al.RegularLeavesTaken, 0)), 0), 180) AS FinalBalance
   FROM Employees e
   LEFT JOIN AggregatedLeaves al ON al.EmployeeID = e.EmployeeID
-  WHERE e.IsActive = 1
+  WHERE e.IsActive = 1 AND e.IsTransferred = 0
 )
 `;
 
@@ -816,7 +816,7 @@ function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().
   const yearStr = String(targetYear);
 
   // 1. Total Active Employees Count
-  const totalActiveRow = db.prepare('SELECT COUNT(*) as count FROM Employees WHERE IsActive = 1').get();
+  const totalActiveRow = db.prepare('SELECT COUNT(*) as count FROM Employees WHERE IsActive = 1 AND IsTransferred = 0').get();
   const totalActiveEmployees = totalActiveRow ? Number(totalActiveRow.count) : 0;
 
   // 2. Critical Employees (Single Vectorized SQL Query)
@@ -858,7 +858,7 @@ function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().
       FROM Employees e
       LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID AND strftime('%Y', l.StartDate) = ?
       LEFT JOIN LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-      WHERE e.IsActive = 1
+      WHERE e.IsActive = 1 AND e.IsTransferred = 0
       GROUP BY e.EmployeeID
       ORDER BY TotalDaysCount DESC, e.FullName ASC
     `)
@@ -943,7 +943,7 @@ function getCriticalBalancesPaginated(db, { threshold = 5, page = 1, pageSize = 
   }
 
   // 1. Total Active Employees Count
-  const totalActiveRow = db.prepare('SELECT COUNT(*) as count FROM Employees WHERE IsActive = 1').get();
+  const totalActiveRow = db.prepare('SELECT COUNT(*) as count FROM Employees WHERE IsActive = 1 AND IsTransferred = 0').get();
   const totalActiveEmployees = totalActiveRow ? Number(totalActiveRow.count) : 0;
 
   // 2. Critical count (matching search if provided)
@@ -1051,7 +1051,7 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
   }
 
   // 1. Total matching active employees count
-  const countRow = db.prepare(`SELECT COUNT(*) AS total FROM Employees e WHERE e.IsActive = 1 ${searchClause}`).get(...countParams);
+  const countRow = db.prepare(`SELECT COUNT(*) AS total FROM Employees e WHERE e.IsActive = 1 AND e.IsTransferred = 0 ${searchClause}`).get(...countParams);
   const totalCount = countRow ? countRow.total : 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
 
@@ -1072,7 +1072,7 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
     FROM Employees e
     LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID AND strftime('%Y', l.StartDate) = ?
     LEFT JOIN LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-    WHERE e.IsActive = 1
+    WHERE e.IsActive = 1 AND e.IsTransferred = 0
     ${searchClause}
     GROUP BY e.EmployeeID
     ORDER BY TotalDaysCount DESC, e.FullName ASC
@@ -1097,7 +1097,7 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
       COALESCE(SUM(l.DaysCount), 0) AS totalDaysThisYear
     FROM Leaves l
     JOIN Employees e ON e.EmployeeID = l.EmployeeID
-    WHERE e.IsActive = 1 AND strftime('%Y', l.StartDate) = ?
+    WHERE e.IsActive = 1 AND e.IsTransferred = 0 AND strftime('%Y', l.StartDate) = ?
   `).get(yearStr);
 
   return {
