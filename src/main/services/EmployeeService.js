@@ -212,7 +212,7 @@ function addEmployee(employeeData, db) {
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
-    // التهيئة التلقائية لأرصدة الإجازة المرضية الافتراضية (28 يوماً براتب كامل و 45 يوماً بنصف راتب)
+    // التهيئة التلقائية لأرصدة الإجازة المرضية الافتراضية (30 يوماً براتب كامل، 45 يوماً بنصف راتب، 45 يوماً بربع راتب)
     const sickLeaveType = db
       .prepare("SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة مرضية'")
       .get();
@@ -222,8 +222,9 @@ function addEmployee(employeeData, db) {
         INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
         VALUES (?, ?, ?, ?)
       `);
-      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 28, 100);
+      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 30, 100);
       initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 45, 50);
+      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 45, 25);
     }
 
     // Record Audit Log / توثيق إضافة الموظف الجديد في سجل الأمان والتدقيق
@@ -338,6 +339,7 @@ function getEmployeeById(employeeId, db) {
   // Fetch Sick Leave balances (ensure default rows exist) / جلب أرصدة الإجازة المرضية والتأكد من وجودها
   let sick100 = 0;
   let sick50  = 0;
+  let sick25  = 0;
   const sickType = db
     .prepare("SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة مرضية'")
     .get();
@@ -345,8 +347,8 @@ function getEmployeeById(employeeId, db) {
   if (sickType) {
     db.prepare(`
       INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
-      VALUES (?, ?, 28, 100), (?, ?, 45, 50)
-    `).run(employeeId, sickType.LeaveTypeID, employeeId, sickType.LeaveTypeID);
+      VALUES (?, ?, 30, 100), (?, ?, 45, 50), (?, ?, 45, 25)
+    `).run(employeeId, sickType.LeaveTypeID, employeeId, sickType.LeaveTypeID, employeeId, sickType.LeaveTypeID);
 
     const rows = db
       .prepare('SELECT PayPercentage, TotalBalance FROM LeaveBalances WHERE EmployeeID = ? AND LeaveTypeID = ?')
@@ -355,6 +357,7 @@ function getEmployeeById(employeeId, db) {
     for (const r of rows) {
       if (r.PayPercentage === 100) sick100 = r.TotalBalance;
       if (r.PayPercentage === 50)  sick50  = r.TotalBalance;
+      if (r.PayPercentage === 25)  sick25  = r.TotalBalance;
     }
   }
 
@@ -367,6 +370,7 @@ function getEmployeeById(employeeId, db) {
       regularLeavesTaken,
       sick100,
       sick50,
+      sick25,
     },
   };
 }

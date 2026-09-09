@@ -39,9 +39,10 @@ const LoggerService = require('./LoggerService');
 const DAYS_PER_EARNED_LEAVE = 10;  // 1 day earned per 10 actual service days (يوم إجازة مستحق لكل 10 أيام خدمة فعلية)
 const MAX_REGULAR_BALANCE   = 180; // Accumulation ceiling (days) (السقف الأعلى لتراكم رصيد الإجازة الاعتيادية 180 يوماً)
 
-const SICK_100_MAX          = 28;  // Days paid at 100 % (أيام الإجازة المرضية براتب كامل 100%)
+const SICK_100_MAX          = 30;  // Days paid at 100 % (أيام الإجازة المرضية براتب كامل 100%)
 const SICK_50_MAX           = 45;  // Additional days paid at 50 % (أيام الإجازة المرضية بنصف راتب 50%)
-const SICK_TOTAL_MAX        = SICK_100_MAX + SICK_50_MAX; // 73 days/year (إجمالي الرصيد المرضي السنوي 73 يوماً)
+const SICK_25_MAX           = 45;  // Additional days paid at 25 % (أيام الإجازة المرضية بربع راتب 25%)
+const SICK_TOTAL_MAX        = SICK_100_MAX + SICK_50_MAX + SICK_25_MAX; // 120 days/year (إجمالي الرصيد المرضي السنوي 120 يوماً)
 
 // Names as stored in LeaveTypes seed data (must match exactly)
 // مسميات أنواع الإجازات كما هي معرّفة في جداول النظام التأسيسية
@@ -354,37 +355,42 @@ function processSickLeave(
   const _runTransaction = db.transaction(() => {
 
     // Auto-ensure default Sick Leave balance rows exist for employee
-    // التأكد من وجود سجلات الرصيد الافتراضي للموظف (28 يوماً براتب كامل و 45 يوماً بنصف راتب)
+    // التأكد من وجود سجلات الرصيد الافتراضي للموظف (30 يوماً براتب كامل، 45 بنصف راتب، 45 بربع راتب)
     db.prepare(`
       INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
-      VALUES (?, ?, 28, 100), (?, ?, 45, 50)
-    `).run(employeeId, sickLeaveType.LeaveTypeID, employeeId, sickLeaveType.LeaveTypeID);
+      VALUES (?, ?, 30, 100), (?, ?, 45, 50), (?, ?, 45, 25)
+    `).run(
+      employeeId, sickLeaveType.LeaveTypeID,
+      employeeId, sickLeaveType.LeaveTypeID,
+      employeeId, sickLeaveType.LeaveTypeID
+    );
 
-    // ── A: Read both balance buckets / قراءة أرصدة الوعاءين الماليين ──
+    // ── A: Read all balance buckets / قراءة أرصدة الأوعية المالية الثلاثة ──
     const balances = db
       .prepare(`
         SELECT PayPercentage, TotalBalance
         FROM   LeaveBalances
         WHERE  EmployeeID  = ?
           AND  LeaveTypeID = ?
-        ORDER  BY PayPercentage DESC   -- 100 first, then 50
+        ORDER  BY PayPercentage DESC   -- 100 first, then 50, then 25
       `)
       .all(employeeId, sickLeaveType.LeaveTypeID);
 
-    const bucket = { 100: 0, 50: 0 };
+    const bucket = { 100: 0, 50: 0, 25: 0 };
     for (const row of balances) {
-      if (row.PayPercentage === 100 || row.PayPercentage === 50) {
+      if (row.PayPercentage === 100 || row.PayPercentage === 50 || row.PayPercentage === 25) {
         bucket[row.PayPercentage] = row.TotalBalance;
       }
     }
 
-    const totalAvailable = bucket[100] + bucket[50];
+    const totalAvailable = bucket[100] + bucket[50] + bucket[25];
     const quotaExceeded = requestedDays > totalAvailable;
 
     // ── B/C/D: Distribute requested days across buckets ─────────
-    // توزيع الأيام المطلوبة هرمياً (استهلاك وعاء 100% أولاً ثم الانتقال إلى 50%)
+    // توزيع الأيام المطلوبة هرمياً (استهلاك وعاء 100% أولاً ثم 50% ثم 25%)
     let daysAt100 = 0;
     let daysAt50  = 0;
+    let daysAt25  = 0;
     let remaining = requestedDays;
 
     if (remaining <= bucket[100]) {
@@ -392,11 +398,20 @@ function processSickLeave(
       daysAt100 = remaining;
       remaining = 0;
     } else {
-      // Exhaust the 100% bucket, spill remainder into 50%
-      daysAt100 = bucket[100];
-      remaining -= bucket[100];
-      daysAt50  = remaining;
-      remaining = 0;
+      daysAt100 = Math.max(0, bucket[100]);
+      remaining -= daysAt100;
+
+      if (remaining <= bucket[50]) {
+        daysAt50 = remaining;
+        remaining = 0;
+      } else {
+        daysAt50 = Math.max(0, bucket[50]);
+        remaining -= daysAt50;
+
+        // Spill remainder into 25% bucket (may exceed bucket[25] if quotaExceeded)
+        daysAt25 = remaining;
+        remaining = 0;
+      }
     }
 
     // ── E: Persist deductions / تسجيل خصم الأيام من الأرصدة ─────
@@ -428,6 +443,16 @@ function processSickLeave(
       }
     }
 
+    if (daysAt25 > 0) {
+      const r = updateBalance.run(daysAt25, employeeId, sickLeaveType.LeaveTypeID, 25);
+      if (r.changes === 0) {
+        throw new Error(
+          'processSickLeave: Failed to deduct from Sick Leave 25% bucket — ' +
+          'LeaveBalances row missing for this employee.'
+        );
+      }
+    }
+
     // ── F: Insert Leaves record / إدراج قيد الإجازة في جدول Leaves ─
     const insertResult = db
       .prepare(`
@@ -442,7 +467,7 @@ function processSickLeave(
         startDate,
         endDate,
         requestedDays,
-        `Sick Leave processed: ${daysAt100}d @ 100% pay, ${daysAt50}d @ 50% pay`,
+        `Sick Leave processed: ${daysAt100}d @ 100% pay, ${daysAt50}d @ 50% pay, ${daysAt25}d @ 25% pay`,
         leaveApprover ?? null,
         requestDate ?? null,
         memoNumber ?? null,
@@ -468,6 +493,7 @@ function processSickLeave(
         DaysCount: requestedDays,
         DaysAt100: daysAt100,
         DaysAt50: daysAt50,
+        DaysAt25: daysAt25,
         LeaveApprover: leaveApprover ?? null,
         RequestDate: requestDate ?? null,
         MemoNumber: memoNumber ?? null,
@@ -482,8 +508,10 @@ function processSickLeave(
       leaveId:       newLeaveId,
       daysAt100,
       daysAt50,
+      daysAt25,
       newBalance100: bucket[100] - daysAt100,
       newBalance50:  bucket[50]  - daysAt50,
+      newBalance25:  bucket[25]  - daysAt25,
       quotaExceeded,
     };
   }); // end transaction definition
@@ -758,15 +786,30 @@ function deleteLeave(leaveId, db) {
       throw new Error(`تعذر العثور على قيد الإجازة برقم (${leaveId}).`);
     }
 
-    // Step 2 & 3: IF Sick Leave, restore DaysCount back to LeaveBalances
-    // استعادة الأيام إلى رصيد الإجازات المرضية للموظف في حال كانت مرضية
+    // Step 2 & 3: IF Sick Leave, restore DaysCount back to LeaveBalances per tier
+    // استعادة الأيام إلى رصيد الإجازات المرضية للموظف بدقة لكل شريحة
     if (leave.LeaveTypeName === LEAVE_NAME_SICK) {
-      db.prepare(`
-        UPDATE LeaveBalances
-        SET    TotalBalance = TotalBalance + ?
-        WHERE  EmployeeID   = ?
-          AND  LeaveTypeID  = ?
-      `).run(leave.DaysCount, leave.EmployeeID, leave.LeaveTypeID);
+      const match = leave.Notes?.match(/(\d+)d\s*@\s*100%\s*pay[,\s]+(\d+)d\s*@\s*50%\s*pay(?:[,\s]+(\d+)d\s*@\s*25%\s*pay)?/);
+      if (match) {
+        const d100 = parseInt(match[1], 10) || 0;
+        const d50  = parseInt(match[2], 10) || 0;
+        const d25  = parseInt(match[3] || '0', 10) || 0;
+        const updateBal = db.prepare(`
+          UPDATE LeaveBalances
+          SET TotalBalance = TotalBalance + ?
+          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = ?
+        `);
+        if (d100 > 0) updateBal.run(d100, leave.EmployeeID, leave.LeaveTypeID, 100);
+        if (d50 > 0)  updateBal.run(d50, leave.EmployeeID, leave.LeaveTypeID, 50);
+        if (d25 > 0)  updateBal.run(d25, leave.EmployeeID, leave.LeaveTypeID, 25);
+      } else {
+        // Fallback for legacy records: restore to 100%
+        db.prepare(`
+          UPDATE LeaveBalances
+          SET TotalBalance = TotalBalance + ?
+          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
+        `).run(leave.DaysCount, leave.EmployeeID, leave.LeaveTypeID);
+      }
     }
 
     // Step 4: DELETE FROM Leaves WHERE LeaveID = ? / تنفيذ الحذف
@@ -935,19 +978,38 @@ function updateLeave(leaveId, payload, db) {
 
     // A: Handle Sick Leave Bucket Restoration / استرداد الرصيد المرضي السابق في حال تم تغيير نوع الإجازة أو تعديلها
     if (isOldSick) {
-      db.prepare(`
-        UPDATE LeaveBalances
-        SET TotalBalance = TotalBalance + ?
-        WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
-      `).run(oldLeave.DaysCount, oldLeave.EmployeeID, oldLeave.LeaveTypeID);
+      const match = oldLeave.Notes?.match(/(\d+)d\s*@\s*100%\s*pay[,\s]+(\d+)d\s*@\s*50%\s*pay(?:[,\s]+(\d+)d\s*@\s*25%\s*pay)?/);
+      if (match) {
+        const d100 = parseInt(match[1], 10) || 0;
+        const d50  = parseInt(match[2], 10) || 0;
+        const d25  = parseInt(match[3] || '0', 10) || 0;
+        const updateBal = db.prepare(`
+          UPDATE LeaveBalances
+          SET TotalBalance = TotalBalance + ?
+          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = ?
+        `);
+        if (d100 > 0) updateBal.run(d100, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 100);
+        if (d50 > 0)  updateBal.run(d50, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 50);
+        if (d25 > 0)  updateBal.run(d25, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 25);
+      } else {
+        db.prepare(`
+          UPDATE LeaveBalances
+          SET TotalBalance = TotalBalance + ?
+          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
+        `).run(oldLeave.DaysCount, oldLeave.EmployeeID, oldLeave.LeaveTypeID);
+      }
     }
 
     // B: Handle Target Sick Leave Deduction / معالجة خصم الرصيد المرضي الجديد
     if (isNewSick) {
       db.prepare(`
         INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
-        VALUES (?, ?, 28, 100), (?, ?, 45, 50)
-      `).run(oldLeave.EmployeeID, targetLeaveType.LeaveTypeID, oldLeave.EmployeeID, targetLeaveType.LeaveTypeID);
+        VALUES (?, ?, 30, 100), (?, ?, 45, 50), (?, ?, 45, 25)
+      `).run(
+        oldLeave.EmployeeID, targetLeaveType.LeaveTypeID,
+        oldLeave.EmployeeID, targetLeaveType.LeaveTypeID,
+        oldLeave.EmployeeID, targetLeaveType.LeaveTypeID
+      );
 
       const balances = db.prepare(`
         SELECT PayPercentage, TotalBalance
@@ -956,14 +1018,14 @@ function updateLeave(leaveId, payload, db) {
         ORDER BY PayPercentage DESC
       `).all(oldLeave.EmployeeID, targetLeaveType.LeaveTypeID);
 
-      const bucket = { 100: 0, 50: 0 };
+      const bucket = { 100: 0, 50: 0, 25: 0 };
       for (const row of balances) {
-        if (row.PayPercentage === 100 || row.PayPercentage === 50) {
+        if (row.PayPercentage === 100 || row.PayPercentage === 50 || row.PayPercentage === 25) {
           bucket[row.PayPercentage] = row.TotalBalance;
         }
       }
 
-      const totalAvailable = bucket[100] + bucket[50];
+      const totalAvailable = bucket[100] + bucket[50] + bucket[25];
       if (finalDaysCount > totalAvailable) {
         quotaExceeded = true;
         deficit = finalDaysCount - totalAvailable;
@@ -984,14 +1046,21 @@ function updateLeave(leaveId, payload, db) {
 
       let daysAt100 = 0;
       let daysAt50 = 0;
+      let daysAt25 = 0;
       let remaining = finalDaysCount;
 
       if (remaining <= bucket[100]) {
         daysAt100 = remaining;
       } else {
-        daysAt100 = bucket[100];
-        remaining -= bucket[100];
-        daysAt50 = remaining;
+        daysAt100 = Math.max(0, bucket[100]);
+        remaining -= daysAt100;
+        if (remaining <= bucket[50]) {
+          daysAt50 = remaining;
+        } else {
+          daysAt50 = Math.max(0, bucket[50]);
+          remaining -= daysAt50;
+          daysAt25 = remaining;
+        }
       }
 
       const updateBal = db.prepare(`
@@ -1002,6 +1071,7 @@ function updateLeave(leaveId, payload, db) {
 
       if (daysAt100 > 0) updateBal.run(daysAt100, oldLeave.EmployeeID, targetLeaveType.LeaveTypeID, 100);
       if (daysAt50 > 0) updateBal.run(daysAt50, oldLeave.EmployeeID, targetLeaveType.LeaveTypeID, 50);
+      if (daysAt25 > 0) updateBal.run(daysAt25, oldLeave.EmployeeID, targetLeaveType.LeaveTypeID, 25);
 
     } else if (isNewRegular) {
       // C: Handle Regular Leave Balance / معالجة رصيد الإجازة الاعتيادية
@@ -1146,6 +1216,7 @@ module.exports = {
     MAX_REGULAR_BALANCE,
     SICK_100_MAX,
     SICK_50_MAX,
+    SICK_25_MAX,
     SICK_TOTAL_MAX,
     LEAVE_NAME_UNPAID,
     LEAVE_NAME_SICK,

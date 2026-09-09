@@ -855,15 +855,16 @@ export function initLeaveRegistration() {
               4500
             );
           } else if (payload.leaveType === 'sick' || payload.leaveType === 'إجازة مرضية') {
+            const tierBreakdown = `براتب تام: ${d.daysAt100} يوم، بنصف راتب: ${d.daysAt50} يوم، بربع راتب: ${d.daysAt25 || 0} يوم`;
             if (d.quotaExceeded) {
               showToast(
-                `تم تسجيل الإجازة المرضية بنجاح وتجاوزت السقف السنوي (رقم القيد: ${d.leaveId} | براتب تام: ${d.daysAt100} يوم، بنصف راتب: ${d.daysAt50} يوم)`,
+                `تم تسجيل الإجازة المرضية بنجاح وتجاوزت السقف السنوي (رقم القيد: ${d.leaveId} | ${tierBreakdown})`,
                 'warning',
                 6000
               );
             } else {
               showToast(
-                `تم تسجيل الإجازة المرضية بنجاح (رقم القيد: ${d.leaveId} | براتب تام: ${d.daysAt100} يوم، بنصف راتب: ${d.daysAt50} يوم)`,
+                `تم تسجيل الإجازة المرضية بنجاح (رقم القيد: ${d.leaveId} | ${tierBreakdown})`,
                 'success',
                 4500
               );

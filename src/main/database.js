@@ -206,7 +206,7 @@ function getLeaveBalancesByEmployee(employeeId) {
 /**
  * إضافة رصيد إجازة أو تحديثه في حال وجوده مسبقاً (Upsert عبر ON CONFLICT).
  * INSERT or REPLACE a balance entry.
- * @param {{ employeeId:number, leaveTypeId:number, totalBalance:number, payPercentage:100|50 }} payload
+ * @param {{ employeeId:number, leaveTypeId:number, totalBalance:number, payPercentage:100|50|25 }} payload
  */
 function upsertLeaveBalance({ employeeId, leaveTypeId, totalBalance, payPercentage }) {
   const result = getDb()

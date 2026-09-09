@@ -34,6 +34,7 @@ let manageEmpBalances = null;
 let manageRegularBalanceInput = null;
 let manageSick100BalanceInput = null;
 let manageSick50BalanceInput = null;
+let manageSick25BalanceInput = null;
 let btnManageOpenTimecards = null;
 let btnManageOpenLeavecards = null;
 let manageBadgeTimecardCount = null;
@@ -113,6 +114,7 @@ export async function loadEmployeeForManagement(id) {
       if (manageRegularBalanceInput) manageRegularBalanceInput.value = emp.balances.regular;
       if (manageSick100BalanceInput) manageSick100BalanceInput.value = emp.balances.sick100;
       if (manageSick50BalanceInput) manageSick50BalanceInput.value = emp.balances.sick50;
+      if (manageSick25BalanceInput) manageSick25BalanceInput.value = emp.balances.sick25;
 
       // حفظ خط الأساس لرصيد الإجازة الاعتيادية لاحتساب فرق التسوية (AdjustmentDays)
       // baseline = إجمالي المستحق غير المقيد مطروحاً منه الإجازات المأخوذة
@@ -240,6 +242,7 @@ export function initManageEmployeeTab(options = {}) {
   manageRegularBalanceInput = document.getElementById('manage-regular-balance');
   manageSick100BalanceInput = document.getElementById('manage-sick-100-balance');
   manageSick50BalanceInput = document.getElementById('manage-sick-50-balance');
+  manageSick25BalanceInput = document.getElementById('manage-sick-25-balance');
 
   btnManageOpenTimecards = document.getElementById('btn-manage-open-timecards');
   btnManageOpenLeavecards = document.getElementById('btn-manage-open-leavecards');
@@ -342,13 +345,14 @@ export function initManageEmployeeTab(options = {}) {
           return;
         }
 
-        // 3. تحديث أو إدراج أرصدة الإجازات المرضية (100% و 50%)
+        // 3. تحديث أو إدراج أرصدة الإجازات المرضية (100% و 50% و 25%)
         const ltRes = await window.api.leaveTypes.getAll();
         const sickType = ltRes?.data?.find(lt => lt.Name === 'إجازة مرضية');
 
         if (sickType) {
           const sick100Val = parseInt(manageSick100BalanceInput?.value || '0', 10);
           const sick50Val = parseInt(manageSick50BalanceInput?.value || '0', 10);
+          const sick25Val = parseInt(manageSick25BalanceInput?.value || '0', 10);
 
           const res100 = await window.api.leaveBalances.upsert({
             employeeId: currentManagingEmpId,
@@ -364,8 +368,15 @@ export function initManageEmployeeTab(options = {}) {
             payPercentage: 50
           });
 
-          if (!res100?.success || !res50?.success) {
-            const errorMsg = (!res100?.success ? res100?.error : res50?.error) || 'خطأ غير معروف';
+          const res25 = await window.api.leaveBalances.upsert({
+            employeeId: currentManagingEmpId,
+            leaveTypeId: sickType.LeaveTypeID,
+            totalBalance: sick25Val,
+            payPercentage: 25
+          });
+
+          if (!res100?.success || !res50?.success || !res25?.success) {
+            const errorMsg = (!res100?.success ? res100?.error : (!res50?.success ? res50?.error : res25?.error)) || 'خطأ غير معروف';
             showToast(`تم تحديث بيانات الموظف، لكن حدث خطأ أثناء تحديث رصيد الإجازة المرضية: ${errorMsg}. يرجى مراجعة الرصيد يدوياً.`, 'warning');
             if (typeof onEmployeeUpdated === 'function') {
               onEmployeeUpdated(currentManagingEmpId);
