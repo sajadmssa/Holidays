@@ -1,0 +1,392 @@
+[
+  {
+    "id": 1,
+    "file": "src\\renderer\\renderer.js",
+    "line": 60,
+    "fullCall": "function showToast(message, type = 'info', durationMs = 3500) { const container = document.getElementById('toast-container');"
+  },
+  {
+    "id": 2,
+    "file": "src\\renderer\\renderer.js",
+    "line": 600,
+    "fullCall": "showToast('يرجى اختيار موظف مسجل من القائمة.', 'warning');"
+  },
+  {
+    "id": 3,
+    "file": "src\\renderer\\renderer.js",
+    "line": 605,
+    "fullCall": "showToast('يرجى اختيار نوع الإجازة.', 'warning');"
+  },
+  {
+    "id": 4,
+    "file": "src\\renderer\\renderer.js",
+    "line": 610,
+    "fullCall": "showToast('يرجى تحديد تاريخ بداية الإجازة.', 'warning');"
+  },
+  {
+    "id": 5,
+    "file": "src\\renderer\\renderer.js",
+    "line": 615,
+    "fullCall": "showToast('يرجى تحديد تاريخ نهاية الإجازة.', 'warning');"
+  },
+  {
+    "id": 6,
+    "file": "src\\renderer\\renderer.js",
+    "line": 620,
+    "fullCall": "showToast('تاريخ النهاية يجب أن يكون بعد أو مساوياً لتاريخ البداية.', 'warning');"
+  },
+  {
+    "id": 7,
+    "file": "src\\renderer\\renderer.js",
+    "line": 625,
+    "fullCall": "showToast('يرجى إدخال عدد أيام صحيح (أكبر من صفر).', 'warning');"
+  },
+  {
+    "id": 8,
+    "file": "src\\renderer\\renderer.js",
+    "line": 684,
+    "fullCall": "showToast('نوع إجازة غير معروف. يرجى إعادة المحاولة.', 'error');"
+  },
+  {
+    "id": 9,
+    "file": "src\\renderer\\renderer.js",
+    "line": 692,
+    "fullCall": "showToast( `تم تقديم طلب الإجازة بنجاح! (رقم السجل: ${d.leaveId} | المتبقي: ${d.remainingBalance} يوم)`, 'success', 4500 );"
+  },
+  {
+    "id": 10,
+    "file": "src\\renderer\\renderer.js",
+    "line": 698,
+    "fullCall": "showToast( `تم تقديم طلب دورة تدريبية بنجاح! (رقم السجل: ${d.leaveId})`, 'success', 4500 );"
+  },
+  {
+    "id": 11,
+    "file": "src\\renderer\\renderer.js",
+    "line": 705,
+    "fullCall": "showToast( `تم تقديم الإجازة المرضية بنجاح! ولكن تم تجاوز السقف (رقم السجل: ${d.leaveId} | 100%: ${d.daysAt100}d, 50%: ${d.daysAt50}d)`, 'warning', 6000 );"
+  },
+  {
+    "id": 12,
+    "file": "src\\renderer\\renderer.js",
+    "line": 711,
+    "fullCall": "showToast( `تم تقديم الإجازة المرضية بنجاح! (رقم السجل: ${d.leaveId} | 100%: ${d.daysAt100}d, 50%: ${d.daysAt50}d)`, 'success', 4500 );"
+  },
+  {
+    "id": 13,
+    "file": "src\\renderer\\renderer.js",
+    "line": 722,
+    "fullCall": "showToast(`فشل تقديم الطلب: ${response.error}`, 'error', 5000);"
+  },
+  {
+    "id": 14,
+    "file": "src\\renderer\\renderer.js",
+    "line": 726,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 15,
+    "file": "src\\renderer\\renderer.js",
+    "line": 943,
+    "fullCall": "showToast(`فشل التصدير: ${response.error}`, 'error');"
+  },
+  {
+    "id": 16,
+    "file": "src\\renderer\\renderer.js",
+    "line": 951,
+    "fullCall": "showToast('تم تصدير تقرير المجازين بنجاح.', 'success');"
+  },
+  {
+    "id": 17,
+    "file": "src\\renderer\\renderer.js",
+    "line": 954,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 18,
+    "file": "src\\renderer\\renderer.js",
+    "line": 989,
+    "fullCall": "showToast('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.', 'warning');"
+  },
+  {
+    "id": 19,
+    "file": "src\\renderer\\renderer.js",
+    "line": 994,
+    "fullCall": "showToast('يرجى إدخال الاسم الكامل للموظف.', 'warning');"
+  },
+  {
+    "id": 20,
+    "file": "src\\renderer\\renderer.js",
+    "line": 999,
+    "fullCall": "showToast('يرجى اختيار جنس الموظف (ذكر / أنثى).', 'warning');"
+  },
+  {
+    "id": 21,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1004,
+    "fullCall": "showToast('يرجى تحديد تاريخ تعيين صالح للموظف.', 'warning');"
+  },
+  {
+    "id": 22,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1009,
+    "fullCall": "showToast('يرجى إدخال المسمى الوظيفي للموظف.', 'warning');"
+  },
+  {
+    "id": 23,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1039,
+    "fullCall": "showToast(`تم إضافة الموظف بنجاح برقم: ${payload.employeeId}`, 'success');"
+  },
+  {
+    "id": 24,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1042,
+    "fullCall": "showToast(response.error || 'تعذر إضافة الموظف. يرجى مراجعة البيانات.', 'error');"
+  },
+  {
+    "id": 25,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1046,
+    "fullCall": "showToast(err.message || 'حدث خطأ غير متوقع أثناء إضافة الموظف.', 'error');"
+  },
+  {
+    "id": 26,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1065,
+    "fullCall": "showToast('يرجى إدخال رقم الموظف أولاً قبل تصدير سجله.', 'warning');"
+  },
+  {
+    "id": 27,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1077,
+    "fullCall": "showToast(`فشل التصدير: ${response.error}`, 'error');"
+  },
+  {
+    "id": 28,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1085,
+    "fullCall": "showToast('تم حفظ التقرير بنجاح.', 'success');"
+  },
+  {
+    "id": 29,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1088,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 30,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1347,
+    "fullCall": "showToast('تم إلغاء الإجازة بنجاح.', 'success');"
+  },
+  {
+    "id": 31,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1350,
+    "fullCall": "showToast(`فشل إلغاء الإجازة: ${response.error}`, 'error');"
+  },
+  {
+    "id": 32,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1353,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 33,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1385,
+    "fullCall": "showToast('يرجى إدخال رقم موظف صحيح.', 'warning');"
+  },
+  {
+    "id": 34,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1395,
+    "fullCall": "showToast(`فشل جلب بيانات الموظف: ${response.error || 'الموظف غير موجود'}`, 'error');"
+  },
+  {
+    "id": 35,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1455,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 36,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1486,
+    "fullCall": "showToast('يرجى إدخال الاسم الكامل.', 'warning');"
+  },
+  {
+    "id": 37,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1491,
+    "fullCall": "showToast('يرجى إدخال المسمى الوظيفي.', 'warning');"
+  },
+  {
+    "id": 38,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1516,
+    "fullCall": "showToast(`فشل تحديث البيانات: ${response.error}`, 'error');"
+  },
+  {
+    "id": 39,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1544,
+    "fullCall": "showToast('تم تحديث بيانات الموظف بنجاح.', 'success');"
+  },
+  {
+    "id": 40,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1546,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 41,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1570,
+    "fullCall": "showToast('تم تجميد الموظف بنجاح.', 'success');"
+  },
+  {
+    "id": 42,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1573,
+    "fullCall": "showToast(`فشل تجميد الموظف: ${response.error}`, 'error');"
+  },
+  {
+    "id": 43,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1577,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 44,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1599,
+    "fullCall": "showToast('تم إعادة تفعيل الموظف بنجاح.', 'success');"
+  },
+  {
+    "id": 45,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1602,
+    "fullCall": "showToast(`فشل إعادة تفعيل الموظف: ${response.error}`, 'error');"
+  },
+  {
+    "id": 46,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1606,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 47,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1628,
+    "fullCall": "showToast(`فشل إنشاء النسخة الاحتياطية: ${response.error}`, 'error');"
+  },
+  {
+    "id": 48,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1636,
+    "fullCall": "showToast('تم حفظ النسخة الاحتياطية بنجاح.', 'success');"
+  },
+  {
+    "id": 49,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1639,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 50,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1659,
+    "fullCall": "showToast(`فشلت استعادة النسخة الاحتياطية: ${response.error}`, 'error');"
+  },
+  {
+    "id": 51,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1667,
+    "fullCall": "showToast('تمت استعادة النسخة بنجاح. جارٍ إعادة تشغيل التطبيق…', 'success');"
+  },
+  {
+    "id": 52,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1670,
+    "fullCall": "showToast(`خطأ غير متوقع أثناء الاستعادة: ${err.message}`, 'error');"
+  },
+  {
+    "id": 53,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1927,
+    "fullCall": "showToast(`فشل التصدير: ${response.error}`, 'error');"
+  },
+  {
+    "id": 54,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1935,
+    "fullCall": "showToast('تم تصدير قائمة الموظفين بنجاح.', 'success');"
+  },
+  {
+    "id": 55,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1938,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 56,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2005,
+    "fullCall": "showToast('تم حفظ إعدادات النظام واسم الدائرة بنجاح.', 'success');"
+  },
+  {
+    "id": 57,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2008,
+    "fullCall": "showToast(`فشل حفظ الإعدادات: ${res.error}`, 'error');"
+  },
+  {
+    "id": 58,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2011,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 59,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2053,
+    "fullCall": "showToast(`فشل تحميل التقرير: ${res.error}`, 'error');"
+  },
+  {
+    "id": 60,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2198,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  },
+  {
+    "id": 61,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2226,
+    "fullCall": "showToast(`فشل تصدير الكشف: ${res.error}`, 'error');"
+  },
+  {
+    "id": 62,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2234,
+    "fullCall": "showToast('تم تصدير تقرير الأرصدة والتراكم بنجاح.', 'success');"
+  },
+  {
+    "id": 63,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2237,
+    "fullCall": "showToast(`خطأ غير متوقع أثناء التصدير: ${err.message}`, 'error');"
+  },
+  {
+    "id": 64,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2436,
+    "fullCall": "showToast(`فشل تحميل سجل التدقيق: ${res.error}`, 'error');"
+  },
+  {
+    "id": 65,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2508,
+    "fullCall": "showToast(`خطأ غير متوقع: ${err.message}`, 'error');"
+  }
+]

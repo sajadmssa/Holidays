@@ -1,0 +1,380 @@
+[
+  {
+    "id": 1,
+    "file": "src\\main\\database.js",
+    "line": 97,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "        } catch (err) {"
+  },
+  {
+    "id": 2,
+    "file": "src\\main\\database.js",
+    "line": 447,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "      try { tempDb.close(); } catch (_e) {}"
+  },
+  {
+    "id": 3,
+    "file": "src\\main\\database.js",
+    "line": 484,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    try { _db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_e) {}"
+  },
+  {
+    "id": 4,
+    "file": "src\\main\\database.js",
+    "line": 491,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  if (fs.existsSync(walPath)) try { fs.unlinkSync(walPath); } catch (_e) {}"
+  },
+  {
+    "id": 5,
+    "file": "src\\main\\database.js",
+    "line": 492,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  if (fs.existsSync(shmPath)) try { fs.unlinkSync(shmPath); } catch (_e) {}"
+  },
+  {
+    "id": 6,
+    "file": "src\\main\\ipc\\auditHandlers.js",
+    "line": 18,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 7,
+    "file": "src\\main\\ipc\\employeeHandlers.js",
+    "line": 35,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 8,
+    "file": "src\\main\\ipc\\leaveHandlers.js",
+    "line": 36,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 9,
+    "file": "src\\main\\ipc\\reportHandlers.js",
+    "line": 31,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 10,
+    "file": "src\\main\\ipc\\systemHandlers.js",
+    "line": 22,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 11,
+    "file": "src\\main\\main.js",
+    "line": 64,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 12,
+    "file": "src\\main\\main.js",
+    "line": 80,
+    "type": "CONSOLE_ONLY_SILENT",
+    "code": "  autoBackupService.checkAndRunAutoBackup(db.getDb()).catch((err) => {\n    console.error('[Main] Auto-backup check failed on startup:', err);\n  });"
+  },
+  {
+    "id": 13,
+    "file": "src\\main\\main.js",
+    "line": 115,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "      } catch (err) {"
+  },
+  {
+    "id": 14,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 49,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 15,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 149,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    try { if (r.OldValue) parsedOld = JSON.parse(r.OldValue); } catch (_) { parsedOld = r.OldValue; }"
+  },
+  {
+    "id": 16,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 150,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    try { if (r.NewValue) parsedNew = JSON.parse(r.NewValue); } catch (_) { parsedNew = r.NewValue; }"
+  },
+  {
+    "id": 17,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 66,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "        } catch (delErr) {"
+  },
+  {
+    "id": 18,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 71,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 19,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 167,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 20,
+    "file": "src\\main\\services\\EmployeeService.js",
+    "line": 281,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_e) {"
+  },
+  {
+    "id": 21,
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 167,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 22,
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 176,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 23,
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 75,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_) {"
+  },
+  {
+    "id": 24,
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 735,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 25,
+    "file": "src\\renderer\\renderer.js",
+    "line": 234,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_e) {"
+  },
+  {
+    "id": 26,
+    "file": "src\\renderer\\renderer.js",
+    "line": 418,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "      } catch (err) {"
+  },
+  {
+    "id": 27,
+    "file": "src\\renderer\\renderer.js",
+    "line": 432,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "      } catch (err) {"
+  },
+  {
+    "id": 28,
+    "file": "src\\renderer\\renderer.js",
+    "line": 502,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 29,
+    "file": "src\\renderer\\renderer.js",
+    "line": 521,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 30,
+    "file": "src\\renderer\\renderer.js",
+    "line": 725,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 31,
+    "file": "src\\renderer\\renderer.js",
+    "line": 926,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 32,
+    "file": "src\\renderer\\renderer.js",
+    "line": 953,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 33,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1045,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 34,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1087,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 35,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1164,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 36,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1271,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 37,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1352,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 38,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1454,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 39,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1545,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 40,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1576,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 41,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1605,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 42,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1638,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 43,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1669,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 44,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1780,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 45,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1937,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 46,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1967,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 47,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2010,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 48,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2197,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  },
+  {
+    "id": 49,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2236,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "    } catch (err) {"
+  },
+  {
+    "id": 50,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2343,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "id": 51,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2364,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "id": 52,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2368,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "id": 53,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2473,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "      } catch (_e) {"
+  },
+  {
+    "id": 54,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2507,
+    "type": "COMPLETELY_SILENT_IGNORED",
+    "code": "  } catch (err) {"
+  }
+]

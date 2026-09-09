@@ -1,0 +1,58 @@
+{
+  "name": "leave-management-system",
+  "version": "1.0.0",
+  "description": "Government Department Leave Management System",
+  "main": "src/main/main.js",
+  "scripts": {
+    "postinstall": "cd node_modules/better-sqlite3 && npx prebuild-install --runtime=electron --target=22.3.27",
+    "start": "electron .",
+    "dev": "electron . --inspect=5858",
+    "db:reset": "node scripts/reset-db.js",
+    "dev:clean": "npm run db:reset && npm run dev",
+    "test": "node tests/ipcChannelGuard.test.js",
+    "build": "electron-builder --win"
+  },
+  "keywords": [],
+  "author": "Government Department",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "adm-zip": "^0.6.0",
+    "better-sqlite3": "8.7.0",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "appId": "com.hr.holidays",
+    "productName": "Holidays",
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "!scripts",
+      "!scratch",
+      "!backups",
+      "!data",
+      "!tests",
+      "!*.db*",
+      "!temp_*",
+      "!*.txt",
+      "!*.log"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true,
+      "shortcutName": "نظام الإجازات"
+    }
+  }
+}

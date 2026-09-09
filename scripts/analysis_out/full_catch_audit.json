@@ -1,0 +1,542 @@
+[
+  {
+    "index": 1,
+    "file": "src\\main\\database.js",
+    "line": 97,
+    "severity": "CRITICAL",
+    "category": "MIGRATION_EXECUTION_FAILURE",
+    "description": "أثناء تنفيذ الترحيلات في initializeMigrations، يتم التقاط الخطأ وإعادة رميه throw err مع إغلاق الـ db.",
+    "userImpact": "يتم التقاطه في main.js وعرض صندوق خطأ إنجليزي وإغلاق التطبيق.",
+    "codeSample": "        } catch (err) {"
+  },
+  {
+    "index": 2,
+    "file": "src\\main\\database.js",
+    "line": 447,
+    "severity": "LOW",
+    "category": "RESOURCE_CLEANUP",
+    "description": "محاولة إغلاق قاعدة بيانات مؤقتة أو حذف ملفات WAL/SHM متبقية عند النسخ أو الاستعادة.",
+    "userImpact": "سلوك تنظيف دفاعي طبيعي وآمن تماماً.",
+    "codeSample": "      try { tempDb.close(); } catch (_e) {}"
+  },
+  {
+    "index": 3,
+    "file": "src\\main\\database.js",
+    "line": 484,
+    "severity": "LOW",
+    "category": "RESOURCE_CLEANUP",
+    "description": "محاولة إغلاق قاعدة بيانات مؤقتة أو حذف ملفات WAL/SHM متبقية عند النسخ أو الاستعادة.",
+    "userImpact": "سلوك تنظيف دفاعي طبيعي وآمن تماماً.",
+    "codeSample": "    try { _db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_e) {}"
+  },
+  {
+    "index": 4,
+    "file": "src\\main\\database.js",
+    "line": 491,
+    "severity": "LOW",
+    "category": "RESOURCE_CLEANUP",
+    "description": "محاولة إغلاق قاعدة بيانات مؤقتة أو حذف ملفات WAL/SHM متبقية عند النسخ أو الاستعادة.",
+    "userImpact": "سلوك تنظيف دفاعي طبيعي وآمن تماماً.",
+    "codeSample": "  if (fs.existsSync(walPath)) try { fs.unlinkSync(walPath); } catch (_e) {}"
+  },
+  {
+    "index": 5,
+    "file": "src\\main\\database.js",
+    "line": 492,
+    "severity": "LOW",
+    "category": "RESOURCE_CLEANUP",
+    "description": "محاولة إغلاق قاعدة بيانات مؤقتة أو حذف ملفات WAL/SHM متبقية عند النسخ أو الاستعادة.",
+    "userImpact": "سلوك تنظيف دفاعي طبيعي وآمن تماماً.",
+    "codeSample": "  if (fs.existsSync(shmPath)) try { fs.unlinkSync(shmPath); } catch (_e) {}"
+  },
+  {
+    "index": 6,
+    "file": "src\\main\\ipc\\auditHandlers.js",
+    "line": 18,
+    "severity": "LOW",
+    "category": "IPC_WRAPPER",
+    "description": "تغليف safeHandleAsync في ملفات الـ IPC (employeeHandlers, leaveHandlers, reportHandlers, systemHandlers, auditHandlers) يقوم بالتقاط أي استثناء وإرجاع { success: false, error: err.message }.",
+    "userImpact": "يحمي الـ Main Process من الانهيار ويرسل الخطأ كاستجابة منظمة للـ Renderer.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 7,
+    "file": "src\\main\\ipc\\employeeHandlers.js",
+    "line": 35,
+    "severity": "LOW",
+    "category": "IPC_WRAPPER",
+    "description": "تغليف safeHandleAsync في ملفات الـ IPC (employeeHandlers, leaveHandlers, reportHandlers, systemHandlers, auditHandlers) يقوم بالتقاط أي استثناء وإرجاع { success: false, error: err.message }.",
+    "userImpact": "يحمي الـ Main Process من الانهيار ويرسل الخطأ كاستجابة منظمة للـ Renderer.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 8,
+    "file": "src\\main\\ipc\\leaveHandlers.js",
+    "line": 36,
+    "severity": "LOW",
+    "category": "IPC_WRAPPER",
+    "description": "تغليف safeHandleAsync في ملفات الـ IPC (employeeHandlers, leaveHandlers, reportHandlers, systemHandlers, auditHandlers) يقوم بالتقاط أي استثناء وإرجاع { success: false, error: err.message }.",
+    "userImpact": "يحمي الـ Main Process من الانهيار ويرسل الخطأ كاستجابة منظمة للـ Renderer.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 9,
+    "file": "src\\main\\ipc\\reportHandlers.js",
+    "line": 31,
+    "severity": "LOW",
+    "category": "IPC_WRAPPER",
+    "description": "تغليف safeHandleAsync في ملفات الـ IPC (employeeHandlers, leaveHandlers, reportHandlers, systemHandlers, auditHandlers) يقوم بالتقاط أي استثناء وإرجاع { success: false, error: err.message }.",
+    "userImpact": "يحمي الـ Main Process من الانهيار ويرسل الخطأ كاستجابة منظمة للـ Renderer.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 10,
+    "file": "src\\main\\ipc\\systemHandlers.js",
+    "line": 22,
+    "severity": "LOW",
+    "category": "IPC_WRAPPER",
+    "description": "تغليف safeHandleAsync في ملفات الـ IPC (employeeHandlers, leaveHandlers, reportHandlers, systemHandlers, auditHandlers) يقوم بالتقاط أي استثناء وإرجاع { success: false, error: err.message }.",
+    "userImpact": "يحمي الـ Main Process من الانهيار ويرسل الخطأ كاستجابة منظمة للـ Renderer.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 11,
+    "file": "src\\main\\main.js",
+    "line": 64,
+    "severity": "CRITICAL",
+    "category": "STARTUP_DB_FAILURE",
+    "description": "فشل تهيئة قاعدة البيانات عند الإقلاع يعرض dialog.showErrorBox بالإنجليزية ثم يغلق التطبيق.",
+    "userImpact": "يظهر صندوق خطأ إنجليزي غير معرب \"Database Error\" للمستخدم العادي قبل إغلاق التطبيق فجأة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 12,
+    "file": "src\\main\\main.js",
+    "line": 80,
+    "severity": "CRITICAL",
+    "category": "STARTUP_BACKUP_PROMISE_REJECTION",
+    "description": "استدعاء autoBackupService.checkAndRunAutoBackup(db.getDb()).catch يكتفي بـ console.error.",
+    "userImpact": "فشل أخذ النسخة الاحتياطية التلقائية عند إقلاع البرنامج يضيع بصمت دون أي تنبيه في الواجهة.",
+    "codeSample": "  autoBackupService.checkAndRunAutoBackup(db.getDb()).catch((err) => {\n    console.error('[Main] Auto-backup check failed on startup:', err);\n  });"
+  },
+  {
+    "index": 13,
+    "file": "src\\main\\main.js",
+    "line": 115,
+    "severity": "MEDIUM",
+    "category": "IPC_SAFE_HANDLE_ERROR",
+    "description": "دالة safeHandle العامة في main.js تلتقط الأخطاء وتعيد { success: false, error: err.message } مع console.error.",
+    "userImpact": "يعود الخطأ للـ Renderer، فإذا كان الـ Renderer يعرض Toast يكون معالجاً، أما إذا كان الـ Renderer لا يفحص response.success فيصبح خطأ صامتاً.",
+    "codeSample": "      } catch (err) {"
+  },
+  {
+    "index": 14,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 49,
+    "severity": "CRITICAL",
+    "category": "AUDIT_LOG_SILENT_FAILURE",
+    "description": "فشل تسجيل حركة التدقيق (INSERT INTO AuditLogs) يتم التقاطه بـ catch وطباعة console.error فقط مع إرجاع null دون تنبيه المستخدم أو إيقاف العملية.",
+    "userImpact": "إذا فشلت كتابة سجل التدقيق، تستمر عملية إضافة/تعديل/حذف الموظف أو الإجازة بدون توثيق أمني، ويبقى المسؤول الإداري يظن أن كل شيء موثق دون علمه بالخلل.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 15,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 149,
+    "severity": "LOW",
+    "category": "SAFE_JSON_PARSE",
+    "description": "محاولة فك تشفير JSON للقطة القديمة أو الجديدة (JSON.parse) وفي حال الفشل يتم استخدام القيمة النصية الخام.",
+    "userImpact": "لا ضرر - مجرد معالجة دفاعية تحمي التطبيق من الانهيار عند قراءة نصوص غير متوافقة مع JSON.",
+    "codeSample": "    try { if (r.OldValue) parsedOld = JSON.parse(r.OldValue); } catch (_) { parsedOld = r.OldValue; }"
+  },
+  {
+    "index": 16,
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 150,
+    "severity": "LOW",
+    "category": "SAFE_JSON_PARSE",
+    "description": "محاولة فك تشفير JSON للقطة القديمة أو الجديدة (JSON.parse) وفي حال الفشل يتم استخدام القيمة النصية الخام.",
+    "userImpact": "لا ضرر - مجرد معالجة دفاعية تحمي التطبيق من الانهيار عند قراءة نصوص غير متوافقة مع JSON.",
+    "codeSample": "    try { if (r.NewValue) parsedNew = JSON.parse(r.NewValue); } catch (_) { parsedNew = r.NewValue; }"
+  },
+  {
+    "index": 17,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 66,
+    "severity": "MEDIUM",
+    "category": "BACKUP_CLEANUP_FAILURE",
+    "description": "فشل حذف النسخ الاحتياطية الأقدم من 10 نسخ (pruneOldBackups) يطبع console.error فقط.",
+    "userImpact": "لا تتوقف النسخ الاحتياطية لكن قد تتراكم ملفات النسخ القديمة في مجلد auto-backups بصمت.",
+    "codeSample": "        } catch (delErr) {"
+  },
+  {
+    "index": 18,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 71,
+    "severity": "MEDIUM",
+    "category": "BACKUP_CLEANUP_FAILURE",
+    "description": "فشل حذف النسخ الاحتياطية الأقدم من 10 نسخ (pruneOldBackups) يطبع console.error فقط.",
+    "userImpact": "لا تتوقف النسخ الاحتياطية لكن قد تتراكم ملفات النسخ القديمة في مجلد auto-backups بصمت.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 19,
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 167,
+    "severity": "CRITICAL",
+    "category": "AUTO_BACKUP_FAILURE",
+    "description": "فشل إنشاء النسخة الاحتياطية التلقائية الدورية (كل 15 يوم) يسجل console.error فقط دون إشعار إداري في الواجهة.",
+    "userImpact": "إذا فشل النسخ الاحتياطي التلقائي (مثلاً بسبب امتلاء القرص أو أذونات المجلد)، فلن يعلم المستخدم أو المسؤول الإداري أن نظامه غير محمي بنسخ حديثة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 20,
+    "file": "src\\main\\services\\EmployeeService.js",
+    "line": 281,
+    "severity": "LOW",
+    "category": "DATE_PARSING_FALLBACK",
+    "description": "محاولة قراءة تاريخ التعيين وحساب فارق الأيام، إذا فشل يعيد 0.",
+    "userImpact": "معالجة دفاعية لمنع انهيار حسابات الرصيد إذا كانت التواريخ غير منسقة.",
+    "codeSample": "  } catch (_e) {"
+  },
+  {
+    "index": 21,
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 167,
+    "severity": "MEDIUM",
+    "category": "NOTIFICATION_SCHEDULER_ERROR",
+    "description": "فشل فحص إشعارات استئناف الدوام اليومية عند الإقلاع أو عند الساعة 11:00 يطبع console.error فقط.",
+    "userImpact": "قد يفوت موظف الاستقبال أو الموارد البشرية تنبيه انتهاء إجازات الموظفين دون ظهور أي رسالة في الواجهة تشير لتعطل خدمة التنبيه.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 22,
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 176,
+    "severity": "MEDIUM",
+    "category": "NOTIFICATION_SCHEDULER_ERROR",
+    "description": "فشل فحص إشعارات استئناف الدوام اليومية عند الإقلاع أو عند الساعة 11:00 يطبع console.error فقط.",
+    "userImpact": "قد يفوت موظف الاستقبال أو الموارد البشرية تنبيه انتهاء إجازات الموظفين دون ظهور أي رسالة في الواجهة تشير لتعطل خدمة التنبيه.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 23,
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 75,
+    "severity": "LOW",
+    "category": "SETTING_FETCH_FALLBACK",
+    "description": "محاولة قراءة department_name من _AppSettings، إذا فشلت أو الجدول غير موجود يعيد null.",
+    "userImpact": "سلوك دفاعي مقصود حتى لا تفشل عمليات التصدير لو كان جدول الإعدادات فارغاً.",
+    "codeSample": "  } catch (_) {"
+  },
+  {
+    "index": 24,
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 735,
+    "severity": "HIGH",
+    "category": "REPORT_EXPORT_FILE_WRITE",
+    "description": "فشل كتابة ملف Excel (workbook.xlsx.writeFile) يعيد throw err.",
+    "userImpact": "يتم التقاطه في reportHandlers وإرجاع { success: false, error } للواجهة لعرض Toast.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 25,
+    "file": "src\\renderer\\renderer.js",
+    "line": 234,
+    "severity": "LOW",
+    "category": "THEME_LOAD_FALLBACK",
+    "description": "قراءة الثيم من localStorage.",
+    "userImpact": "يعتمد الثيم الافتراضي إذا فشل التخزين المحلي.",
+    "codeSample": "  } catch (_e) {"
+  },
+  {
+    "index": 26,
+    "file": "src\\renderer\\renderer.js",
+    "line": 418,
+    "severity": "MEDIUM",
+    "category": "EMPLOYEE_SEARCH_INPUT_ERROR",
+    "description": "فشل البحث التلقائي أثناء الكتابة في حقول البحث (Search Modal أو Live Filter) يسجل console.error فقط دون تنبيه.",
+    "userImpact": "لا يظهر تنبيه للمستخدم، وتظل نتائج البحث فارغة أو تتوقف عن التحديث إذا حدث خطأ IPC.",
+    "codeSample": "      } catch (err) {"
+  },
+  {
+    "index": 27,
+    "file": "src\\renderer\\renderer.js",
+    "line": 432,
+    "severity": "MEDIUM",
+    "category": "EMPLOYEE_SEARCH_INPUT_ERROR",
+    "description": "فشل البحث التلقائي أثناء الكتابة في حقول البحث (Search Modal أو Live Filter) يسجل console.error فقط دون تنبيه.",
+    "userImpact": "لا يظهر تنبيه للمستخدم، وتظل نتائج البحث فارغة أو تتوقف عن التحديث إذا حدث خطأ IPC.",
+    "codeSample": "      } catch (err) {"
+  },
+  {
+    "index": 28,
+    "file": "src\\renderer\\renderer.js",
+    "line": 502,
+    "severity": "MEDIUM",
+    "category": "EMPLOYEE_SELECTION_LEAVE_BALANCE_FETCH",
+    "description": "فشل جلب رصيد الإجازات المتبقي للموظف عند اختياره في فورم تقديم الإجازة (loadEmployeeLeaveBalance) يسجل console.error فقط.",
+    "userImpact": "يبقى كارت الرصيد فارغاً أو يعرض أصفاراً دون رسالة توضح للمستخدم أن جلب الرصيد فشل برمجياً.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 29,
+    "file": "src\\renderer\\renderer.js",
+    "line": 521,
+    "severity": "MEDIUM",
+    "category": "EMPLOYEE_DETAILS_MODAL_LOAD",
+    "description": "فشل جلب تفاصيل الموظف عند النقر على اسمه في البحث يسجل console.error فقط.",
+    "userImpact": "لا تفتح نافذة التفاصيل أو تظل معلقة بدون إشعار للمستخدم.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 30,
+    "file": "src\\renderer\\renderer.js",
+    "line": 725,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 31,
+    "file": "src\\renderer\\renderer.js",
+    "line": 926,
+    "severity": "MEDIUM",
+    "category": "ACTIVE_LEAVES_TABLE_LOAD",
+    "description": "فشل تحميل جدول المجازين اليوم في الصفحة الرئيسية (loadActiveLeavesTable) يسجل console.error فقط.",
+    "userImpact": "يظل جدول المجازين اليوم يعرض رسالة \"جارٍ التحميل...\" أو يبقى فارغاً دون إشعار خطأ في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 32,
+    "file": "src\\renderer\\renderer.js",
+    "line": 953,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 33,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1045,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 34,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1087,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 35,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1164,
+    "severity": "MEDIUM",
+    "category": "SEARCH_MODAL_LOOKUP_ERROR",
+    "description": "فشل البحث في نافذة البحث العامة (performSearchModal) يسجل console.error فقط.",
+    "userImpact": "تظهر رسالة \"لا توجد نتائج\" بدلاً من إعلام المستخدم بوجود خلل في الاتصال بقاعدة البيانات.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 36,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1271,
+    "severity": "MEDIUM",
+    "category": "LEAVE_HISTORY_LOAD_ERROR",
+    "description": "فشل جلب سجل إجازات الموظف (loadLeaveHistory) يسجل console.error فقط.",
+    "userImpact": "يبقى جدول الإجازات فارغاً أو في حالة تحميل دون ظهور Toast يوضح سبب الفشل للمستخدم.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 37,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1352,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 38,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1454,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 39,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1545,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 40,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1576,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 41,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1605,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 42,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1638,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 43,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1669,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 44,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1780,
+    "severity": "MEDIUM",
+    "category": "EMPLOYEES_MANAGEMENT_TABLE_LOAD",
+    "description": "فشل تحميل جدول إدارة الموظفين وصفحاته (loadEmployeesTable) يسجل console.error فقط.",
+    "userImpact": "يظل جدول إدارة الموظفين فارغاً دون توضيح للمستخدم.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 45,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1937,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 46,
+    "file": "src\\renderer\\renderer.js",
+    "line": 1967,
+    "severity": "LOW",
+    "category": "DEPARTMENT_NAME_INITIAL_LOAD",
+    "description": "فشل تحميل اسم الدائرة عند الإقلاع (loadSystemSettings) يسجل console.error فقط.",
+    "userImpact": "يترك حقل اسم الدائرة فارغاً دون إزعاج المستخدم برسائل خطأ عند بدء التشغيل.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 47,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2010,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 48,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2197,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  },
+  {
+    "index": 49,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2236,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:     } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "    } catch (err) {"
+  },
+  {
+    "index": 50,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2343,
+    "severity": "LOW",
+    "category": "JSON_FORMATTING_HELPERS",
+    "description": "محاولات فك وتهيئة حقول JSON في عارض سجل التدقيق (Audit Snapshot Modal).",
+    "userImpact": "إذا كان الحقل ليس JSON يعرض كنص عادي بأمان تام.",
+    "codeSample": "  } catch (_e) {}"
+  },
+  {
+    "index": 51,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2364,
+    "severity": "LOW",
+    "category": "JSON_FORMATTING_HELPERS",
+    "description": "محاولات فك وتهيئة حقول JSON في عارض سجل التدقيق (Audit Snapshot Modal).",
+    "userImpact": "إذا كان الحقل ليس JSON يعرض كنص عادي بأمان تام.",
+    "codeSample": "  } catch (_e) {}"
+  },
+  {
+    "index": 52,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2368,
+    "severity": "LOW",
+    "category": "JSON_FORMATTING_HELPERS",
+    "description": "محاولات فك وتهيئة حقول JSON في عارض سجل التدقيق (Audit Snapshot Modal).",
+    "userImpact": "إذا كان الحقل ليس JSON يعرض كنص عادي بأمان تام.",
+    "codeSample": "  } catch (_e) {}"
+  },
+  {
+    "index": 53,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2473,
+    "severity": "LOW",
+    "category": "JSON_FORMATTING_HELPERS",
+    "description": "محاولات فك وتهيئة حقول JSON في عارض سجل التدقيق (Audit Snapshot Modal).",
+    "userImpact": "إذا كان الحقل ليس JSON يعرض كنص عادي بأمان تام.",
+    "codeSample": "      } catch (_e) {"
+  },
+  {
+    "index": 54,
+    "file": "src\\renderer\\renderer.js",
+    "line": 2507,
+    "severity": "MEDIUM",
+    "category": "RENDERER_CONSOLE_ONLY",
+    "description": "خطأ تم التقاطه في الواجهة دون إظهار Toast للمستخدم:   } catch (err) {",
+    "userImpact": "فشل العملية بصمت في الواجهة.",
+    "codeSample": "  } catch (err) {"
+  }
+]

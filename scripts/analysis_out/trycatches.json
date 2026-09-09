@@ -1,0 +1,272 @@
+[
+  {
+    "file": "src\\main\\database.js",
+    "line": 97,
+    "code": "        } catch (err) {"
+  },
+  {
+    "file": "src\\main\\database.js",
+    "line": 447,
+    "code": "      try { tempDb.close(); } catch (_e) {}"
+  },
+  {
+    "file": "src\\main\\database.js",
+    "line": 484,
+    "code": "    try { _db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_e) {}"
+  },
+  {
+    "file": "src\\main\\database.js",
+    "line": 491,
+    "code": "  if (fs.existsSync(walPath)) try { fs.unlinkSync(walPath); } catch (_e) {}"
+  },
+  {
+    "file": "src\\main\\database.js",
+    "line": 492,
+    "code": "  if (fs.existsSync(shmPath)) try { fs.unlinkSync(shmPath); } catch (_e) {}"
+  },
+  {
+    "file": "src\\main\\ipc\\auditHandlers.js",
+    "line": 18,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\ipc\\employeeHandlers.js",
+    "line": 35,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\ipc\\leaveHandlers.js",
+    "line": 36,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\ipc\\reportHandlers.js",
+    "line": 31,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\ipc\\systemHandlers.js",
+    "line": 22,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\main.js",
+    "line": 64,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\main\\main.js",
+    "line": 80,
+    "code": "  autoBackupService.checkAndRunAutoBackup(db.getDb()).catch((err) => {\n    console.error('[Main] Auto-backup check failed on startup:', err);\n  });"
+  },
+  {
+    "file": "src\\main\\main.js",
+    "line": 115,
+    "code": "      } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 49,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 149,
+    "code": "    try { if (r.OldValue) parsedOld = JSON.parse(r.OldValue); } catch (_) { parsedOld = r.OldValue; }"
+  },
+  {
+    "file": "src\\main\\services\\AuditService.js",
+    "line": 150,
+    "code": "    try { if (r.NewValue) parsedNew = JSON.parse(r.NewValue); } catch (_) { parsedNew = r.NewValue; }"
+  },
+  {
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 66,
+    "code": "        } catch (delErr) {"
+  },
+  {
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 71,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\AutoBackupService.js",
+    "line": 167,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\EmployeeService.js",
+    "line": 281,
+    "code": "  } catch (_e) {"
+  },
+  {
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 167,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\NotificationService.js",
+    "line": 176,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 75,
+    "code": "  } catch (_) {"
+  },
+  {
+    "file": "src\\main\\services\\ReportService.js",
+    "line": 735,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 234,
+    "code": "  } catch (_e) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 418,
+    "code": "      } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 432,
+    "code": "      } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 502,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 521,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 725,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 926,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 953,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1045,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1087,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1164,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1271,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1352,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1454,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1545,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1576,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1605,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1638,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1669,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1780,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1937,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 1967,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2010,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2197,
+    "code": "  } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2236,
+    "code": "    } catch (err) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2343,
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2364,
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2368,
+    "code": "  } catch (_e) {}"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2473,
+    "code": "      } catch (_e) {"
+  },
+  {
+    "file": "src\\renderer\\renderer.js",
+    "line": 2507,
+    "code": "  } catch (err) {"
+  }
+]

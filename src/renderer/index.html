@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <!-- Content Security Policy allowing local assets & Google Fonts -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام إدارة الإجازات</title>
+
+  <!-- Google Fonts: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <script>
+    try {
+      const savedTheme = localStorage.getItem('app_theme') || 'system';
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else if (savedTheme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'system');
+      }
+    } catch (_e) {}
+  </script>
+</head>
+
+<body>
+
+  <div class="app-layout">
+
+    <!-- ── Fixed Sidebar Navigation (RTL Right Side) ──────────────── -->
+    <aside class="app-sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">🏛️</div>
+        <div class="brand-text">
+          <h1>إدارة الإجازات</h1>
+          <p>النظام الحكومي الموحد</p>
+        </div>
+        <button type="button" id="btn-quick-theme-toggle" class="btn-quick-theme" title="تبديل الوضع الليلي / الفاتح" aria-label="تبديل الوضع الليلي">
+          <span id="theme-toggle-icon">🌙</span>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav" role="tablist" aria-label="أقسام التطبيق">
+        <button id="btn-tab-entry" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-entry"
+          data-tab="tab-entry">
+          <span class="tab-icon">📝</span>
+          <span class="tab-label">تسجيل إجازة</span>
+        </button>
+
+        <button id="btn-tab-dashboard" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-dashboard"
+          data-tab="tab-dashboard">
+          <span class="tab-icon">📊</span>
+          <span class="tab-label">الإجازات حالياً</span>
+        </button>
+
+        <button id="btn-tab-all-employees" class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="tab-all-employees" data-tab="tab-all-employees">
+          <span class="tab-icon">👥</span>
+          <span class="tab-label">كل الموظفين</span>
+        </button>
+
+        <button id="btn-tab-add-employee" class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="tab-add-employee" data-tab="tab-add-employee">
+          <span class="tab-icon">👤</span>
+          <span class="tab-label">إضافة موظف</span>
+        </button>
+
+        <button id="btn-tab-manage-employee" class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="tab-manage-employee" data-tab="tab-manage-employee">
+          <span class="tab-icon">⚙️</span>
+          <span class="tab-label">إدارة الموظفين</span>
+        </button>
+
+        <button id="btn-tab-balance-report" class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="tab-balance-report" data-tab="tab-balance-report">
+          <span class="tab-icon">📑</span>
+          <span class="tab-label">الأرصدة والتراكم</span>
+        </button>
+
+        <button id="btn-tab-audit-logs" class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="tab-audit-logs" data-tab="tab-audit-logs">
+          <span class="tab-icon">🛡️</span>
+          <span class="tab-label">سجل التدقيق</span>
+        </button>
+
+        <!-- ── Developer Profile Card ───────────────────────────── -->
+        <div class="dev-card" aria-label="بطاقة تعريف المطوّر">
+          <div class="dev-card-header">
+            <div class="dev-avatar">👨‍💻</div>
+            <div class="dev-identity">
+              <span class="dev-name">المهندس سجاد ناظم</span>
+              <span class="dev-title">تطوير تطبيقات الهاتف وأنظمة سطح المكتب</span>
+            </div>
+          </div>
+          <div class="dev-card-body">
+            <div class="dev-cta">
+              <span class="dev-pulse-icon">📱</span>
+              <span class="dev-cta-text">لديك فكرة؟ اتصل بي الآن</span>
+            </div>
+            <a href="tel:077026654540" class="dev-phone" title="انقر للاتصال أو حدد لنسخ الرقم">
+              <span class="dev-phone-icon">📞</span>
+              <span class="dev-phone-number">077026654540</span>
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" id="btn-system-settings" class="btn-settings" title="تعديل اسم الدائرة وإعدادات النظام">
+          <span class="btn-icon">⚙️</span>
+          <span>إعدادات النظام</span>
+        </button>
+        <button type="button" id="btn-system-backup" class="btn-backup" title="حفظ نسخة احتياطية من قاعدة البيانات">
+          <span class="btn-icon">💾</span>
+          <span>نسخة احتياطية</span>
+        </button>
+        <button type="button" id="btn-system-restore" class="btn-restore" title="استعادة نسخة احتياطية سابقة">
+          <span class="btn-icon">🔄</span>
+          <span>استعادة نسخة</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Main Viewport Content ─────────────────────────────────── -->
+    <main class="app-main" role="main">
+
+      <!-- Header Topbar -->
+      <header class="main-header">
+        <h2 id="view-title" class="view-title">تسجيل إجازة موظف</h2>
+        <div class="header-status">
+          <span class="status-dot green"></span>
+          <span>قاعدة البيانات متصلة</span>
+        </div>
+      </header>
+
+      <!-- In-App Resumption Alert Banner -->
+      <div id="resumption-alert-banner" class="alert-banner hidden" role="alert" aria-live="assertive">
+        <div class="alert-banner-content">
+          <span class="alert-banner-icon">⏰</span>
+          <div class="alert-banner-text">
+            <strong id="alert-banner-title">تنبيه اقتراب موعد المباشرة:</strong>
+            <span id="alert-banner-desc">يوجد موظفون تنتهي إجازتهم خلال 3 أيام قادمة.</span>
+          </div>
+        </div>
+        <div class="alert-banner-actions">
+          <button type="button" id="btn-alert-view" class="btn-banner-action">📋 عرض في لوحة الإجازات حالياً</button>
+          <button type="button" id="btn-alert-dismiss" class="btn-banner-close" aria-label="إغلاق التنبيه" title="إغلاق">✕</button>
+        </div>
+      </div>
+
+      <!-- Scrollable Tab Panels Body -->
+      <div class="content-body">
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 1: Leave Entry Form
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-entry" class="tab-content active" role="tabpanel" aria-labelledby="btn-tab-entry">
+
+          <div class="card-panel">
+            <form id="leave-form" novalidate autocomplete="off">
+
+              <!-- Section 1: Employee Lookup -->
+              <div class="form-section-header">
+                <h3>بيانات الموظف</h3>
+                <p>أدخل رقم الموظف أو استعن بالبحث السريع لتحديد الموظف</p>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group full-width">
+                  <label for="employee-search-input">
+                    الموظف المعني بالإجازة <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <div class="employee-picker-container">
+                    <div class="input-action-group">
+                      <div class="picker-input-wrapper">
+                        <input id="employee-search-input" type="text" class="employee-picker-input"
+                          placeholder="🔍 ابحث بالاسم، الرقم الوظيفي، أو رقم كرت الإجازة…"
+                          autocomplete="off" aria-autocomplete="list" aria-controls="employee-picker-dropdown" required />
+                        <button type="button" id="btn-clear-emp-picker" class="picker-clear-btn hidden" title="إلغاء التحديد واختيار موظف آخر">✕</button>
+                      </div>
+                      <input id="employee-id" type="hidden" required />
+                      <button type="button" id="btn-open-search" class="btn-search-trigger" aria-label="بحث متقدم عن موظف"
+                        title="فتح نافذة البحث السريع المتقدمة">
+                        ⚡ بحث متقدم
+                      </button>
+                      <button type="button" id="btn-export-history" class="btn-export-excel"
+                        title="تصدير سجل إجازات الموظف المحدد إلى Excel" disabled>
+                        <span class="excel-icon">XLS</span>
+                        <span>تصدير السجل</span>
+                      </button>
+                    </div>
+                    <!-- Live Dropdown Results -->
+                    <div id="employee-picker-dropdown" class="picker-dropdown hidden" role="listbox"></div>
+                  </div>
+                  <span id="employee-id-helper" class="helper-text">
+                    اختر موظفاً مسجلاً من القائمة لجلب الرصيد التلقائي والسجل
+                  </span>
+                </div>
+              </div>
+
+              <!-- Dynamic Balance Indicator Container -->
+              <div id="balance-display" class="balance-display hidden" role="status" aria-live="polite"
+                aria-label="رصيد الإجازة المتاح"></div>
+
+              <!-- Employee Quick Summary Details -->
+              <div id="employee-summary-badge" class="card-panel-sub summary-badge hidden" role="region" aria-label="بيانات الموظف المحدد">
+                <div class="summary-badge-grid">
+                  <div class="summary-item"><span class="summary-label">👤 الموظف:</span> <strong id="summary-emp-name">-</strong></div>
+                  <div class="summary-item"><span class="summary-label">💼 المسمى:</span> <span id="summary-emp-title">-</span></div>
+                  <div class="summary-item"><span class="summary-label">🏢 موقع العمل:</span> <span id="summary-emp-location">-</span></div>
+                  <div class="summary-item"><span class="summary-label">💳 رقم كرت الإجازة:</span> <span id="summary-emp-card">-</span></div>
+                  <div class="summary-item"><span class="summary-label">✍ المسؤول عن الإجازة:</span> <span id="summary-emp-approver">-</span></div>
+                  <div id="summary-emp-transfer-wrap" class="summary-item hidden"><span class="summary-label">🚚 حالة النقل:</span> <span id="summary-emp-transfer" class="status-badge-transferred">منقول</span></div>
+                </div>
+              </div>
+
+              <hr class="form-divider" />
+
+              <!-- Section 2: Leave Details -->
+              <div class="form-section-header">
+                <h3>تفاصيل الإجازة</h3>
+                <p>حدد نوع الإجازة وتاريخ البداية والنهاية المطلوبة</p>
+              </div>
+
+              <div class="form-grid">
+                <!-- Leave Type -->
+                <div class="form-group full-width">
+                  <label for="leave-type">
+                    نوع الإجازة <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <select id="leave-type" required aria-required="true">
+                    <option value="" disabled selected>— اختر نوع الإجازة —</option>
+                  </select>
+                </div>
+
+                <!-- Start Date -->
+                <div class="form-group">
+                  <label for="start-date">
+                    تاريخ البداية <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="start-date" type="date" required aria-required="true"
+                    aria-describedby="start-date-warning" />
+                  <span id="start-date-warning" class="weekend-warning-msg" role="alert">
+                    ⚠ يقع هذا التاريخ في عطلة نهاية الأسبوع (جمعة أو سبت)
+                  </span>
+                </div>
+
+                <!-- End Date -->
+                <div class="form-group">
+                  <label for="end-date">
+                    تاريخ النهاية <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="end-date" type="date" required aria-required="true" aria-describedby="end-date-warning" />
+                  <span id="end-date-warning" class="weekend-warning-msg" role="alert">
+                    ⚠ يقع هذا التاريخ في عطلة نهاية الأسبوع (جمعة أو سبت)
+                  </span>
+                </div>
+
+                <!-- Requested Days -->
+                <div class="form-group full-width">
+                  <label for="requested-days">عدد الأيام المطلوبة</label>
+                  <input id="requested-days" type="number" min="1" step="1"
+                    placeholder="يُحسب تلقائياً — يمكن تعديله يدوياً" aria-describedby="requested-days-helper" />
+                  <span id="requested-days-helper" class="helper-text">
+                    القيمة المقترحة تُحسب من التواريخ (شاملة)، ويمكن تعديلها لاستثناء العطل الرسمية
+                  </span>
+                </div>
+
+                <!-- Leave Approver for this specific leave -->
+                <div class="form-group full-width">
+                  <label for="leave-approver">المسؤول عن منح الإجازة</label>
+                  <input id="leave-approver" type="text" maxlength="200"
+                    placeholder="يُملأ تلقائياً من المسؤول الافتراضي للموظف، ويمكن تعديله لهذه الإجازة" />
+                </div>
+
+                <!-- Notes -->
+                <div class="form-group full-width">
+                  <label for="notes">ملاحظات (اختياري)</label>
+                  <input id="notes" type="text" maxlength="500" placeholder="أي ملاحظات إضافية…" />
+                </div>
+              </div>
+
+              <!-- Section 3: Administrative & Document Details (Optional) -->
+              <div class="form-section-header">
+                <h3>البيانات الإدارية والمستندية (اختياري)</h3>
+                <p>أرقام وتواريخ المذكرات والأوامر الإدارية المرتبطة بالإجازة لتوثيقها بالسجلات</p>
+              </div>
+
+              <div class="form-grid">
+                <!-- Request Date -->
+                <div class="form-group full-width">
+                  <label for="leave-request-date">تاريخ تقديم الطلب</label>
+                  <input id="leave-request-date" type="date" />
+                </div>
+
+                <!-- Memo Number -->
+                <div class="form-group">
+                  <label for="leave-memo-number">رقم المذكرة</label>
+                  <input id="leave-memo-number" type="text" maxlength="100" placeholder="مثال: م/124" />
+                </div>
+
+                <!-- Memo Date -->
+                <div class="form-group">
+                  <label for="leave-memo-date">تاريخ المذكرة</label>
+                  <input id="leave-memo-date" type="date" />
+                </div>
+
+                <!-- Order Number -->
+                <div class="form-group">
+                  <label for="leave-order-number">رقم الأمر الإداري</label>
+                  <input id="leave-order-number" type="text" maxlength="100" placeholder="مثال: أ/456" />
+                </div>
+
+                <!-- Order Date -->
+                <div class="form-group">
+                  <label for="leave-order-date">تاريخ الأمر الإداري</label>
+                  <input id="leave-order-date" type="date" />
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button id="submit-btn" type="submit" class="btn-primary-large">
+                  تقديم طلب الإجازة
+                </button>
+              </div>
+
+            </form>
+          </div>
+
+          <!-- Employee Leave History Section -->
+          <div id="employee-history-container" class="card-panel history-panel hidden">
+            <div class="form-section-header">
+              <h3>سجل الإجازات السابق للموظف</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">نوع الإجازة</th>
+                    <th scope="col" class="text-center">تاريخ البدء</th>
+                    <th scope="col" class="text-center">تاريخ الانتهاء</th>
+                    <th scope="col" class="text-center">عدد الأيام</th>
+                    <th scope="col">المسؤول عن الإجازة</th>
+                    <th scope="col" class="text-center">التفاصيل الإدارية</th>
+                    <th scope="col" class="text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 2: Live Dashboard — On Leave Today
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-dashboard" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-dashboard">
+
+          <div class="card-panel">
+            <div class="form-section-header">
+              <h3>الإجازات حالياً</h3>
+              <p>عرض الموظفين المتواجدين حالياً في إجازة وتاريخ عودتهم للمباشرة</p>
+            </div>
+
+            <div class="all-employees-toolbar">
+              <div class="all-employees-search-box">
+                <input type="text" id="dashboard-search-input" class="dialog-search-input" placeholder="🔍 تصفية مباشرة باسم الموظف، رقم كرت الإجازة، موقع العمل أو نوع الإجازة…" aria-label="تصفية الإجازات حالياً" />
+              </div>
+              <div class="dashboard-filter-controls">
+                <button type="button" id="btn-filter-urgent-resumption" class="btn-filter-chip" title="تصفية الموظفين الذين تنتهي إجازتهم خلال 3 أيام قادمة">
+                  <span class="chip-icon">⚡</span>
+                  <span>المباشرة قريباً (≤ 3 أيام)</span>
+                </button>
+                <div class="sort-selector-wrapper">
+                  <label for="dashboard-sort-select" class="sort-label">ترتيب:</label>
+                  <select id="dashboard-sort-select" class="form-select select-inline" aria-label="ترتيب النتائج">
+                    <option value="resumption_asc" selected>الأقرب للمباشرة (افتراضي)</option>
+                    <option value="resumption_desc">الأبعد للمباشرة</option>
+                    <option value="name_asc">أبجدياً باسم الموظف</option>
+                  </select>
+                </div>
+              </div>
+              <button type="button" id="btn-export-active-leaves" class="btn-export-excel" title="تصدير تقرير الإجازات حالياً إلى Excel">
+                <span class="excel-icon">XLS</span>
+                <span>تصدير الإجازات حالياً إلى Excel</span>
+              </button>
+            </div>
+
+            <div id="dashboard-status" class="balance-display hidden" role="status" aria-live="polite"></div>
+
+            <div class="table-wrapper">
+              <table id="active-leaves-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">اسم الموظف</th>
+                    <th scope="col" class="text-center">رقم كرت الإجازة</th>
+                    <th scope="col">موقع العمل</th>
+                    <th scope="col">نوع الإجازة</th>
+                    <th scope="col">المسؤول عن الإجازة</th>
+                    <th scope="col" class="text-center">تاريخ البدء</th>
+                    <th scope="col" class="text-center">تاريخ نهاية الإجازة</th>
+                    <th scope="col" class="text-center">موعد وحالة المباشرة</th>
+                    <th scope="col" class="text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated dynamically by renderer.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-bar" id="dashboard-pagination-bar">
+              <div class="pagination-info" id="dashboard-pagination-info">
+                عرض 0 من 0 موظف
+              </div>
+              <div class="pagination-controls">
+                <button type="button" id="btn-dashboard-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
+                <button type="button" id="btn-dashboard-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <span id="dashboard-page-indicator" class="page-indicator">صفحة 1 من 1</span>
+                <button type="button" id="btn-dashboard-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
+                <button type="button" id="btn-dashboard-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 3: Add New Employee
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-add-employee" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-add-employee">
+
+          <div class="card-panel">
+            <form id="add-employee-form" novalidate autocomplete="off">
+              <div class="form-section-header">
+                <h3>إضافة موظف جديد</h3>
+                <p>أدخل البيانات الرسمية لإضافة موظف إلى نظام الموارد البشرية</p>
+              </div>
+
+              <div class="form-grid">
+                <!-- Employee ID -->
+                <div class="form-group full-width">
+                  <label for="emp-employee-id">
+                    الرقم الوظيفي <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="emp-employee-id" type="number" min="1" step="1" placeholder="أدخل الرقم الوظيفي للموظف"
+                    required aria-required="true" />
+                </div>
+
+                <!-- Full Name -->
+                <div class="form-group full-width">
+                  <label for="emp-full-name">
+                    الاسم الكامل <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="emp-full-name" type="text" maxlength="200" placeholder="أدخل الاسم الكامل للموظف" required
+                    aria-required="true" />
+                </div>
+
+                <!-- Gender -->
+                <div class="form-group">
+                  <label for="emp-gender">
+                    الجنس <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <select id="emp-gender" required aria-required="true">
+                    <option value="" disabled selected>— اختر الجنس —</option>
+                    <option value="Male">ذكر</option>
+                    <option value="Female">أنثى</option>
+                  </select>
+                </div>
+
+                <!-- Hire Date -->
+                <div class="form-group">
+                  <label for="emp-hire-date">
+                    تاريخ التعيين <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="emp-hire-date" type="date" required aria-required="true" />
+                </div>
+
+                <!-- Job Title -->
+                <div class="form-group full-width">
+                  <label for="emp-job-title">
+                    المسمى الوظيفي <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="emp-job-title" type="text" maxlength="200" placeholder="أدخل المسمى الوظيفي" required
+                    aria-required="true" />
+                </div>
+
+                <!-- Work Location -->
+                <div class="form-group">
+                  <label for="emp-work-location">موقع العمل</label>
+                  <input id="emp-work-location" type="text" maxlength="200" placeholder="مثال: الإدارة العامة / فرع..." />
+                </div>
+
+                <!-- Leave Card Number -->
+                <div class="form-group">
+                  <label for="emp-leave-card-number">رقم كرت الإجازة</label>
+                  <input id="emp-leave-card-number" type="text" maxlength="100" placeholder="أدخل رقم كرت الإجازة" />
+                </div>
+
+
+              </div>
+
+              <div class="form-actions">
+                <button id="add-employee-btn" type="submit" class="btn-primary-large">
+                  إضافة الموظف
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 4: Manage Employee (Update & Deactivate)
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-manage-employee" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-manage-employee">
+
+          <div class="card-panel">
+            <div class="form-section-header">
+              <h3>البحث عن موظف لإدارته</h3>
+              <p>أدخل الرقم الوظيفي أو استعن بالبحث السريع لتحميل البيانات وتعديلها أو التجميد</p>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label for="manage-emp-id">
+                  رقم الموظف <span class="required" aria-hidden="true">*</span>
+                </label>
+                <div class="input-action-group">
+                  <input id="manage-emp-id" type="number" min="1" step="1" placeholder="أدخل رقم الموظف" />
+                  <button type="button" id="btn-open-search-manage" class="btn-action-icon" aria-label="بحث عن موظف" title="فتح نافذة البحث السريع">
+                    ⚡ بحث
+                  </button>
+                  <button type="button" id="btn-load-manage-emp" class="btn-action-secondary">
+                    🔍 تحميل البيانات
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inactive Warning Label -->
+            <div id="manage-emp-warning" class="balance-display error hidden">
+              ⚠️ هذا الموظف غير نشط (معطل)
+            </div>
+
+            <!-- Transferred Notice Banner -->
+            <div id="manage-emp-transferred-banner" class="transferred-banner hidden" role="status">
+              <span class="transferred-banner-icon">🚚</span>
+              <div class="transferred-banner-text">
+                <strong>تنبيه إداري: هذا الموظف مؤشر كـ "منقول خارجياً"</strong>
+                <span id="manage-emp-transferred-details">أمر إداري: -</span>
+              </div>
+            </div>
+
+            <!-- Edit Form -->
+            <form id="form-manage-employee" class="sub-form hidden" novalidate autocomplete="off">
+              <hr class="form-divider" />
+
+              <div class="form-section-header">
+                <h3>تعديل بيانات الموظف</h3>
+              </div>
+
+              <div id="manage-emp-balances" class="card-panel-sub hidden">
+                <div class="form-section-header">
+                  <h3>أرصدة الإجازات والتعديل اليدوي</h3>
+                  <p>يمكن تعديل رصيد الإجازة الاعتيادية وسقف الإجازة المرضية للموظف مباشرة</p>
+                </div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="manage-regular-balance">رصيد الإجازة الاعتيادية (أيام)</label>
+                    <input id="manage-regular-balance" type="number" min="0" max="180" step="1" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="manage-sick-100-balance">سقف الإجازة المرضية (100% راتب)</label>
+                    <input id="manage-sick-100-balance" type="number" min="0" step="1" value="28" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="manage-sick-50-balance">سقف الإجازة المرضية (50% راتب)</label>
+                    <input id="manage-sick-50-balance" type="number" min="0" step="1" value="45" required />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Employee Documents & Cards Section -->
+              <div id="manage-emp-documents" class="card-panel-sub">
+                <div class="form-section-header">
+                  <h3>📁 كروت ومستندات الموظف</h3>
+                  <p>إدارة وأرشفة كروت الزمنية وكروت الإجازة بجميع نسخها السنوية</p>
+                </div>
+                <div class="doc-cards-action-grid">
+                  <button type="button" id="btn-manage-open-timecards" class="doc-card-btn doc-card-timecard" title="عرض وإدارة كروت الزمنية">
+                    <div class="doc-card-icon">🟨</div>
+                    <div class="doc-card-info">
+                      <span class="doc-card-title">كرت الزمنية (Time Card)</span>
+                      <span class="doc-card-subtitle">سجل البطاقات الزمنية السنوية</span>
+                    </div>
+                    <span id="manage-badge-timecard-count" class="doc-count-badge">0</span>
+                  </button>
+
+                  <button type="button" id="btn-manage-open-leavecards" class="doc-card-btn doc-card-leavecard" title="عرض وإدارة كروت الإجازة">
+                    <div class="doc-card-icon">🟦</div>
+                    <div class="doc-card-info">
+                      <span class="doc-card-title">كرت الإجازة (Leave Card)</span>
+                      <span class="doc-card-subtitle">سجل بطاقات الإجازات السنوية</span>
+                    </div>
+                    <span id="manage-badge-leavecard-count" class="doc-count-badge">0</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group full-width">
+                  <label for="manage-full-name">
+                    الاسم الكامل <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="manage-full-name" type="text" maxlength="200" required />
+                </div>
+
+                <div class="form-group full-width">
+                  <label for="manage-job-title">
+                    المسمى الوظيفي <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="manage-job-title" type="text" maxlength="200" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="manage-work-location">موقع العمل</label>
+                  <input id="manage-work-location" type="text" maxlength="200" placeholder="موقع العمل" />
+                </div>
+
+                <div class="form-group">
+                  <label for="manage-leave-card-number">رقم كرت الإجازة</label>
+                  <input id="manage-leave-card-number" type="text" maxlength="100" placeholder="رقم كرت الإجازة" />
+                </div>
+
+
+
+                <div class="form-group">
+                  <label for="manage-gender">الجنس (غير قابل للتعديل)</label>
+                  <input id="manage-gender" type="text" readonly disabled class="readonly-input" />
+                </div>
+
+                <div class="form-group">
+                  <label for="manage-hire-date">تاريخ التعيين (غير قابل للتعديل)</label>
+                  <input id="manage-hire-date" type="text" readonly disabled class="readonly-input" />
+                </div>
+              </div>
+
+              <div class="form-actions multi-actions">
+                <button id="btn-save-manage-emp" type="submit" class="btn-primary-large flex-1">
+                  💾 حفظ التعديلات
+                </button>
+                <button id="btn-transfer-emp" type="button" class="btn-transfer" title="تسجيل أو تعديل نقل خارجي للموظف">
+                  🚚 نقل خارجي
+                </button>
+                <button id="btn-deactivate-emp" type="button" class="btn-danger">
+                  ⚠️ إحالة للتقاعد / تجميد
+                </button>
+                <button id="btn-activate-emp" type="button" class="btn-action-icon hidden">
+                  ✅ إعادة تفعيل الموظف
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 5: All Employees (Paginated & Filtered)
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-all-employees" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-all-employees">
+
+          <div class="card-panel">
+            <div class="form-section-header">
+              <h3>سجل كافة الموظفين ومعلومات إجازاتهم</h3>
+              <p>استعراض شامل لجميع الموظفين مع البحث اللحظي وتاريخ آخر إجازة وتقسيم الصفحات</p>
+            </div>
+
+            <div class="all-employees-toolbar">
+              <div class="all-employees-search-box">
+                <input type="text" id="all-employees-search-input" class="dialog-search-input"
+                  placeholder="🔍 بحث سريع بالاسم، رقم كرت الإجازة، موقع العمل، أو الرقم الوظيفي…"
+                  aria-label="بحث في قائمة الموظفين" />
+              </div>
+              <button type="button" id="btn-export-all-employees" class="btn-export-excel" title="تصدير جميع الموظفين المطابقين للبحث إلى Excel">
+                <span class="excel-icon">XLS</span>
+                <span>تصدير الكل إلى Excel</span>
+              </button>
+            </div>
+
+            <div id="all-employees-status" class="balance-display hidden" role="status" aria-live="polite"></div>
+
+            <div class="table-wrapper">
+              <table id="all-employees-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="text-center">الرقم الوظيفي</th>
+                    <th scope="col">الاسم الكامل</th>
+                    <th scope="col">المسمى الوظيفي</th>
+                    <th scope="col">موقع العمل</th>
+                    <th scope="col" class="text-center">رقم كرت الإجازة</th>
+                    <th scope="col" class="text-center">تاريخ آخر إجازة</th>
+                    <th scope="col">نوع آخر إجازة</th>
+                    <th scope="col" class="text-center">الحالة</th>
+                    <th scope="col" class="text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="all-employees-tbody">
+                  <!-- Populated dynamically by renderer.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-bar">
+              <div class="pagination-info" id="all-employees-pagination-info">
+                عرض 0 من 0 موظف
+              </div>
+              <div class="pagination-controls">
+                <button type="button" id="btn-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
+                <button type="button" id="btn-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <span id="all-employees-page-indicator" class="page-indicator">صفحة 1 من 1</span>
+                <button type="button" id="btn-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
+                <button type="button" id="btn-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+              </div>
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 6: Balance & Accumulation Reports
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-balance-report" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-balance-report">
+          <div class="card-panel">
+            <div class="panel-header-with-actions">
+              <div>
+                <h3>تقارير الأرصدة الحرجة وتراكم الإجازات</h3>
+                <p>متابعة الموظفين ذوي الأرصدة المنخفضة وتراكم الإجازات المستهلكة خلال العام</p>
+              </div>
+              <div class="header-action-buttons">
+                <button type="button" id="btn-refresh-balance-report" class="btn-action-secondary" title="تحديث بيانات التقرير">
+                  🔄 تحديث
+                </button>
+                <button type="button" id="btn-export-critical-report" class="btn-export-excel" title="تصدير كشف الأرصدة والتراكم إلى ملف Excel رسمي">
+                  <span class="excel-icon">XLS</span>
+                  <span>تصدير الكشف إلى Excel</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+              <div class="kpi-card danger">
+                <div class="kpi-icon">⚠️</div>
+                <div class="kpi-content">
+                  <span class="kpi-value" id="kpi-critical-count">0</span>
+                  <span class="kpi-label" id="kpi-critical-label">موظفون برصيد حرج (≤ 5 أيام)</span>
+                </div>
+              </div>
+              <div class="kpi-card info">
+                <div class="kpi-icon">📅</div>
+                <div class="kpi-content">
+                  <span class="kpi-value" id="kpi-total-leaves-year">0</span>
+                  <span class="kpi-label">إجمالي الإجازات الممنوحة هذا العام</span>
+                </div>
+              </div>
+              <div class="kpi-card success">
+                <div class="kpi-icon">⏳</div>
+                <div class="kpi-content">
+                  <span class="kpi-value" id="kpi-total-days-year">0</span>
+                  <span class="kpi-label">إجمالي الأيام المستهلكة هذا العام</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 1: Critical Balances Table -->
+            <div class="sub-section-header">
+              <h4>⚠️ كشف تنبيهات الأرصدة الحرجة للموظفين</h4>
+              <div class="filter-inline">
+                <label for="input-balance-threshold">حد الرصيد الحرج (أيام):</label>
+                <input type="number" id="input-balance-threshold" value="5" min="0" max="30" class="input-inline-num" aria-label="حد الرصيد الحرج بالأيام" />
+                <button type="button" id="btn-apply-threshold" class="btn-apply-threshold" title="تطبيق الحد الجديد وتحديث الكشف">
+                  <span>تطبيق</span>
+                </button>
+                <span class="threshold-hint text-muted">الموظفون الذين يقل رصيدهم عن هذا العدد من الأيام سيظهرون بالكشف</span>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="text-center">الرقم الوظيفي</th>
+                    <th scope="col">الاسم الكامل</th>
+                    <th scope="col">المسمى الوظيفي</th>
+                    <th scope="col">موقع العمل</th>
+                    <th scope="col" class="text-center">رقم الكرت</th>
+                    <th scope="col" class="text-center">الرصيد المتبقي</th>
+                    <th scope="col" class="text-center">المستهلك</th>
+                    <th scope="col" class="text-center">إجمالي المستحق</th>
+                    <th scope="col" class="text-center">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody id="critical-balances-tbody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Critical Balances Pagination Bar -->
+            <div class="pagination-bar" id="critical-pagination-bar">
+              <div class="pagination-info" id="critical-pagination-info">
+                عرض 0 من 0 موظف
+              </div>
+              <div class="pagination-controls">
+                <button type="button" id="btn-critical-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
+                <button type="button" id="btn-critical-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <span id="critical-page-indicator" class="page-indicator">صفحة 1 من 1</span>
+                <button type="button" id="btn-critical-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
+                <button type="button" id="btn-critical-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+              </div>
+            </div>
+
+            <!-- Section 2: Year Accumulation Table -->
+            <div class="sub-section-header" style="margin-top: 32px;">
+              <h4>📊 كشف تراكم الإجازات المستهلكة لجميع الموظفين</h4>
+              <div class="filter-inline">
+                <label for="select-accumulation-year">سنة التقرير:</label>
+                <select id="select-accumulation-year" class="form-select select-inline">
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="2023">2023</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="text-center">الرقم الوظيفي</th>
+                    <th scope="col">الاسم الكامل</th>
+                    <th scope="col">المسمى الوظيفي</th>
+                    <th scope="col">موقع العمل</th>
+                    <th scope="col" class="text-center">رقم الكرت</th>
+                    <th scope="col" class="text-center">إجمالي الأيام المستهلكة</th>
+                    <th scope="col" class="text-center">أيام الاعتيادية</th>
+                    <th scope="col" class="text-center">أيام المرضية</th>
+                    <th scope="col" class="text-center">أخرى / بلا راتب</th>
+                    <th scope="col" class="text-center">عدد الإجازات</th>
+                  </tr>
+                </thead>
+                <tbody id="accumulation-leaves-tbody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Accumulation Leaves Pagination Bar -->
+            <div class="pagination-bar" id="accum-pagination-bar">
+              <div class="pagination-info" id="accum-pagination-info">
+                عرض 0 من 0 موظف
+              </div>
+              <div class="pagination-controls">
+                <button type="button" id="btn-accum-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
+                <button type="button" id="btn-accum-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <span id="accum-page-indicator" class="page-indicator">صفحة 1 من 1</span>
+                <button type="button" id="btn-accum-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
+                <button type="button" id="btn-accum-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════
+             TAB 7: Audit Logs & System Monitoring
+             ════════════════════════════════════════════════════════ -->
+        <section id="tab-audit-logs" class="tab-content" role="tabpanel" aria-labelledby="btn-tab-audit-logs">
+          <div class="card-panel">
+            <div class="panel-header-with-actions">
+              <div>
+                <h3>سجل التدقيق ومراقبة حركات النظام</h3>
+                <p>توثيق شامل ودقيق لجميع عمليات الإضافة والتعديل والحذف وتغييرات الحالة والنسخ الاحتياطي</p>
+              </div>
+              <button type="button" id="btn-refresh-audit-logs" class="btn-action-secondary" title="تحديث سجل التدقيق">
+                🔄 تحديث
+              </button>
+            </div>
+
+            <!-- Filter Toolbar -->
+            <div class="audit-filter-bar">
+              <div class="filter-col filter-col-search">
+                <label for="audit-filter-search">بحث نصي:</label>
+                <input type="text" id="audit-filter-search" class="dialog-search-input" placeholder="🔍 بحث في التفاصيل أو الرقم..." />
+              </div>
+              <div class="filter-col filter-col-action">
+                <label for="audit-filter-action">نوع العملية:</label>
+                <select id="audit-filter-action" class="form-select">
+                  <option value="ALL">كل العمليات</option>
+                  <option value="INSERT">إضافة (INSERT)</option>
+                  <option value="UPDATE">تعديل (UPDATE)</option>
+                  <option value="STATUS_CHANGE">تغيير حالة (STATUS)</option>
+                  <option value="DELETE">حذف (DELETE)</option>
+                  <option value="BACKUP">نسخ احتياطي (BACKUP)</option>
+                  <option value="RESTORE">استعادة (RESTORE)</option>
+                </select>
+              </div>
+              <div class="filter-col filter-col-entity">
+                <label for="audit-filter-entity">نوع الكيان:</label>
+                <select id="audit-filter-entity" class="form-select">
+                  <option value="ALL">كل الكيانات</option>
+                  <option value="Employee">موظف (Employee)</option>
+                  <option value="Leave">إجازة (Leave)</option>
+                  <option value="System">النظام (System)</option>
+                </select>
+              </div>
+              <div class="filter-col filter-col-start-date">
+                <label for="audit-filter-start-date">من تاريخ:</label>
+                <input type="date" id="audit-filter-start-date" class="form-input" />
+              </div>
+              <div class="filter-col filter-col-end-date">
+                <label for="audit-filter-end-date">إلى تاريخ:</label>
+                <input type="date" id="audit-filter-end-date" class="form-input" />
+              </div>
+              <div class="filter-col-actions">
+                <button type="button" id="btn-apply-audit-filter" class="btn-primary">بحث وفلترة</button>
+                <button type="button" id="btn-reset-audit-filter" class="btn-action-secondary">إعادة تعيين</button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="text-center">#</th>
+                    <th scope="col" class="text-center">التاريخ والوقت</th>
+                    <th scope="col" class="text-center">نوع العملية</th>
+                    <th scope="col" class="text-center">الكيان</th>
+                    <th scope="col">البيان والتفاصيل</th>
+                    <th scope="col" class="text-center">معاينة اللقطة</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-logs-tbody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-bar">
+              <div class="pagination-info" id="audit-pagination-info">
+                عرض 0 من 0 حركة
+              </div>
+              <div class="pagination-controls">
+                <button type="button" id="btn-audit-page-first" class="btn-page" title="الصفحة الأولى" disabled>⏮ الأولى</button>
+                <button type="button" id="btn-audit-page-prev" class="btn-page" title="الصفحة السابقة" disabled>◀ السابقة</button>
+                <span id="audit-page-indicator" class="page-indicator">صفحة 1 من 1</span>
+                <button type="button" id="btn-audit-page-next" class="btn-page" title="الصفحة التالية" disabled>التالية ▶</button>
+                <button type="button" id="btn-audit-page-last" class="btn-page" title="الصفحة الأخيرة" disabled>الأخيرة ⏭</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div><!-- /content-body -->
+
+    </main><!-- /app-main -->
+
+  </div><!-- /app-layout -->
+
+  <!-- ════════════════════════════════════════════════════════
+       Employee Search Modal — native HTML5 <dialog>
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="employee-search-modal" class="custom-dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="modal-title" class="dialog-title">بحث عن موظف</h3>
+        <button type="button" id="btn-close-modal" class="dialog-close-btn" aria-label="إغلاق نافذة البحث">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="dialog-search-bar">
+        <input type="text" id="modal-search-input" class="dialog-search-input" placeholder="اكتب اسم الموظف، أو رقم كرت الإجازة، أو الرقم الوظيفي…"
+          autocomplete="off" aria-label="بحث بالاسم أو رقم كرت الإجازة" aria-controls="modal-search-results" />
+      </div>
+
+      <div class="dialog-results-wrapper">
+        <table class="data-table modal-table">
+          <thead>
+            <tr>
+              <th scope="col" class="text-center">الرقم</th>
+              <th scope="col">الاسم الكامل</th>
+              <th scope="col" class="text-center">رقم كرت الإجازة</th>
+              <th scope="col">موقع العمل</th>
+              <th scope="col">المسمى الوظيفي</th>
+            </tr>
+          </thead>
+          <tbody id="modal-search-results" role="listbox" aria-label="نتائج البحث"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Custom Confirm Modal — replacement for window.confirm
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="custom-confirm-modal" class="custom-dialog confirm-dialog" aria-modal="true">
+    <div class="dialog-content confirm-content">
+      <div class="confirm-icon">❓</div>
+      <h3 id="confirm-modal-title" class="dialog-title">تأكيد الإجراء</h3>
+      <p id="confirm-modal-message" class="confirm-message">هل أنت متأكد؟</p>
+      <div class="confirm-actions">
+        <button type="button" id="btn-confirm-yes" class="btn-primary-large flex-1">تأكيد</button>
+        <button type="button" id="btn-confirm-no" class="btn-action-secondary flex-1">إلغاء</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       System Settings Modal — Department Name, Backup & Theme
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="system-settings-modal" class="custom-dialog settings-dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="dialog-content settings-dialog-content">
+      <div class="dialog-header">
+        <h3 id="settings-modal-title" class="dialog-title">⚙️ إعدادات النظام والمظهر العام</h3>
+        <button type="button" id="btn-close-settings-modal" class="dialog-close-btn" aria-label="إغلاق نافذة الإعدادات">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form id="system-settings-form" class="dialog-form settings-dialog-form">
+        
+        <!-- Section 1: Official Department & Division Identity -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">🏢</span>
+            <div class="settings-section-title-wrap">
+              <label for="input-department-name" class="settings-section-title">الهوية والترويسة الرسمية</label>
+              <span class="settings-section-desc">اسم الدائرة أو القسم الرسمي المستخدم في ترويسة التقارير</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <input type="text" id="input-department-name" class="form-input"
+              placeholder="مثال: دائرة توزيع كهرباء الجنوب - قسم الموارد البشرية"
+              autocomplete="off" />
+            <span class="helper-text">
+              📌 يظهر هذا الاسم تلقائياً في أعلى الترويسة لكافة ملفات وتصديرات Excel الرسمية.
+            </span>
+          </div>
+        </div>
+
+        <!-- Section 2: Auto Backup Storage Path -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">💾</span>
+            <div class="settings-section-title-wrap">
+              <label for="input-custom-backup-path" class="settings-section-title">مجلد النسخ الاحتياطي التلقائي الدوري</label>
+              <span class="settings-section-desc">تحديد مسار مخصص لحفظ نسخ الأمان الدورية (كل 15 يوماً)</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="settings-path-group">
+              <input type="text" id="input-custom-backup-path" class="form-input settings-path-input"
+                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\auto-backups)"
+                readonly />
+              <button type="button" id="btn-select-backup-dir" class="btn-action-secondary settings-path-btn" title="اختيار مجلد مخصص لحفظ النسخ">
+                📁 تحديد مجلد…
+              </button>
+              <button type="button" id="btn-reset-backup-dir" class="btn-action-secondary settings-path-btn-icon" title="إعادة تعيين للمسار الافتراضي">
+                🔄 الافتراضي
+              </button>
+            </div>
+            <span class="helper-text">
+              📌 في حال تعذر الوصول للمسار المخصص لأي سبب، سيرجع النظام تلقائياً وبأمان للمسار الافتراضي مع إشعارك.
+            </span>
+          </div>
+        </div>
+
+        <!-- Section 3: Employee Documents Storage Path -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">📁</span>
+            <div class="settings-section-title-wrap">
+              <label for="input-doc-storage-path" class="settings-section-title">مجلد تخزين مستندات وكروت الموظفين</label>
+              <span class="settings-section-desc">تحديد مسار مجلد حفظ كروت الزمنية وكروت الإجازة للموظفين</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="settings-path-group">
+              <input type="text" id="input-doc-storage-path" class="form-input settings-path-input"
+                placeholder="المسار الافتراضي (%APPDATA%\leave-management-system\EmployeeDocuments)"
+                readonly />
+              <button type="button" id="btn-select-doc-storage-dir" class="btn-action-secondary settings-path-btn" title="اختيار مجلد مخصص للمستندات">
+                📁 تحديد مجلد…
+              </button>
+              <button type="button" id="btn-reset-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="إعادة تعيين للمسار الافتراضي">
+                🔄 الافتراضي
+              </button>
+              <button type="button" id="btn-test-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="اختبار صلاحيات الكتابة والقراءة">
+                🧪 اختبار المسار
+              </button>
+              <button type="button" id="btn-open-doc-storage-dir" class="btn-action-secondary settings-path-btn-icon" title="فتح المجلد في مستكشف الملفات">
+                📂 فتح المجلد
+              </button>
+            </div>
+            <span class="helper-text">
+              📌 تحفظ المستندات في مجلدات منظمة برقم الموظف، ويمكنك نقل المجلد أو نسخه يدوياً في أي وقت.
+            </span>
+          </div>
+        </div>
+
+        <!-- Section 4: App Theme & Appearance -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">🎨</span>
+            <div class="settings-section-title-wrap">
+              <label for="select-app-theme" class="settings-section-title">المظهر العام وثيم التطبيق</label>
+              <span class="settings-section-desc">التبديل بين الوضع الفاتح والوضع الداكن للواجهة</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <select id="select-app-theme" class="form-select">
+              <option value="system">💻 تلقائي (مطابق لإعدادات نظام ويندوز)</option>
+              <option value="light">☀️ الوضع الفاتح (Light Mode)</option>
+              <option value="dark">🌙 الوضع الداكن (Dark Mode)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section 5: Purge Soft-Deleted Documents -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">🗑️</span>
+            <div class="settings-section-title-wrap">
+              <span class="settings-section-title">تنظيف وإفراغ المستندات المحذوفة من القرص</span>
+              <span class="settings-section-desc">إفراغ ملفات كروت الموظفين المحذوفة نهائياً لتحرير مساحة التخزين</span>
+            </div>
+          </div>
+          <div class="deleted-docs-stats-box">
+            <div class="deleted-docs-stat-group">
+              <div class="deleted-stat-item">
+                <span class="deleted-stat-label">المستندات المحذوفة:</span>
+                <span id="deleted-docs-count" class="deleted-stat-value">0</span>
+              </div>
+              <div class="deleted-stat-item">
+                <span class="deleted-stat-label">المساحة المشغولة على القرص:</span>
+                <span id="deleted-docs-size" class="deleted-stat-value danger">0 B</span>
+              </div>
+            </div>
+            <button type="button" id="btn-purge-deleted-docs" class="btn-purge-deleted" title="حذف الملفات المحذوفة نهائياً من القرص الصلب">
+              <span>🗑️</span>
+              <span>إفراغ المستندات المحذوفة نهائياً من القرص</span>
+            </button>
+          </div>
+          <span class="helper-text">
+            ⚠️ عند الضغط على زر الإفراغ، سيتم حذف الملفات المحذوفة فيزيائياً من القرص الصلب نهائياً ولا يمكن التراجع عن هذا الإجراء.
+          </span>
+        </div>
+
+        <!-- Section 6: Transferred Employees Report Export -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">🚚</span>
+            <div class="settings-section-title-wrap">
+              <span class="settings-section-title">كشف الموظفين المنقولين خارجياً</span>
+              <span class="settings-section-desc">تصدير تقرير Excel رسمي ببيانات الموظفين الصادر بحقهم أمر نقل خارجي</span>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+              <span class="helper-text" style="margin: 0; flex: 1; min-width: 240px;">
+                📌 يُنشئ التقرير كشفاً رسمياً معتمداً يتضمن بيانات الموظف وأمر النقل والملاحظات، مع ترويسة الدائرة وصندوق التوقيعات الثلاثي.
+              </span>
+              <button type="button" id="btn-export-transferred-report" class="btn-export-excel" title="تصدير كشف الموظفين المنقولين خارجياً إلى ملف Excel">
+                <span class="excel-icon">XLS</span>
+                <span>تصدير كشف المنقولين (Excel)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions settings-actions">
+          <button type="submit" id="btn-save-settings" class="btn-primary-large settings-btn-save">💾 حفظ التعديلات</button>
+          <button type="button" id="btn-cancel-settings" class="btn-action-secondary settings-btn-cancel">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Audit Details Modal — Snapshot JSON viewer
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="audit-details-modal" class="custom-dialog" aria-modal="true" aria-labelledby="audit-modal-title">
+    <div class="dialog-content" style="max-width: 780px;">
+      <div class="dialog-header">
+        <h3 id="audit-modal-title" class="dialog-title">🛡️ تفاصيل حركة التدقيق ومقارنة اللقطة</h3>
+        <button type="button" id="btn-close-audit-modal" class="dialog-close-btn" aria-label="إغلاق">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div id="audit-modal-body" class="audit-modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Leave Administrative Details Modal
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="leave-details-modal" class="custom-dialog" aria-modal="true" aria-labelledby="leave-details-modal-title">
+    <div class="dialog-content" style="max-width: 560px;">
+      <div class="dialog-header">
+        <h3 id="leave-details-modal-title" class="dialog-title">📋 البيانات والمستندات الإدارية للإجازة</h3>
+        <button type="button" id="btn-close-leave-details-modal" class="dialog-close-btn" aria-label="إغلاق">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div id="leave-details-modal-body" class="dialog-body" style="padding: 20px;">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Edit Leave Modal — Full Fields + Mandatory Modifier
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="edit-leave-modal" class="custom-dialog edit-leave-dialog" aria-modal="true" aria-labelledby="edit-leave-modal-title">
+    <div class="dialog-content edit-leave-dialog-content">
+      <div class="dialog-header">
+        <h3 id="edit-leave-modal-title" class="dialog-title">✏️ تعديل بيانات الإجازة</h3>
+        <button type="button" id="btn-close-edit-leave-modal" class="dialog-close-btn" aria-label="إغلاق">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form id="edit-leave-form" class="dialog-form edit-leave-dialog-form">
+        <input type="hidden" id="edit-leave-id" />
+        <input type="hidden" id="edit-leave-employee-id" />
+
+        <!-- Employee Info Summary Banner -->
+        <div class="admin-details-header edit-modal-emp-banner">
+          <span id="edit-leave-emp-name" style="font-weight: 700;">-</span>
+          <span id="edit-leave-card-num" class="text-muted">-</span>
+        </div>
+
+        <!-- Mandatory Modifier Name input (highlighted) -->
+        <div class="form-group required edit-modal-modifier-box">
+          <label for="edit-leave-modifier" class="modifier-box-label">
+            ✍ اسم القائم بالتعديل <span class="text-danger">*</span> (إلزامي للتوثيق والتدقيق):
+          </label>
+          <input type="text" id="edit-leave-modifier" class="form-input" placeholder="اكتب اسمك الصريح هنا (مثال: أحمد علي - شعبة الإجازات)" required autocomplete="off" />
+          <span class="helper-text modifier-box-helper">📌 لن يسمح النظام بحفظ أي تعديل دون تسجيل هوية القائم به في سجل التدقيق.</span>
+        </div>
+
+        <!-- Leave Type & Approver -->
+        <div class="form-grid edit-leave-grid-2">
+          <div class="form-group">
+            <label for="edit-leave-type">نوع الإجازة <span class="text-danger">*</span></label>
+            <select id="edit-leave-type" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label for="edit-leave-approver">المسؤول عن المنح</label>
+            <input type="text" id="edit-leave-approver" class="form-input" placeholder="اسم المسؤول..." />
+          </div>
+        </div>
+
+        <!-- Dates & Interactive Days -->
+        <div class="form-grid edit-leave-grid-3">
+          <div class="form-group">
+            <label for="edit-leave-start-date">تاريخ البدء <span class="text-danger">*</span></label>
+            <input type="date" id="edit-leave-start-date" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-leave-days">عدد الأيام <span class="text-danger">*</span></label>
+            <input type="number" id="edit-leave-days" class="form-input" min="1" max="730" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-leave-end-date">تاريخ النهاية <span class="text-danger">*</span></label>
+            <input type="date" id="edit-leave-end-date" class="form-input" required />
+          </div>
+        </div>
+
+        <!-- Administrative Fields Section -->
+        <div class="edit-modal-admin-section">
+          <div class="edit-modal-admin-title">📋 المستندات والبيانات الإدارية (اختياري)</div>
+          
+          <!-- Row 1: Request Date Full Width -->
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="edit-leave-request-date">تاريخ تقديم الطلب</label>
+            <input type="date" id="edit-leave-request-date" class="form-input" />
+          </div>
+
+          <!-- Row 2: Memo Number + Memo Date -->
+          <div class="form-grid edit-leave-grid-2" style="margin-bottom: 14px;">
+            <div class="form-group">
+              <label for="edit-leave-memo-num">رقم المذكرة</label>
+              <input type="text" id="edit-leave-memo-num" class="form-input" placeholder="رقم المذكرة..." />
+            </div>
+            <div class="form-group">
+              <label for="edit-leave-memo-date">تاريخ المذكرة</label>
+              <input type="date" id="edit-leave-memo-date" class="form-input" />
+            </div>
+          </div>
+
+          <!-- Row 3: Order Number + Order Date -->
+          <div class="form-grid edit-leave-grid-2">
+            <div class="form-group">
+              <label for="edit-leave-order-num">رقم الأمر الإداري</label>
+              <input type="text" id="edit-leave-order-num" class="form-input" placeholder="رقم الأمر الإداري..." />
+            </div>
+            <div class="form-group">
+              <label for="edit-leave-order-date">تاريخ الأمر الإداري</label>
+              <input type="date" id="edit-leave-order-date" class="form-input" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group" style="margin-bottom: 6px;">
+          <label for="edit-leave-notes">ملاحظات الإجازة</label>
+          <textarea id="edit-leave-notes" class="form-textarea" rows="2" placeholder="أي ملاحظات إضافية..."></textarea>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions edit-leave-actions">
+          <button type="submit" id="btn-save-edit-leave" class="btn-primary-large" style="flex: 2;">💾 حفظ التعديلات</button>
+          <button type="button" id="btn-cancel-edit-leave" class="btn-action-secondary" style="flex: 1;">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Employee Documents & Cards Modal (TIME_CARD & LEAVE_CARD)
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="employee-documents-modal" class="custom-dialog documents-dialog" aria-modal="true" aria-labelledby="documents-modal-title">
+    <div class="dialog-content documents-dialog-content">
+      <div class="dialog-header">
+        <div>
+          <h3 id="documents-modal-title" class="dialog-title">📁 مستندات وكروت الموظف</h3>
+          <p id="documents-modal-subtitle" class="dialog-subtitle text-muted">سجل كافة النسخ والبطاقات المحفوظة</p>
+        </div>
+        <button type="button" id="btn-close-documents-modal" class="dialog-close-btn" aria-label="إغلاق نافذة المستندات">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Type Switcher Tabs -->
+      <div class="doc-modal-nav-bar">
+        <div class="doc-type-tabs" role="tablist">
+          <button type="button" id="btn-doc-tab-timecard" class="doc-type-tab-btn doc-tab-timecard active" role="tab">
+            <span class="tab-type-icon">🟨</span>
+            <span>كرت الزمنية (Time Card)</span>
+            <span id="doc-badge-timecard" class="doc-tab-count">0</span>
+          </button>
+          <button type="button" id="btn-doc-tab-leavecard" class="doc-type-tab-btn doc-tab-leavecard" role="tab">
+            <span class="tab-type-icon">🟦</span>
+            <span>كرت الإجازة (Leave Card)</span>
+            <span id="doc-badge-leavecard" class="doc-tab-count">0</span>
+          </button>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="doc-modal-actions">
+          <button type="button" id="btn-add-document" class="btn-primary doc-btn-action" title="رفع وإضافة نسخة جديدة من الكرت">
+            <span>➕</span>
+            <span>إضافة كرت جديد</span>
+          </button>
+          <button type="button" id="btn-import-document" class="btn-action-secondary doc-btn-action" title="استيراد ونسخ كرت من مسار خارجي أو فلاش">
+            <span>📥</span>
+            <span>استيراد كرت</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Status banner -->
+      <div id="documents-status" class="balance-display hidden" role="status" aria-live="polite"></div>
+
+      <!-- Dynamic Documents List/Table Container -->
+      <div id="documents-container" class="doc-modal-body"></div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       External Transfer Modal Dialog (Phase 3)
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="transfer-employee-modal" class="custom-dialog transfer-dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+    <div class="dialog-content transfer-dialog-content">
+      <div class="dialog-header">
+        <h3 id="transfer-modal-title" class="dialog-title">🚚 نقل خارجي للموظف</h3>
+        <button type="button" id="btn-close-transfer-modal" class="dialog-close-btn" aria-label="إغلاق نافذة النقل">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="transfer-dialog-body">
+        <div class="transfer-info-banner">
+          <div class="transfer-info-header">
+            <span class="transfer-emp-name" id="transfer-modal-emp-name">الموظف: -</span>
+            <span class="transfer-emp-badge">نشط بالنظام</span>
+          </div>
+          <p class="transfer-info-hint">
+            💡 <strong>تنبيه إداري:</strong> الموظف سيبقى نشطاً تماماً بكافة القوائم والتقارير وتسجيل الإجازات، ويُضاف له وسم وشارة "منقول" فقط.
+          </p>
+        </div>
+
+        <form id="form-transfer-employee" class="dialog-form" novalidate autocomplete="off">
+          <!-- Field 1: Order Number -->
+          <div class="form-group">
+            <label for="transfer-order-number">
+              رقم الأمر الإداري الخاص بالنقل <span class="text-muted">(اختياري — أرقام فقط)</span>
+            </label>
+            <input type="text" id="transfer-order-number" class="form-input"
+              placeholder="مثال: 45210 (أرقام فقط)"
+              inputmode="numeric" autocomplete="off" />
+            <span class="helper-text">
+              📌 يقبل أرقاماً فقط (0-9) بما فيها الأصفار البادئة (مثال: 0123).
+            </span>
+          </div>
+
+          <!-- Field 2: Order Date -->
+          <div class="form-group">
+            <label for="transfer-order-date">
+              تاريخ الأمر الإداري <span class="text-muted">(اختياري)</span>
+            </label>
+            <input type="date" id="transfer-order-date" class="form-input" />
+            <span class="helper-text">
+              📌 تاريخ صدور الأمر الإداري الخاص بالنقل.
+            </span>
+          </div>
+
+          <!-- Field 3: Transfer Notes -->
+          <div class="form-group">
+            <label for="transfer-notes">
+              ملاحظات النقل / الوجهة <span class="text-muted">(اختياري)</span>
+            </label>
+            <textarea id="transfer-notes" class="form-input" rows="3"
+              placeholder="مثال: نُقل إلى مديرية توزيع كهرباء الجنوب / الدائرة القانونية"></textarea>
+            <span class="helper-text">
+              📌 اسم الدائرة أو القسم المنقول إليه الموظف أو أي تفاصيل إضافية.
+            </span>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="form-actions transfer-modal-actions">
+            <button type="submit" id="btn-save-transfer" class="btn-primary-large flex-1">
+              💾 حفظ بيانات النقل
+            </button>
+            <button type="button" id="btn-cancel-transfer-status" class="btn-danger hidden">
+              ❌ إلغاء حالة النقل
+            </button>
+            <button type="button" id="btn-cancel-transfer-modal" class="btn-action-secondary">
+              إلغاء
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Floating Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="renderer.js"></script>
+
+</body>
+
+</html>
