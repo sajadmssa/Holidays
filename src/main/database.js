@@ -167,106 +167,6 @@ function close() {
 //  تختص هذه الدوال بعمليات الوصول الصافية للبيانات دون تطبيق منطق الأعمال المعقد.
 // ══════════════════════════════════════════════════════════════
 
-// ──────────────────────────────────────────────────────────────
-//  Employees / إدارة بيانات الموظفين
-// ──────────────────────────────────────────────────────────────
-
-/**
- * جلب كافة سجلات الموظفين مرتبين هجائياً بالاسم الكامل.
- * @returns {Employee[]}
- */
-function getAllEmployees() {
-  return getDb()
-    .prepare('SELECT * FROM Employees ORDER BY FullName ASC')
-    .all();
-}
-
-/**
- * استرجاع بيانات موظف محدد بمعرفه الوظيفي (EmployeeID).
- * @param {number} id
- * @returns {Employee | undefined}
- */
-function getEmployeeById(id) {
-  return getDb()
-    .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
-    .get(id);
-}
-
-/**
- * إنشاء قيد موظف نشط جديد مع تدوين حدث الإنشاء تلقائياً بسجل التدقيق.
- * @param {{ fullName:string, gender:'Male'|'Female', hireDate:string, jobTitle:string, workLocation?:string, leaveCardNumber?:string, leaveApprover?:string }} payload
- * @returns {{ id: number }}
- */
-function createEmployee({ fullName, gender, hireDate, jobTitle, workLocation, leaveCardNumber, leaveApprover }) {
-  const result = getDb()
-    .prepare(`
-      INSERT INTO Employees (FullName, Gender, HireDate, JobTitle, WorkLocation, LeaveCardNumber, LeaveApprover, IsActive)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    `)
-    .run(
-      fullName,
-      gender,
-      hireDate,
-      jobTitle,
-      workLocation ?? null,
-      leaveCardNumber ?? null,
-      leaveApprover ?? null
-    );
-
-  // Audit / توثيق العملية في سجل التدقيق
-  _auditLog('CREATE_EMPLOYEE', { employeeId: result.lastInsertRowid, fullName, gender, jobTitle, workLocation, leaveCardNumber, leaveApprover });
-
-  return { id: result.lastInsertRowid };
-}
-
-/**
- * تحديث حقول بيانات الموظف مع الحفاظ على القيم الحالية في حال عدم إرسال حقول جديدة (بواسطة COALESCE).
- * @param {number} id
- * @param {{ fullName?:string, gender?:string, hireDate?:string, jobTitle?:string, workLocation?:string, leaveCardNumber?:string, leaveApprover?:string }} payload
- * @returns {number} number of rows changed
- */
-function updateEmployee(id, { fullName, gender, hireDate, jobTitle, workLocation, leaveCardNumber, leaveApprover }) {
-  const result = getDb()
-    .prepare(`
-      UPDATE Employees
-      SET FullName        = COALESCE(?, FullName),
-          Gender          = COALESCE(?, Gender),
-          HireDate        = COALESCE(?, HireDate),
-          JobTitle        = COALESCE(?, JobTitle),
-          WorkLocation    = COALESCE(?, WorkLocation),
-          LeaveCardNumber = COALESCE(?, LeaveCardNumber),
-          LeaveApprover   = COALESCE(?, LeaveApprover)
-      WHERE EmployeeID = ?
-    `)
-    .run(
-      fullName ?? null,
-      gender ?? null,
-      hireDate ?? null,
-      jobTitle ?? null,
-      workLocation ?? null,
-      leaveCardNumber ?? null,
-      leaveApprover ?? null,
-      id
-    );
-
-  _auditLog('UPDATE_EMPLOYEE', { employeeId: id });
-  return result.changes;
-}
-
-/**
- * تجميد حساب الموظف (حذف منطقي ناعم Soft-Delete) بتعيين IsActive = 0 لحفظ السجلات التاريخية.
- * Soft-delete: sets IsActive = 0.
- * @param {number} id
- * @returns {number} number of rows changed
- */
-function deactivateEmployee(id) {
-  const result = getDb()
-    .prepare('UPDATE Employees SET IsActive = 0 WHERE EmployeeID = ?')
-    .run(id);
-
-  _auditLog('DEACTIVATE_EMPLOYEE', { employeeId: id });
-  return result.changes;
-}
 
 // ──────────────────────────────────────────────────────────────
 //  Leave Types / جدول أنواع الإجازات الرسمية
@@ -323,103 +223,8 @@ function upsertLeaveBalance({ employeeId, leaveTypeId, totalBalance, payPercenta
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Leaves / قيود وسجلات الإجازات
+//  Audit Log Helper / دالة التدقيق الداخلية
 // ──────────────────────────────────────────────────────────────
-
-/**
- * استرجاع كافة حركات الإجازات المسجلة بالنظام مع الربط ببيانات الموظف ونوع الإجازة، مرتبة بالأحدث تاريخاً.
- * @returns {Leave[]}  All leaves, joined with employee & type names
- */
-function getAllLeaves() {
-  return getDb()
-    .prepare(`
-      SELECT
-        l.*,
-        e.FullName       AS EmployeeName,
-        e.Gender         AS EmployeeGender,
-        lt.Name          AS LeaveTypeName
-      FROM   Leaves     l
-      JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
-      JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-      ORDER  BY l.StartDate DESC
-    `)
-    .all();
-}
-
-/**
- * جلب أرشيف الإجازات الخاص بموظف محدد.
- * @param {number} employeeId
- * @returns {Leave[]}
- */
-function getLeavesByEmployee(employeeId) {
-  return getDb()
-    .prepare(`
-      SELECT
-        l.*,
-        lt.Name AS LeaveTypeName
-      FROM   Leaves     l
-      JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-      WHERE  l.EmployeeID = ?
-      ORDER  BY l.StartDate DESC
-    `)
-    .all(employeeId);
-}
-
-/**
- * تسجيل قيد إجازة جديد في جدول Leaves.
- * تنبيه: القيود المتعلقة بجنس الموظف وصحة التواريخ تفرضها مشغلات (Triggers) على مستوى قاعدة البيانات،
- * كما يتم تفعيل مشغل التدقيق trg_audit_leave_insert آلياً فور نجاح الإدخال.
- * Creates a new leave record.
- * NOTE: Gender enforcement and order-ref enforcement are handled
- *       by DB-level TRIGGERS — they will throw on violation.
- *       The audit trigger also fires automatically.
- *
- * @param {{ employeeId:number, leaveTypeId:number, startDate:string, endDate:string, daysCount:number, orderRef?:string, notes?:string, leaveApprover?:string }} payload
- * @returns {{ id: number }}
- */
-function createLeave({ employeeId, leaveTypeId, startDate, endDate, daysCount, orderRef, notes, leaveApprover }) {
-  const result = getDb()
-    .prepare(`
-      INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, OrderRef, Notes, LeaveApprover)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    .run(
-      employeeId, leaveTypeId,
-      startDate, endDate, daysCount,
-      orderRef ?? null, notes ?? null,
-      leaveApprover ?? null
-    );
-  // NOTE: trg_audit_leave_insert fires automatically here.
-  return { id: result.lastInsertRowid };
-}
-
-/**
- * حذف قيد إجازة مع تفعيل مشغل التدقيق trg_audit_leave_delete تلقائياً.
- * Deletes a leave record.
- * NOTE: trg_audit_leave_delete fires automatically.
- * @param {number} leaveId
- * @returns {number} number of rows deleted
- */
-function deleteLeave(leaveId) {
-  const result = getDb()
-    .prepare('DELETE FROM Leaves WHERE LeaveID = ?')
-    .run(leaveId);
-  return result.changes;
-}
-
-// ──────────────────────────────────────────────────────────────
-//  Audit Log / سجل التدقيق والأمان للنظام
-// ──────────────────────────────────────────────────────────────
-
-/**
- * استرجاع سجل التدقيق مرتباً من الأحدث إلى الأقدم.
- * @returns {AuditEntry[]}
- */
-function getAuditLog() {
-  return getDb()
-    .prepare('SELECT * FROM AuditLogs ORDER BY Timestamp DESC')
-    .all();
-}
 
 /**
  * دالة مساعدة داخلية لتوثيق العمليات المباشرة الصادرة من كود التطبيق في سجل التدقيق.
@@ -924,24 +729,11 @@ module.exports = {
   initialize,
   close,
   getDb,
-  // Employees
-  getAllEmployees,
-  getEmployeeById,
-  createEmployee,
-  updateEmployee,
-  deactivateEmployee,
   // Leave Types
   getAllLeaveTypes,
   // Leave Balances
   getLeaveBalancesByEmployee,
   upsertLeaveBalance,
-  // Leaves
-  getAllLeaves,
-  getLeavesByEmployee,
-  createLeave,
-  deleteLeave,
-  // Audit
-  getAuditLog,
   // System / Backup / Restore
   backupDatabase,
   validateDatabaseBackup,

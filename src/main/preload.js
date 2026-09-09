@@ -19,19 +19,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 //  يتم رفض أي قناة غير مدرجة هنا فوراً لمنع استدعاء أي قنوات عشوائية أو ضارة.
 // ──────────────────────────────────────────────────────────────
 const VALID_CHANNELS = new Set([
-  'employees:getAll',
-  'employees:getById',
-  'employees:create',
-  'employees:update',
-  'employees:deactivate',
   'leaveTypes:getAll',
   'leaveBalances:getByEmployee',
   'leaveBalances:upsert',
-  'leaves:getByEmployee',
-  'leaves:getAll',
-  'leaves:create',
-  'leaves:delete',
-  'audit:getAll',
   // ── Leave Engine (Phase 3 & Phase 9) ──────────────────────
   'leave:getRegularBalance',
   'leave:submitSickLeave',
@@ -102,20 +92,6 @@ function invoke(channel, ...args) {
 // ──────────────────────────────────────────────────────────────
 contextBridge.exposeInMainWorld('api', {
 
-  // ── Employees ──────────────────────────────────────────────
-  employees: {
-    /** @returns {Promise<{success:boolean, data: Employee[]}>} */
-    getAll: () => invoke('employees:getAll'),
-    /** @returns {Promise<{success:boolean, data: Employee}>} */
-    getById: (id) => invoke('employees:getById', id),
-    /** @returns {Promise<{success:boolean, data: {id: number}}>} */
-    create: (payload) => invoke('employees:create', payload),
-    /** @returns {Promise<{success:boolean, data: number}>} changes count */
-    update: (id, payload) => invoke('employees:update', id, payload),
-    /** @returns {Promise<{success:boolean, data: number}>} changes count */
-    deactivate: (id) => invoke('employees:deactivate', id),
-  },
-
   // ── Leave Types ────────────────────────────────────────────
   leaveTypes: {
     /** @returns {Promise<{success:boolean, data: LeaveType[]}>} */
@@ -128,18 +104,6 @@ contextBridge.exposeInMainWorld('api', {
     getByEmployee: (employeeId) => invoke('leaveBalances:getByEmployee', employeeId),
     /** @returns {Promise<{success:boolean, data: {changes: number}}>} */
     upsert: (payload) => invoke('leaveBalances:upsert', payload),
-  },
-
-  // ── Leaves ─────────────────────────────────────────────────
-  leaves: {
-    /** @returns {Promise<{success:boolean, data: Leave[]}>} */
-    getAll: () => invoke('leaves:getAll'),
-    /** @returns {Promise<{success:boolean, data: Leave[]}>} */
-    getByEmployee: (empId) => invoke('leaves:getByEmployee', empId),
-    /** @returns {Promise<{success:boolean, data: {id: number}}>} */
-    create: (payload) => invoke('leaves:create', payload),
-    /** @returns {Promise<{success:boolean, data: number}>} changes count */
-    delete: (leaveId) => invoke('leaves:delete', leaveId),
   },
 
   // ── Leave Engine (Phase 3) ────────────────────────────────
@@ -394,8 +358,6 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── Audit Logs ─────────────────────────────────────────────
   audit: {
-    /** @returns {Promise<{success:boolean, data: AuditEntry[]}>} */
-    getAll: () => invoke('audit:getAll'),
     /**
      * Queries paginated and filtered audit trail records.
      * @param {object} options - { startDate, endDate, actionType, entityType, search, page, pageSize }

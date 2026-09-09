@@ -148,26 +148,6 @@ if (!gotTheLock) {
 // ──────────────────────────────────────────────────────────────
 function registerIpcHandlers() {
 
-  // ── EMPLOYEES (Legacy DB Direct Access) ────────────────────
-  ipcMain.handle('employees:getAll', safeHandle(() =>
-    db.getAllEmployees()
-  ));
-
-  ipcMain.handle('employees:getById', safeHandle((id) =>
-    db.getEmployeeById(id)
-  ));
-
-  ipcMain.handle('employees:create', safeHandle((payload) =>
-    db.createEmployee(payload)
-  ));
-
-  ipcMain.handle('employees:update', safeHandle((id, payload) =>
-    db.updateEmployee(id, payload)
-  ));
-
-  ipcMain.handle('employees:deactivate', safeHandle((id) =>
-    db.deactivateEmployee(id)
-  ));
 
   // ── LEAVE TYPES ───────────────────────────────────────────
   ipcMain.handle('leaveTypes:getAll', safeHandle(() =>
@@ -183,27 +163,6 @@ function registerIpcHandlers() {
     db.upsertLeaveBalance(payload)
   ));
 
-  // ── LEAVES ────────────────────────────────────────────────
-  ipcMain.handle('leaves:getByEmployee', safeHandle((employeeId) =>
-    db.getLeavesByEmployee(employeeId)
-  ));
-
-  ipcMain.handle('leaves:getAll', safeHandle(() =>
-    db.getAllLeaves()
-  ));
-
-  ipcMain.handle('leaves:create', safeHandle((payload) =>
-    db.createLeave(payload)
-  ));
-
-  ipcMain.handle('leaves:delete', safeHandle((leaveId) =>
-    db.deleteLeave(leaveId)
-  ));
-
-  // ── AUDIT LOG ─────────────────────────────────────────────
-  ipcMain.handle('audit:getAll', safeHandle(() =>
-    db.getAuditLog()
-  ));
 
   // ── LEAVE ENGINE (Phase 3) ─────────────────────────────────
   //  تفويض قنوات محرك الإجازات إلى leaveHandlers
