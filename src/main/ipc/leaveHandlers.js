@@ -20,29 +20,9 @@
 const LeaveService = require('../services/LeaveService');
 const AuditService = require('../services/AuditService');
 const LoggerService = require('../services/LoggerService');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
-
-// ──────────────────────────────────────────────────────────────
-//  Internal: uniform response wrapper
-//  Keeps every handler free of duplicated try/catch boilerplate.
-//
-//  @param {Function} fn  Synchronous function that returns a value
-//                        or throws an Error.
-//  @returns {Function}   Electron ipcMain handler  (_event, ...args) => {}
-// ──────────────────────────────────────────────────────────────
-function safeHandle(fn) {
-  return (_event, ...args) => {
-    try {
-      const data = fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      // Log full stack in app.log; send friendly message to Renderer
-      LoggerService.error('LeaveHandlers', 'IPC Error', err);
-      return { success: false, error: translateSqliteError(err) || err.message };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandle } = createSafeHandler('LeaveHandlers');
 
 // ──────────────────────────────────────────────────────────────
 //  CRIT-2 FIX: Input Validators
@@ -477,7 +457,7 @@ function registerLeaveHandlers(ipcMain, db) {
     })
   );
 
-  console.log('[LeaveHandlers] Registered: leave:getRegularBalance, leave:submitSickLeave, leave:submitRegularLeave, leave:getActiveToday, leave:getActiveTodayPaginated, leave:getHistory, leave:delete, leave:update');
+  LoggerService.info('LeaveHandlers', 'Registered: leave:getRegularBalance, leave:submitSickLeave, leave:submitRegularLeave, leave:getActiveToday, leave:getActiveTodayPaginated, leave:getHistory, leave:delete, leave:update');
 }
 
 module.exports = { registerLeaveHandlers };

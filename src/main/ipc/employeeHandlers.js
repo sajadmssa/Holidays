@@ -25,24 +25,8 @@ const {
 } = require('../services/EmployeeService');
 const { exportAllEmployees } = require('../services/ReportService');
 const LoggerService = require('../services/LoggerService');
-const { translateFileError } = require('../utils/fileErrorTranslator');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
-
-// ──────────────────────────────────────────────────────────────
-//  Internal: uniform response wrapper
-//  Same pattern used in leaveHandlers.js for consistency.
-// ──────────────────────────────────────────────────────────────
-function safeHandle(fn) {
-  return async (_event, ...args) => {
-    try {
-      const data = await fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      LoggerService.error('EmployeeHandlers', 'IPC Error', err);
-      return { success: false, error: translateFileError(err) || translateSqliteError(err) || err.message };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandleAsync: safeHandle } = createSafeHandler('EmployeeHandlers');
 
 // ──────────────────────────────────────────────────────────────
 //  registerEmployeeHandlers(ipcMain, db)
@@ -207,7 +191,7 @@ function registerEmployeeHandlers(ipcMain, db) {
     })
   );
 
-  console.log('[EmployeeHandlers] Registered: employee:add, employee:search, employee:getById, employee:getPaginated, employee:exportAll, employee:update, employee:deactivate, employee:activate, employee:transfer, employee:cancelTransfer');
+  LoggerService.info('EmployeeHandlers', 'Registered: employee:add, employee:search, employee:getById, employee:getPaginated, employee:exportAll, employee:update, employee:deactivate, employee:activate, employee:transfer, employee:cancelTransfer');
 }
 
 module.exports = { registerEmployeeHandlers };

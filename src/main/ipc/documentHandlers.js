@@ -13,25 +13,8 @@ const { BrowserWindow, dialog, shell } = require('electron');
 const { pathToFileURL } = require('url');
 const DocumentService = require('../services/DocumentService');
 const LoggerService = require('../services/LoggerService');
-const { translateFileError } = require('../utils/fileErrorTranslator');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
-
-/**
- * Async uniform response wrapper.
- * @param {Function} fn
- */
-function safeHandleAsync(fn) {
-  return async (_event, ...args) => {
-    try {
-      const data = await fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      LoggerService.error('DocumentHandlers', 'IPC Error', err);
-      const translatedMsg = translateFileError(err) || translateSqliteError(err) || err.message;
-      return { success: false, error: translatedMsg };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandleAsync } = createSafeHandler('DocumentHandlers');
 
 /**
  * Registers document-related IPC channels.

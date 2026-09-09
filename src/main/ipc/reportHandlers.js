@@ -19,24 +19,8 @@ const {
   exportActiveLeavesToExcel,
 } = require('../services/ReportService');
 const LoggerService = require('../services/LoggerService');
-const { translateFileError } = require('../utils/fileErrorTranslator');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
-
-// ──────────────────────────────────────────────────────────────
-//  Internal: uniform response wrapper  (same pattern as all other
-//  handler files — async variant because showSaveDialog is async)
-// ──────────────────────────────────────────────────────────────
-function safeHandleAsync(fn) {
-  return async (_event, ...args) => {
-    try {
-      const data = await fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      LoggerService.error('ReportHandlers', 'IPC Error', err);
-      return { success: false, error: translateFileError(err) || translateSqliteError(err) || err.message };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandleAsync } = createSafeHandler('ReportHandlers');
 
 // ──────────────────────────────────────────────────────────────
 //  registerReportHandlers(ipcMain, db)
@@ -237,7 +221,7 @@ function registerReportHandlers(ipcMain, db) {
     })
   );
 
-  console.log('[ReportHandlers] Registered: report:exportHistory, report:exportActiveLeaves, report:getCriticalReport, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
+  LoggerService.info('ReportHandlers', 'Registered: report:exportHistory, report:exportActiveLeaves, report:getCriticalReport, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
 }
 
 module.exports = { registerReportHandlers };

@@ -78,10 +78,11 @@ cleanDb.pragma('journal_mode = WAL');
 cleanDb.pragma('foreign_keys = ON');
 cleanDb.pragma('synchronous = NORMAL');
 
-runTest('1.1: Run all migrations (001 to 014) on empty DB', () => {
+runTest('1.1: Run all migrations on empty DB', () => {
   runAllMigrations(cleanDb);
   const executed = cleanDb.prepare('SELECT name FROM _Migrations ORDER BY id').all();
-  assert.strictEqual(executed.length, 14, `Expected 14 migrations, found ${executed.length}`);
+  const expectedCount = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).length;
+  assert.strictEqual(executed.length, expectedCount, `Expected ${expectedCount} migrations, found ${executed.length}`);
 });
 
 const EXPECTED_ARABIC_TYPES = [

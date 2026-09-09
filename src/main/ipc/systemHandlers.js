@@ -11,23 +11,8 @@
 const { BrowserWindow, dialog, app } = require('electron');
 const db = require('../database');
 const LoggerService = require('../services/LoggerService');
-const { translateFileError } = require('../utils/fileErrorTranslator');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
-
-// ──────────────────────────────────────────────────────────────
-//  Internal: async uniform response wrapper
-// ──────────────────────────────────────────────────────────────
-function safeHandleAsync(fn) {
-  return async (_event, ...args) => {
-    try {
-      const data = await fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      LoggerService.error('SystemHandlers', 'IPC Error', err);
-      return { success: false, error: translateFileError(err) || translateSqliteError(err) || err.message };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandleAsync } = createSafeHandler('SystemHandlers');
 
 /**
  * Registers system-level IPC handlers.

@@ -10,19 +10,8 @@
 
 const AuditService = require('../services/AuditService');
 const LoggerService = require('../services/LoggerService');
-const { translateSqliteError } = require('../utils/sqliteErrorTranslator');
-
-function safeHandle(fn) {
-  return (_event, ...args) => {
-    try {
-      const data = fn(...args);
-      return { success: true, data };
-    } catch (err) {
-      LoggerService.error('AuditHandlers', 'IPC Error', err);
-      return { success: false, error: translateSqliteError(err) || err.message };
-    }
-  };
-}
+const { createSafeHandler } = require('../utils/ipcHandlerHelper');
+const { safeHandle } = createSafeHandler('AuditHandlers');
 
 /**
  * Registers audit-related IPC handlers.
@@ -38,7 +27,7 @@ function registerAuditHandlers(ipcMain, db) {
     })
   );
 
-  console.log('[AuditHandlers] Registered: audit:getLogs');
+  LoggerService.info('AuditHandlers', 'Registered: audit:getLogs');
 }
 
 module.exports = { registerAuditHandlers };

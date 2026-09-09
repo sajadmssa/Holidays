@@ -20,6 +20,7 @@ const { registerAuditHandlers }    = require('./ipc/auditHandlers');
 const { registerDocumentHandlers } = require('./ipc/documentHandlers');
 const notificationService          = require('./services/NotificationService');
 const autoBackupService            = require('./services/AutoBackupService');
+const { safeHandle }               = require('./utils/ipcHandlerHelper');
 
 // ──────────────────────────────────────────────────────────────
 //  Window Factory
@@ -135,22 +136,6 @@ app.on('window-all-closed', () => {
 // ──────────────────────────────────────────────────────────────
 function registerIpcHandlers() {
 
-  // ── HELPER ────────────────────────────────────────────────
-  /**
-   * Wraps a sync DB call in a try/catch and returns a uniform response object.
-   * @param {Function} fn - A function that performs DB work and returns a value.
-   */
-  function safeHandle(fn) {
-    return (_event, ...args) => {
-      try {
-        const data = fn(...args);
-        return { success: true, data };
-      } catch (err) {
-        LoggerService.error('IPC', 'IPC handler error', err);
-        return { success: false, error: err.message };
-      }
-    };
-  }
 
   // ── EMPLOYEES ─────────────────────────────────────────────
   ipcMain.handle('employees:getAll', safeHandle(() =>
