@@ -91,6 +91,10 @@ function handleManageEmployeeNavigation(employeeId) {
 //  App Initialization
 //  تهيئة التطبيق وربط الموديولات عند اكتمال تحميل الصفحة
 // ──────────────────────────────────────────────────────────────
+/**
+ * تهيئة التطبيق المركزية: ربط وحدات الواجهة وتفعيل مستمعات أحداث التبويبات والمظهر
+ * Central entry point: initializes all UI modules, event listeners, and navigation tabs.
+ */
 function initApp() {
   // 0. تهيئة مدير المظهر (Dark / Light Theme)
   initThemeManager();
