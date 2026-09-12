@@ -25,7 +25,6 @@ const { registerAuditHandlers }    = require('./ipc/auditHandlers');
 const { registerDocumentHandlers } = require('./ipc/documentHandlers');
 const notificationService          = require('./services/NotificationService');
 const autoBackupService            = require('./services/AutoBackupService');
-const { safeHandle }               = require('./utils/ipcHandlerHelper');
 const LoggerService                = require('./services/LoggerService');
 
 // ──────────────────────────────────────────────────────────────
@@ -154,24 +153,8 @@ if (!gotTheLock) {
  */
 function registerIpcHandlers() {
 
-
-  // ── LEAVE TYPES ───────────────────────────────────────────
-  ipcMain.handle('leaveTypes:getAll', safeHandle(() =>
-    db.getAllLeaveTypes()
-  ));
-
-  // ── LEAVE BALANCES ─────────────────────────────────────────
-  ipcMain.handle('leaveBalances:getByEmployee', safeHandle((employeeId) =>
-    db.getLeaveBalancesByEmployee(employeeId)
-  ));
-
-  ipcMain.handle('leaveBalances:upsert', safeHandle((payload) =>
-    db.upsertLeaveBalance(payload)
-  ));
-
-
-  // ── LEAVE ENGINE (Phase 3) ─────────────────────────────────
-  //  تفويض قنوات محرك الإجازات إلى leaveHandlers
+  // ── LEAVE ENGINE & BALANCES ────────────────────────────────
+  //  تفويض قنوات الإجازات وأنواعها وأرصدتها إلى leaveHandlers
   registerLeaveHandlers(ipcMain, db.getDb());
 
   // ── EMPLOYEE ONBOARDING (Phase 6) ──────────────────────────

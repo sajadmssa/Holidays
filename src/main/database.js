@@ -187,22 +187,6 @@ function getAllLeaveTypes() {
 //  Leave Balances / أرصدة الإجازات
 // ──────────────────────────────────────────────────────────────
 
-/**
- * استرجاع كافة أرصدة الإجازات لموظف محدد مع الربط بنوع الإجازة وقيود الجنس.
- * @param {number} employeeId
- * @returns {LeaveBalance[]}
- */
-function getLeaveBalancesByEmployee(employeeId) {
-  return getDb()
-    .prepare(`
-      SELECT lb.*, lt.Name AS LeaveTypeName, lt.GenderRestriction
-      FROM   LeaveBalances lb
-      JOIN   LeaveTypes    lt ON lt.LeaveTypeID = lb.LeaveTypeID
-      WHERE  lb.EmployeeID = ?
-      ORDER  BY lt.Name ASC
-    `)
-    .all(employeeId);
-}
 
 /**
  * إضافة رصيد إجازة أو تحديثه في حال وجوده مسبقاً (Upsert عبر ON CONFLICT).
@@ -733,7 +717,6 @@ module.exports = {
   // Leave Types
   getAllLeaveTypes,
   // Leave Balances
-  getLeaveBalancesByEmployee,
   upsertLeaveBalance,
   // System / Backup / Restore
   backupDatabase,

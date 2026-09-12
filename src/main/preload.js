@@ -20,7 +20,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 // ──────────────────────────────────────────────────────────────
 const VALID_CHANNELS = new Set([
   'leaveTypes:getAll',
-  'leaveBalances:getByEmployee',
   'leaveBalances:upsert',
   // ── Leave Engine (Phase 3 & Phase 9) ──────────────────────
   'leave:getRegularBalance',
@@ -101,8 +100,6 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── Leave Balances ─────────────────────────────────────────
   leaveBalances: {
-    /** @returns {Promise<{success:boolean, data: LeaveBalance[]}>} */
-    getByEmployee: (employeeId) => invoke('leaveBalances:getByEmployee', employeeId),
     /** @returns {Promise<{success:boolean, data: {changes: number}}>} */
     upsert: (payload) => invoke('leaveBalances:upsert', payload),
   },

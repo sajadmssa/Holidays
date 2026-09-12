@@ -9,6 +9,8 @@
 //    • التحقق الصارم من التواريخ التقويمية وأطوال النصوص لمنع استنزاف الذاكرة.
 //
 //  Channels exposed / القنوات المسجلة:
+//    leaveTypes:getAll              – استرجاع كافة أنواع الإجازات
+//    leaveBalances:upsert           – إضافة أو تحديث رصيد إجازة
 //    leave:getRegularBalance        – احتساب رصيد الإجازة الاعتيادية
 //    leave:submitSickLeave          – معالجة الإجازة المرضية وتوزيعها على الوعاءين
 //    leave:submitRegularLeave       – تسجيل الإجازة الاعتيادية والخصم داخل معاملة ذرية
@@ -65,6 +67,33 @@ const MAX_TEXT_LENGTH = 500;
 //  @param {import('better-sqlite3').Database} db  – Initialised DB
 // ──────────────────────────────────────────────────────────────
 function registerLeaveHandlers(ipcMain, db) {
+
+  // ── leaveTypes:getAll ─────────────────────────────────────────
+  //  استرجاع قائمة كافة أنواع الإجازات الرسمية المعرفة في النظام
+  ipcMain.handle(
+    'leaveTypes:getAll',
+    safeHandle(() => {
+      return db.prepare('SELECT * FROM LeaveTypes ORDER BY Name ASC').all();
+    })
+  );
+
+  // ── leaveBalances:upsert ──────────────────────────────────────
+  //  إضافة أو تحديث رصيد إجازة محدد لموظف
+  ipcMain.handle(
+    'leaveBalances:upsert',
+    safeHandle((payload) => {
+      const { employeeId, leaveTypeId, totalBalance, payPercentage } = payload || {};
+      const result = db.prepare(`
+        INSERT INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(EmployeeID, LeaveTypeID, PayPercentage) DO UPDATE SET
+          TotalBalance  = excluded.TotalBalance,
+          PayPercentage = excluded.PayPercentage
+      `).run(employeeId, leaveTypeId, totalBalance, payPercentage);
+
+      return { changes: result.changes };
+    })
+  );
 
   // ── leave:getRegularBalance ──────────────────────────────────
   //
@@ -387,7 +416,7 @@ function registerLeaveHandlers(ipcMain, db) {
     })
   );
 
-  LoggerService.info('LeaveHandlers', 'Registered: leave:getRegularBalance, leave:submitSickLeave, leave:submitRegularLeave, leave:getActiveToday, leave:getActiveTodayPaginated, leave:getHistory, leave:delete, leave:update');
+  LoggerService.info('LeaveHandlers', 'Registered: leaveTypes:getAll, leaveBalances:upsert, leave:getRegularBalance, leave:submitSickLeave, leave:submitRegularLeave, leave:getActiveToday, leave:getActiveTodayPaginated, leave:getHistory, leave:delete, leave:update');
 }
 
 module.exports = { registerLeaveHandlers };
