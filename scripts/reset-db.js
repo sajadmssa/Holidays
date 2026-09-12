@@ -1,16 +1,18 @@
 // ============================================================
 //  scripts/reset-db.js  –  Development Database Reset Utility
+//  أداة إعادة ضبط وتصفير قاعدة بيانات التطوير
 //
-//  PURPOSE:
+//  PURPOSE / الغرض:
 //    Deletes the live SQLite database and its WAL / SHM companion
 //    files so that the next `npm run dev` starts with a perfectly
 //    clean schema and the corrected Arabic seed data.
+//    (حذف ملف قاعدة بيانات SQLite وملفات WAL/SHM المرافقة للبدء بقاعدة بيانات نظيفة ومحدثة).
 //
-//  USAGE:
+//  USAGE / طريقة الاستخدام:
 //    npm run db:reset          → delete only
 //    npm run dev:clean         → delete, then launch Electron
 //
-//  SAFETY RULES:
+//  SAFETY RULES / قواعد الأمان:
 //    • Runs ONLY outside the Electron process (plain Node.js).
 //    • Never touches anything outside the resolved userData directory.
 //    • Each file deletion is attempted independently; a missing file
@@ -42,6 +44,7 @@ const DB_FILE  = 'leave_management.db';     // database.js  → DB_PATH
 //  Resolve the OS-specific userData directory
 //  This replicates Electron's app.getPath('userData') exactly,
 //  allowing the script to run without Electron being present.
+//  استكشاف وتحديد مجلد بيانات المستخدم (userData) بحسب نظام التشغيل
 // ──────────────────────────────────────────────────────────────
 function resolveUserDataDir() {
   switch (process.platform) {
@@ -80,6 +83,7 @@ const log = {
 //  • Missing file  → logs SKIP  (idempotent; not an error)
 //  • Deleted OK    → logs OK
 //  • OS error      → logs FAIL, re-throws so the caller can exit(1)
+//  حذف ملف فردي بأمان مع تسجيل النتيجة ومعالجة حالات القفل
 // ──────────────────────────────────────────────────────────────
 function deleteFile(filePath) {
   try {
@@ -103,6 +107,7 @@ function deleteFile(filePath) {
 
 // ──────────────────────────────────────────────────────────────
 //  main()
+//  الدالة الرئيسية لحذف ملفات قاعدة البيانات الثلاثة (db و wal و shm)
 // ──────────────────────────────────────────────────────────────
 function main() {
   log.banner('Leave Management System — DB Reset Utility');
