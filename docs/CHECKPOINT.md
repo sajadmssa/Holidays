@@ -387,4 +387,4 @@
 
 ---
 
-*آخر تحديث: 13 أيلول 2026 (إنجاز الجلسة #9: إصلاح `win.arch` في `package.json` لتوافق `electron-builder` 24.x، وإنتاج أول نسخة إنتاجية `Holidays Setup 1.0.0.exe` — 140.57 MB — تدعم x64 و ia32 — Commit `4d63b6e`). مراجع تكميلية: `IMPLEMENTATION-PLAN.md`، `DECISIONS.md`.*
+*آخر تحديث: 13 أيلول 2026 (إنجاز الجلسة #9: إصلاح `win.arch` في `package.json` لتوافق `electron-builder` 24.x، وإنتاج أول نسخة إنتاجية `Holidays Setup 1.0.0.exe` — 140.57 MB — تدعم x64 و ia32 — Commit `4d63b6e`). مراجع تكميلية: `IMPLEMENTATION-PLAN.md`، `DECISIONS.md`.*
