@@ -75,6 +75,7 @@ const VALID_CHANNELS = new Set([
 ]);
 
 /**
+ * استدعاء آمن لقنوات IPC بعد التحقق من وجود القناة في القائمة البيضاء
  * A generic, safe IPC invoker that validates the channel name.
  * @param {string} channel
  * @param {...any} args
@@ -449,9 +450,10 @@ contextBridge.exposeInMainWorld('api', {
     purgeDeleted: () => invoke('document:purgeDeleted'),
   },
 
-  // ── Automated Notifications ──────────────────────────────
+  // ── Automated Notifications / الإشعارات والتنبيهات التلقائية ──
   notifications: {
     /**
+     * الاشتراك في استقبال تنبيهات اقتراب المباشرة الصادرة من العملية الرئيسية
      * Subscribes to 11:00 AM resumption alert events pushed from Main Process.
      * @param {Function} callback - ({ date: string, count: number, employees: Array }) => void
      */
@@ -459,6 +461,7 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('notification:resumption-alert', (_event, data) => callback(data));
     },
     /**
+     * الاشتراك في حدث فتح لوحة التحكم عند النقر على إشعار النظام
      * Subscribes to open-dashboard event (e.g. from clicking native notification).
      * @param {Function} callback - () => void
      */
