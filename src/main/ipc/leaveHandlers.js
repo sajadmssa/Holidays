@@ -12,7 +12,7 @@
 //    leaveTypes:getAll              – استرجاع كافة أنواع الإجازات
 //    leaveBalances:upsert           – إضافة أو تحديث رصيد إجازة
 //    leave:getRegularBalance        – احتساب رصيد الإجازة الاعتيادية
-//    leave:submitSickLeave          – معالجة الإجازة المرضية وتوزيعها على الوعاءين
+//    leave:submitSickLeave          – معالجة الإجازة المرضية وتوزيعها على الأوعية الثلاثة
 //    leave:submitRegularLeave       – تسجيل الإجازة الاعتيادية والخصم داخل معاملة ذرية
 //    leave:getActiveToday           – جلب الإجازات السارية اليوم
 //    leave:getActiveTodayPaginated  – جلب الإجازات السارية اليوم مقسمة لصفحات
@@ -110,13 +110,13 @@ function registerLeaveHandlers(ipcMain, db) {
 
   // ── leave:submitSickLeave ────────────────────────────────────
   //
-  //  تسجيل إجازة مرضية مع توزيع الأيام تلقائياً على وعاء 100% ثم 50%:
+  //  تسجيل إجازة مرضية مع توزيع الأيام تلقائياً على الأوعية الثلاثة (100%، 50%، 25%):
   //  تتحقق من صحة التواريخ والأيام وأرقام المذكرات والأوامر قبل التمرير إلى محرك الخدمة.
   //
   //  Renderer payload:
   //    { employeeId, requestedDays, startDate, endDate, leaveApprover, requestDate, memoNumber, memoDate, orderNumber, orderDate }
   //  Response data:
-  //    { leaveId, daysAt100, daysAt50, newBalance100, newBalance50 }
+  //    { leaveId, daysAt100, daysAt50, daysAt25, newBalance100, newBalance50, newBalance25 }
   // ────────────────────────────────────────────────────────────
   ipcMain.handle(
     'leave:submitSickLeave',

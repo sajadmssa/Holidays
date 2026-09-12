@@ -6,8 +6,8 @@
 //    • calculateRegularLeaveBalance: خوارزمية احتساب رصيد الإجازة الاعتيادية بدقة
 //      وفق أيام الخدمة الفعلية الصافية (يوم مستحق لكل 10 أيام خدمة فعلية مطروحاً
 //      منها الإجازات بدون راتب مع إضافة أيام التسوية وسقف تراكمي أقصاه 180 يوماً).
-//    • processSickLeave: معالجة الإجازة المرضية وتوزيعها على وعاءين ماليين
-//      (28 يوماً براتب كامل 100% ثم 45 يوماً بنصف راتب 50%) داخل معاملة ذرية.
+//    • processSickLeave: معالجة الإجازة المرضية وتوزيعها على ثلاثة أوعية مالية
+//      (30 يوماً براتب كامل 100% ثم 45 يوماً بنصف راتب 50% ثم 45 يوماً بربع راتب 25%) داخل معاملة ذرية.
 //    • checkLeaveOverlap: منع التداخل والازدواجية في فترات الإجازات لنفس الموظف.
 //    • getActiveLeavesForToday / getActiveLeavesTodayPaginated: استعلام الإجازات
 //      السارية حالياً مع حساب تاريخ الاستئناف والأيام المتبقية وتقسيم الصفحات.
@@ -369,15 +369,16 @@ function calculateRegularLeaveBalance(employeeId, db) {
 // ──────────────────────────────────────────────────────────────
 //  processSickLeave
 //
-//  معالجة الإجازة المرضية وتوزيعها على الوعاءين الماليين (100% و 50%):
-//  - الوعاء الأول: أول 28 يوماً تُدفع براتب كامل (100%).
+//  معالجة الإجازة المرضية وتوزيعها على الأوعية المالية الثلاثة (100% و 50% و 25%):
+//  - الوعاء الأول: أول 30 يوماً تُدفع براتب كامل (100%).
 //  - الوعاء الثاني: الـ 45 يوماً التالية تُدفع بنصف راتب (50%).
+//  - الوعاء الثالث: الـ 45 يوماً التالية تُدفع بربع راتب (25%).
 //  - يتم فحص التداخل بدقة وتوزيع الأيام بالترتيب الهرمي.
 //  - العملية تُنفذ بالكامل داخل معاملة ذرية (db.transaction) لضمان الخصم
 //    من الأرصدة وإدراج الإجازة وتوثيق التدقيق كوحدة واحدة لا تتجزأ.
 //
-//  Validates and applies a sick-leave request against the two-tier
-//  (100% / 50%) pay-bucket system inside a single atomic transaction.
+//  Validates and applies a sick-leave request against the three-tier
+//  (100% / 50% / 25%) pay-bucket system inside a single atomic transaction.
 //
 //  @param {number} employeeId
 //  @param {number} requestedDays
@@ -386,7 +387,7 @@ function calculateRegularLeaveBalance(employeeId, db) {
 //  @param {import('better-sqlite3').Database} db
 //  @param {string|null} leaveApprover
 //  @param {object} meta
-//  @returns {{ leaveId: number, daysAt100: number, daysAt50: number, newBalance100: number, newBalance50: number, quotaExceeded: boolean }}
+//  @returns {{ leaveId: number, daysAt100: number, daysAt50: number, daysAt25: number, newBalance100: number, newBalance50: number, newBalance25: number, quotaExceeded: boolean }}
 // ──────────────────────────────────────────────────────────────
 function processSickLeave(
   employeeId,
