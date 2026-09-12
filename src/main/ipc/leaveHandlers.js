@@ -29,6 +29,7 @@
 const LeaveService = require('../services/LeaveService');
 const LoggerService = require('../services/LoggerService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
+const { isValidIsoDate } = require('../utils/dateValidator');
 const { createSafeHandler } = require('../utils/ipcHandlerHelper');
 const { safeHandle } = createSafeHandler('LeaveHandlers');
 
@@ -38,19 +39,12 @@ const { safeHandle } = createSafeHandler('LeaveHandlers');
 
 /**
  * التحقق الصارم من صحة التاريخ بصيغة YYYY-MM-DD:
- * يتحقق من البنية الشكلية وصحة التاريخ تقويمياً (يرفض مثلاً 30 فبراير).
- *
- * Returns true only if `dateString` is both structurally valid
- * (YYYY-MM-DD regex) AND calendrically real (e.g. rejects '2024-02-30').
- * Uses UTC parsing to avoid locale-timezone day-shift false positives.
+ * يعتمد دالة isValidIsoDate المشتركة للتحقق التقويمي الواقعي ومنع الترحيل التلقائي (يرفض مثلاً 30 فبراير).
  *
  * @param {string} dateString
  * @returns {boolean}
  */
-const isValidDate = (dateString) =>
-  typeof dateString === 'string' &&
-  /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(dateString) &&
-  !isNaN(new Date(dateString).getTime());
+const isValidDate = isValidIsoDate;
 
 /** Maximum character length for free-text fields (notes, descriptions). / الحد الأقصى للنصوص الحرة */
 const MAX_TEXT_LENGTH = 500;

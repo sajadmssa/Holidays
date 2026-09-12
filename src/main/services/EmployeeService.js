@@ -26,6 +26,7 @@
 
 const AuditService = require('./AuditService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
+const { isValidIsoDate } = require('../utils/dateValidator');
 
 // ──────────────────────────────────────────────────────────────
 //  Field constraints  (kept here so they stay in sync with the
@@ -39,28 +40,6 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 200;
 const MAX_CARD_LENGTH = 100;
 const MAX_APPROVER_LENGTH = 200;
-
-/**
- * فحص صارم لصحة تاريخ ISO-8601:
- * يتحقق من البنية الشكلية (YYYY-MM-DD) والصحة التقويمية الفعلية
- * (مثال: يرفض تواريخ غير حقيقية مثل 30 فبراير '2024-02-30').
- *
- * Strict ISO-8601 date: structure + calendrical reality check (rejects '2024-02-30').
- * @param {string} s
- * @returns {boolean}
- */
-function isValidIsoDate(s) {
-  if (typeof s !== 'string' || !/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(s)) {
-    return false;
-  }
-  const [y, m, d] = s.split('-').map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return (
-    date.getUTCFullYear() === y &&
-    date.getUTCMonth() === m - 1 &&
-    date.getUTCDate() === d
-  );
-}
 
 // ══════════════════════════════════════════════════════════════
 //  addEmployee

@@ -515,7 +515,80 @@ const directFallback = LeaveService._restoreSickLeaveBalance(
 );
 assert(directFallback.matched === false && directFallback.fallback === true, '_restoreSickLeaveBalance returns fallback=true on invalid notes');
 
-console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 19 TEST SUITES!`);
+// ── 20. التحقق الصارم من التواريخ التقويمية ومنع الترحيل التلقائي (MNT-005) ──
+console.log('\nTest 20: Calendar date validation and auto-rollover prevention (MNT-005)');
+const { isValidIsoDate } = require('../src/main/utils/dateValidator');
+const { registerLeaveHandlers } = require('../src/main/ipc/leaveHandlers');
+
+// فحص دالة التحقق المشتركة مباشرة:
+// 1. التواريخ الكبيسة الصحيحة
+assert(isValidIsoDate('2024-02-29') === true, 'Leap year Feb 29 (2024-02-29) is valid');
+assert(isValidIsoDate('2000-02-29') === true, 'Leap century Feb 29 (2000-02-29) is valid');
+
+// 2. التواريخ الوهمية في فبراير
+assert(isValidIsoDate('2024-02-30') === false, 'Feb 30 in leap year (2024-02-30) is rejected');
+assert(isValidIsoDate('2023-02-29') === false, 'Feb 29 in non-leap year (2023-02-29) is rejected');
+assert(isValidIsoDate('1900-02-29') === false, 'Feb 29 in non-leap century (1900-02-29) is rejected');
+
+// 3. التواريخ الوهمية في الأشهر ذات الـ 30 يوماً
+assert(isValidIsoDate('2024-04-31') === false, 'April 31 (2024-04-31) is rejected');
+assert(isValidIsoDate('2024-06-31') === false, 'June 31 (2024-06-31) is rejected');
+assert(isValidIsoDate('2024-09-31') === false, 'September 31 (2024-09-31) is rejected');
+assert(isValidIsoDate('2024-11-31') === false, 'November 31 (2024-11-31) is rejected');
+
+// 4. التواريخ الصحيحة في نهايات الأشهر
+assert(isValidIsoDate('2024-01-31') === true, 'January 31 is valid');
+assert(isValidIsoDate('2024-04-30') === true, 'April 30 is valid');
+assert(isValidIsoDate('2024-12-31') === true, 'December 31 is valid');
+
+// 5. المدخلات غير الصالحة شكلياً
+assert(isValidIsoDate(null) === false, 'null is rejected');
+assert(isValidIsoDate('') === false, 'empty string is rejected');
+assert(isValidIsoDate('2024-2-2') === false, 'unpadded date string is rejected');
+assert(isValidIsoDate('2024/02/29') === false, 'slash-separated date is rejected');
+
+// 6. التحقق من تكامل معالجات IPC مع الرفض الصارم للتواريخ الوهمية
+const mockIpc = {
+  handlers: {},
+  handle(channel, fn) {
+    this.handlers[channel] = fn;
+  }
+};
+registerLeaveHandlers(mockIpc, db);
+
+// أ: محاولة تقديم إجازة مرضية بتاريخ وهمي 2024-02-30
+const sickFakeDateRes = mockIpc.handlers['leave:submitSickLeave']({}, {
+  employeeId: 1,
+  requestedDays: 1,
+  startDate: '2024-02-30',
+  endDate: '2024-02-30'
+});
+assert(sickFakeDateRes.success === false, 'Sick leave with fake date 2024-02-30 is rejected by IPC handler');
+assert(sickFakeDateRes.error.includes('Expected a real calendar date'), 'Sick leave rejection error clearly states invalid calendar date');
+
+// ب: محاولة تقديم إجازة اعتيادية بتاريخ وهمي 2024-04-31
+const regFakeDateRes = mockIpc.handlers['leave:submitRegularLeave']({}, {
+  employeeId: 1,
+  requestedDays: 1,
+  startDate: '2024-04-31',
+  endDate: '2024-04-31'
+});
+assert(regFakeDateRes.success === false, 'Regular leave with fake date 2024-04-31 is rejected by IPC handler');
+assert(regFakeDateRes.error.includes('يرجى إدخال تاريخ بداية الإجازة بصيغة صحيحة'), 'Regular leave rejection error clearly states invalid calendar date');
+
+// ج: محاولة تحديث إجازة بتاريخ وهمي 2023-02-29
+const updateFakeDateRes = mockIpc.handlers['leave:update']({}, {
+  leaveId: 1,
+  modifierName: 'مسؤول التعديل',
+  startDate: '2023-02-29',
+  endDate: '2023-02-29',
+  requestedDays: 1,
+  leaveType: 'إجازة اعتيادية'
+});
+assert(updateFakeDateRes.success === false, 'Update leave with fake date 2023-02-29 is rejected by IPC handler');
+assert(updateFakeDateRes.error.includes('يرجى إدخال تاريخ بداية الإجازة بصيغة صحيحة'), 'Update leave rejection error clearly states invalid calendar date');
+
+console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 20 TEST SUITES!`);
 
 
 
