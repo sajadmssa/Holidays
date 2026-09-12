@@ -13,7 +13,7 @@
 
 'use strict';
 
-import { showToast, showConfirm, applyWeekendWarning, showExportSuccessToast } from './uiHelpers.js';
+import { showToast, showConfirm, applyWeekendWarning, showExportSuccessToast, addDaysToDate, recomputeDays } from './uiHelpers.js';
 import { clearEmployeePicker } from './employeePicker.js';
 
 // عناصر النموذج الأساسي
@@ -181,29 +181,12 @@ export async function loadEmployeeSummary(id) {
 
 // ── Date & Days Reactive Helpers (Last-Modified-Wins) ───────
 
-/**
- * حساب تاريخ النهاية تلقائياً بإضافة عدد من الأيام إلى تاريخ بداية محدد
- * مع مراعاة التوقيت القياسي UTC لتفادي فروق التوقيت الشتوي/الصيفي
- * @param {string} dateStr - تاريخ البداية بتنسيق YYYY-MM-DD
- * @param {number} daysCount - عدد أيام الإجازة
- * @returns {string|null} تاريخ النهاية المحسوب بتنسيق YYYY-MM-DD
- */
-export function addDaysToDate(dateStr, daysCount) {
-  if (!dateStr || !daysCount || daysCount <= 0) return null;
-  const parts = dateStr.split('-').map(Number);
-  if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return null;
-  const [y, m, d] = parts;
-  const date = new Date(Date.UTC(y, m - 1, d));
-  date.setUTCDate(date.getUTCDate() + (daysCount - 1));
-  const resY = date.getUTCFullYear();
-  const resM = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const resD = String(date.getUTCDate()).padStart(2, '0');
-  return `${resY}-${resM}-${resD}`;
-}
+// إعادة تصدير الدالة للتوافقية
+export { addDaysToDate };
 
 /**
  * إعادة احتساب عدد الأيام المطلوبة تلقائياً عند قيام المستخدم باختيار تاريخي البداية والنهاية
- * تعتمد صيغة الفرق بين التاريخين + 1 يوم (شاملاً يومي البداية والنهاية)
+ * تعتمد صيغة الفرق بين التاريخين + 1 يوم (شاملاً يومي البداية والنهاية) عبر دالة recomputeDays الموحدة
  */
 export function recomputeRequestedDays() {
   if (!startDateEl || !endDateEl || !requestedDaysEl) return;
@@ -212,20 +195,11 @@ export function recomputeRequestedDays() {
 
   if (!start || !end) return;
 
-  const parts1 = start.split('-').map(Number);
-  const parts2 = end.split('-').map(Number);
-  if (parts1.length !== 3 || parts2.length !== 3) return;
-
-  const date1 = new Date(Date.UTC(parts1[0], parts1[1] - 1, parts1[2]));
-  const date2 = new Date(Date.UTC(parts2[0], parts2[1] - 1, parts2[2]));
-
-  if (isNaN(date1.getTime()) || isNaN(date2.getTime()) || date2 < date1) {
+  const suggested = recomputeDays(start, end);
+  if (suggested == null) {
     requestedDaysEl.value = '';
     return;
   }
-
-  const MS_PER_DAY = 86_400_000;
-  const suggested = Math.round((date2.getTime() - date1.getTime()) / MS_PER_DAY) + 1;
 
   isAutoUpdating = true;
   requestedDaysEl.value = suggested;

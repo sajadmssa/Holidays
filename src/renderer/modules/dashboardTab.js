@@ -6,7 +6,7 @@
 
 'use strict';
 
-import { showToast, showConfirm, showExportSuccessToast } from './uiHelpers.js';
+import { showToast, showConfirm, showExportSuccessToast, addDaysToDate, recomputeDays } from './uiHelpers.js';
 import { createPaginationController } from './paginationComponent.js';
 
 // عناصر واجهة المستخدم للوحة المؤشرات
@@ -58,45 +58,6 @@ let btnSaveEditLeave = null;
 // مؤشرات التحديث التلقائي للتواريخ وذاكرة التخزين المؤقت لأنواع الإجازات
 let isAutoUpdatingDates = false;
 let _cachedLeaveTypes = [];
-
-// ── Date & Days Reactive Calculation Helpers ───────────────
-
-/**
- * إضافة عدد محدد من الأيام إلى تاريخ بداية معين بالاعتماد على التوقيت العالمي UTC
- * @param {string} dateStr - تاريخ البداية بتنسيق YYYY-MM-DD
- * @param {number} daysCount - عدد الأيام
- * @returns {string|null} تاريخ النهاية المحسوب بتنسيق YYYY-MM-DD
- */
-function addDaysToDate(dateStr, daysCount) {
-  if (!dateStr || !daysCount || daysCount <= 0) return null;
-  const parts = dateStr.split('-').map(Number);
-  if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return null;
-  const [y, m, d] = parts;
-  const date = new Date(Date.UTC(y, m - 1, d));
-  date.setUTCDate(date.getUTCDate() + (daysCount - 1));
-  const resY = date.getUTCFullYear();
-  const resM = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const resD = String(date.getUTCDate()).padStart(2, '0');
-  return `${resY}-${resM}-${resD}`;
-}
-
-/**
- * احتساب عدد الأيام بين تاريخين بالاعتماد على UTC شاملاً يومي البداية والنهاية
- * @param {string} startStr - تاريخ البداية بتنسيق YYYY-MM-DD
- * @param {string} endStr - تاريخ النهاية بتنسيق YYYY-MM-DD
- * @returns {number|null} عدد الأيام المحسوب
- */
-function recomputeDays(startStr, endStr) {
-  if (!startStr || !endStr) return null;
-  const parts1 = startStr.split('-').map(Number);
-  const parts2 = endStr.split('-').map(Number);
-  if (parts1.length !== 3 || parts2.length !== 3) return null;
-  const d1 = new Date(Date.UTC(parts1[0], parts1[1] - 1, parts1[2]));
-  const d2 = new Date(Date.UTC(parts2[0], parts2[1] - 1, parts2[2]));
-  if (isNaN(d1.getTime()) || isNaN(d2.getTime()) || d2 < d1) return null;
-  const MS_PER_DAY = 86_400_000;
-  return Math.round((d2.getTime() - d1.getTime()) / MS_PER_DAY) + 1;
-}
 
 /**
  * تحديث شريط حالة لوحة المؤشرات (جارٍ التحميل / خطأ / إخفاء)
