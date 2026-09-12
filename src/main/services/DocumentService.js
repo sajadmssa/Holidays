@@ -286,6 +286,7 @@ function softDeleteDocument(documentId, db) {
 }
 
 /**
+ * استرجاع بيانات مستند محدد بواسطة رقمه التعريفي مع مساره المطلق على القرص
  * Retrieves a single document by ID including resolved file path.
  *
  * @param {number} documentId
@@ -328,6 +329,7 @@ function getDocumentById(documentId, db) {
 }
 
 /**
+ * استعلام مسار المجلد الجذري الحالي لتخزين مستندات الموظفين
  * Gets the current document storage root directory.
  * @param {import('better-sqlite3').Database} db
  * @returns {string}
@@ -337,6 +339,7 @@ function getStoragePath(db) {
 }
 
 /**
+ * تحديث مسار مجلد تخزين المستندات في إعدادات النظام وتوثيق التغيير
  * Updates the document storage path setting in _AppSettings and logs the change.
  *
  * @param {string} newPath
@@ -378,6 +381,7 @@ function setStoragePath(newPath, db) {
 }
 
 /**
+ * اختبار صلاحيات القراءة والكتابة للمسار المستهدف للتأكد من ملاءمته للتخزين
  * Tests if target storage path is writable.
  * @param {string} targetPath
  * @returns {{ success: boolean, message?: string }}
@@ -387,6 +391,7 @@ function testStoragePath(targetPath) {
 }
 
 /**
+ * تنسيق حجم الملف من البايت إلى وحدات مقروءة للبشر (B, KB, MB, GB)
  * Formats bytes to human-readable string.
  * @param {number} bytes
  * @returns {string}
@@ -400,6 +405,7 @@ function formatFileSize(bytes) {
 }
 
 /**
+ * احتساب إجمالي عدد وحجم المستندات المحذوفة مؤقتاً (IsDeleted = 1)
  * Calculates count and total file size of soft-deleted documents (IsDeleted = 1).
  * @param {import('better-sqlite3').Database} db
  * @returns {{ count: number, totalBytes: number, formattedSize: string }}

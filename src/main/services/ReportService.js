@@ -45,16 +45,25 @@ const STYLE = {
   },
 };
 
+/**
+ * إنشاء إعدادات حد رفيع لخلايا الجدول
+ */
 function borderThin() {
   const side = { style: 'thin', color: { argb: 'FFC9D6E3' } };
   return { top: side, left: side, bottom: side, right: side };
 }
 
+/**
+ * إنشاء إعدادات إطار سميك للصناديق والترويسات
+ */
 function borderBox() {
   const side = { style: 'medium', color: { argb: 'FF1A3C5E' } };
   return { top: side, left: side, bottom: side, right: side };
 }
 
+/**
+ * تطبيق نمط التنسيق (الخط، التعبئة، المحاذاة، والحدود) على كامل خلايا الصف
+ */
 function applyRowStyle(row, style, colCount) {
   for (let c = 1; c <= colCount; c++) {
     const cell = row.getCell(c);
@@ -66,6 +75,7 @@ function applyRowStyle(row, style, colCount) {
 }
 
 /**
+ * استرجاع الاسم الرسمي للدائرة أو الجهة من إعدادات النظام
  * Retrieves the department/division official name from _AppSettings.
  * @param {import('better-sqlite3').Database} db
  * @returns {string|null}
@@ -81,6 +91,7 @@ function getDepartmentName(db) {
 }
 
 /**
+ * توليد رقم إشارة مرجعي فريد وتلقائي للكشف بصيغة REF-YYYYMMDD-XXXX
  * Generates an automatic reference number for the report.
  * @returns {string}
  */
@@ -94,6 +105,7 @@ function generateReferenceNumber() {
 }
 
 /**
+ * تنسيق التاريخ والوقت الحالي بالصيغة العربية العراقية لطباعته في ترويسة الكشف
  * Formats current date and time in Arabic format.
  * @returns {string}
  */
@@ -259,7 +271,7 @@ function applyOfficialFooterApprovals(ws, colCount) {
     },
   ];
 
-  // Helper to merge and style box cells
+  // Helper to merge and style box cells / دالة مساعدة لدمج وتنسيق خلايا صناديق التوقيع
   function setBoxRow(rowNum, field, isHeader = false) {
     ws.getRow(rowNum).height = isHeader ? 22 : 18;
     for (const b of boxes) {

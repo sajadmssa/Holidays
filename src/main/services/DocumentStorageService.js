@@ -38,6 +38,7 @@ const FOLDER_NAMES = {
 };
 
 /**
+ * استخراج المسار الافتراضي لمجلد تخزين مستندات الموظفين ضمن مجلد بيانات التطبيق
  * Gets the default storage root folder under userData/APPDATA.
  * @returns {string} Default absolute directory path
  */
@@ -59,6 +60,7 @@ function getDefaultStorageRoot() {
 }
 
 /**
+ * تحديد مسار المجلد الجذري النشط للتخزين من إعدادات النظام أو المسار الافتراضي مع التأكد من وجوده
  * Resolves the active Storage Root from _AppSettings or fallback default.
  * Ensures the directory exists before returning.
  *
@@ -214,6 +216,7 @@ function resolveAbsolutePath(relativePath, db) {
 }
 
 /**
+ * حفظ نسخة من المستند في الهيكل التخزيني للموظف بعد التحقق من صحته دون المساس بالملف المصدر
  * Saves a source file (add or import) into the structured employee document storage.
  * NEVER deletes the original source file.
  *
@@ -309,6 +312,7 @@ function saveFile(employeeId, documentType, sourceFilePath, db) {
 }
 
 /**
+ * اختبار صلاحيات الكتابة والقراءة على المسار المخصص للتأكد من إمكانية التخزين
  * Tests write and read permissions on a given directory path.
  *
  * @param {string} targetPath - Directory path to test
@@ -395,7 +399,7 @@ function reconcileOrphanDocuments(db, options = {}) {
   let deletedCount = 0;
   const deletedFiles = [];
 
-  // 2. Recursive scanner
+  // 2. Recursive scanner / دالة المسح التكراري لفحص المجلدات والملفات
   function scanDir(dir) {
     let entries = [];
     try {

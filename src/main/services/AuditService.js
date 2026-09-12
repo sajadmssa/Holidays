@@ -19,6 +19,7 @@ const LoggerService = require('./LoggerService');
 const MAX_AUDIT_LOGS = 150;
 
 /**
+ * استخراج مسار مجلد أرشيف التدقيق المحلي وإنشاؤه إن لم يكن موجوداً
  * Gets or creates the local audit archive directory under userData.
  * @returns {string} Directory path
  */
