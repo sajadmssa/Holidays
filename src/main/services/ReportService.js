@@ -13,7 +13,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
-const { getActiveLeavesForToday, calculateRegularLeaveBalance } = require('./LeaveService');
+const { getActiveLeavesForToday, REGULAR_LEAVE_CONSTANTS } = require('./LeaveService');
 
 // ──────────────────────────────────────────────────────────────
 //  Style Constants
@@ -806,9 +806,11 @@ EmployeeCalculations AS (
     COALESCE(al.RegularLeavesTaken, 0) AS RegularLeavesTaken,
     CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) AS TotalDays,
     MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) AS NetServiceDays,
-    (MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / 10) AS GrossEarnedBalance,
-    ((MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / 10) + COALESCE(e.AdjustmentDays, 0) - COALESCE(al.RegularLeavesTaken, 0)) AS AvailableBalance,
-    MIN(MAX(((MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / 10) + COALESCE(e.AdjustmentDays, 0) - COALESCE(al.RegularLeavesTaken, 0)), 0), 180) AS FinalBalance
+    (MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / ${REGULAR_LEAVE_CONSTANTS.ACCRUAL_RATE_DAYS}) AS GrossEarnedBalance,
+    ((MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / ${REGULAR_LEAVE_CONSTANTS.ACCRUAL_RATE_DAYS}) + COALESCE(e.AdjustmentDays, 0) - COALESCE(al.RegularLeavesTaken, 0)) AS AvailableBalance,
+    -- [MNT-002: Option A] الإبقاء على القص عند صفر في FinalBalance للعرض الإداري المالي (أرصدة متاحة للتصرف)
+    -- هذا سلوك مقصود ومختلف عمداً عن LeaveService.calculateRegularLeaveBalance الذي يعكس الرصيد السالب الفعلي بعد إقرار BUS-001
+    MIN(MAX(((MAX(0, CAST(ROUND(julianday(date('now', 'localtime')) - julianday(e.HireDate)) AS INTEGER) - COALESCE(al.UnpaidDays, 0)) / ${REGULAR_LEAVE_CONSTANTS.ACCRUAL_RATE_DAYS}) + COALESCE(e.AdjustmentDays, 0) - COALESCE(al.RegularLeavesTaken, 0)), 0), ${REGULAR_LEAVE_CONSTANTS.MAX_ACCUMULATED_BALANCE}) AS FinalBalance
   FROM Employees e
   LEFT JOIN AggregatedLeaves al ON al.EmployeeID = e.EmployeeID
   WHERE e.IsActive = 1 AND e.IsTransferred = 0

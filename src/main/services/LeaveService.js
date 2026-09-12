@@ -39,6 +39,11 @@ const LoggerService = require('./LoggerService');
 const DAYS_PER_EARNED_LEAVE = 10;  // 1 day earned per 10 actual service days (يوم إجازة مستحق لكل 10 أيام خدمة فعلية)
 const MAX_REGULAR_BALANCE   = 180; // Accumulation ceiling (days) (السقف الأعلى لتراكم رصيد الإجازة الاعتيادية 180 يوماً)
 
+const REGULAR_LEAVE_CONSTANTS = {
+  ACCRUAL_RATE_DAYS: DAYS_PER_EARNED_LEAVE,
+  MAX_ACCUMULATED_BALANCE: MAX_REGULAR_BALANCE,
+};
+
 const SICK_100_MAX          = 30;  // Days paid at 100 % (أيام الإجازة المرضية براتب كامل 100%)
 const SICK_50_MAX           = 45;  // Additional days paid at 50 % (أيام الإجازة المرضية بنصف راتب 50%)
 const SICK_25_MAX           = 45;  // Additional days paid at 25 % (أيام الإجازة المرضية بربع راتب 25%)
@@ -1446,11 +1451,14 @@ module.exports = {
   checkLeaveOverlap,
   _restoreSickLeaveBalance,
 
+  REGULAR_LEAVE_CONSTANTS,
+
   // Expose constants so IPC handlers and tests can reference them
   // without embedding magic numbers.
   CONSTANTS: {
     DAYS_PER_EARNED_LEAVE,
     MAX_REGULAR_BALANCE,
+    REGULAR_LEAVE_CONSTANTS,
     SICK_100_MAX,
     SICK_50_MAX,
     SICK_25_MAX,
