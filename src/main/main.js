@@ -33,6 +33,9 @@ const LoggerService                = require('./services/LoggerService');
 // ──────────────────────────────────────────────────────────────
 let mainWindow = null;
 
+/**
+ * إنشاء وتهيئة نافذة التطبيق الرئيسية وضبط إعدادات الأمان
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -146,6 +149,9 @@ if (!gotTheLock) {
 //  All channel names follow the pattern: `entity:action`
 //  Every handler returns { success: true, data } or { success: false, error }
 // ──────────────────────────────────────────────────────────────
+/**
+ * تسجيل كافة معالجات قنوات الاتصال الداخلي (IPC) بين الواجهة والعملية الرئيسية
+ */
 function registerIpcHandlers() {
 
 
