@@ -13,8 +13,7 @@
 'use strict';
 
 const LoggerService = require('../services/LoggerService');
-const { translateFileError } = require('./fileErrorTranslator');
-const { translateSqliteError } = require('./sqliteErrorTranslator');
+const { translateError } = require('./errorTranslator');
 
 /**
  * استخراج وترجمة رسالة الخطأ وتحويلها إلى صياغة عربية واضحة للمستخدم النهائي
@@ -23,8 +22,7 @@ const { translateSqliteError } = require('./sqliteErrorTranslator');
  * @returns {string} رسالة الخطأ المترجمة للمستخدم
  */
 function extractErrorMessage(err) {
-  if (!err) return 'حدث خطأ غير متوقع.';
-  return translateFileError(err) || translateSqliteError(err) || err.message || String(err);
+  return translateError(err);
 }
 
 /**
