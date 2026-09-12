@@ -121,20 +121,6 @@ function registerReportHandlers(ipcMain, db) {
     })
   );
 
-  // ── report:getCriticalReport ──────────────────────────────────
-  //
-  //  استرجاع بيانات الأرصدة الحرجة (<= threshold) وتراكم الإجازات السنوية.
-  //
-  //  Renderer payload: { threshold?: number, year?: number }
-  // ─────────────────────────────────────────────────────────────
-  ipcMain.handle(
-    'report:getCriticalReport',
-    safeHandleAsync(async (options = {}) => {
-      const { threshold = 5, year = new Date().getFullYear() } = options || {};
-      const { getCriticalAndAccumulatedLeaves } = require('../services/ReportService');
-      return getCriticalAndAccumulatedLeaves(db, { threshold, year });
-    })
-  );
 
   // ── report:exportCriticalReport ───────────────────────────────
   //
@@ -231,7 +217,7 @@ function registerReportHandlers(ipcMain, db) {
     })
   );
 
-  LoggerService.info('ReportHandlers', 'Registered: report:exportHistory, report:exportActiveLeaves, report:getCriticalReport, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
+  LoggerService.info('ReportHandlers', 'Registered: report:exportHistory, report:exportActiveLeaves, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
 }
 
 module.exports = { registerReportHandlers };

@@ -44,7 +44,6 @@ const VALID_CHANNELS = new Set([
   // ── Reporting Engine (Phase 7 & Phase 4) ──────────────────
   'report:exportHistory',
   'report:exportActiveLeaves',
-  'report:getCriticalReport',
   'report:exportCriticalReport',
   'report:getCriticalBalancesPaginated',
   'report:getAccumulatedPaginated',
@@ -169,13 +168,6 @@ contextBridge.exposeInMainWorld('api', {
      */
     update: (payload) =>
       invoke('leave:update', payload),
-
-    /**
-     * Exports all active leaves today to Excel.
-     * @returns {Promise<{success:boolean, data?: {filePath?:string, canceled?:boolean}, error?:string}>}
-     */
-    exportActiveLeavesToExcel: () =>
-      invoke('report:exportActiveLeaves'),
   },
 
   // ── Employee Onboarding (Phase 6) ──────────────────────────
@@ -272,13 +264,6 @@ contextBridge.exposeInMainWorld('api', {
      * @returns {Promise<{success:boolean, data?: {filePath?:string, canceled?:boolean}, error?:string}>}
      */
     exportActiveLeaves: () => invoke('report:exportActiveLeaves'),
-
-    /**
-     * Fetches critical balance alerts and year-to-date accumulated leaves summary.
-     * @param {{ threshold?: number, year?: number }} options
-     * @returns {Promise<{success:boolean, data?: any, error?: string}>}
-     */
-    getCriticalReport: (options) => invoke('report:getCriticalReport', options),
 
     /**
      * Exports critical balance alerts and accumulated leaves to Excel.
