@@ -64,26 +64,8 @@ function validateOrderNumber(value, fieldLabel = 'رقم الأمر الإدار
   return normalized;
 }
 
-/**
- * دالة مساعدة آمنة تفحص صحة رقم الأمر الإداري دون إطلاق أخطاء (Boolean Check)
- * Returns true if the value is either empty (null/blank) or purely numeric.
- * Safe helper that never throws.
- *
- * @param {any} value
- * @returns {boolean} true إذا كان الرقم صحيحاً أو فارغاً، وfalse إذا احتوى أخطاء
- */
-function isOrderNumberValid(value) {
-  try {
-    validateOrderNumber(value);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
 module.exports = {
   validateOrderNumber,
-  isOrderNumberValid,
   normalizeArabicDigits,
 };
 

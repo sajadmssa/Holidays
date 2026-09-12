@@ -207,29 +207,6 @@ function upsertLeaveBalance({ employeeId, leaveTypeId, totalBalance, payPercenta
   return { changes: result.changes };
 }
 
-// ──────────────────────────────────────────────────────────────
-//  Audit Log Helper / دالة التدقيق الداخلية
-// ──────────────────────────────────────────────────────────────
-
-/**
- * دالة مساعدة داخلية لتوثيق العمليات المباشرة الصادرة من كود التطبيق في سجل التدقيق.
- * Internal helper to write audit entries from JS-side operations.
- * @param {string} actionType
- * @param {object} details
- */
-function _auditLog(actionType, details) {
-  try {
-    const AuditService = require('./services/AuditService');
-    AuditService.logAction(getDb(), {
-      actionType: actionType.includes('CREATE') ? 'INSERT' : (actionType.includes('DEACTIVATE') ? 'STATUS_CHANGE' : 'UPDATE'),
-      entityType: 'Employee',
-      entityID: details?.employeeId || null,
-      details: typeof details === 'string' ? details : JSON.stringify(details)
-    });
-  } catch (err) {
-    console.warn('[DB Audit Error]', err.message);
-  }
-}
 
 /**
  * إنشاء نسخة احتياطية حية وآمنة لقاعدة بيانات SQLite وأرشيف مستندات الموظفين.
