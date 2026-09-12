@@ -438,7 +438,84 @@ assert(emp9Balance.availableBalance === -10, 'calculateRegularLeaveBalance refle
 // Verify AuditLog record contains approval details
 const auditLog9 = db.prepare(`SELECT * FROM AuditLogs WHERE EntityType = 'Leave' AND EntityID = ? ORDER BY LogID DESC LIMIT 1`).get(res18.leaveId);
 assert(auditLog9 && auditLog9.Details.includes('الموافقة والتأكيد الصريح'), 'AuditLog explicitly documents confirmation of excess');
+// ── 19. معالجة فشل التعبير النمطي لشرائح الإجازة المرضية وسقوط الاسترجاع الاحتياطي (MNT-001) ──
+console.log('\nTest 19: Sick leave tier restoration fallback & warning audit logging on regex mismatch (MNT-001)');
+// Setup Employee 10
+db.prepare(`
+  INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive)
+  VALUES (10, 'هدى عادل', 'Female', '2024-01-01', 'مهندس', 1)
+`).run();
 
-console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 18 TEST SUITES!`);
+// Case A: Deleting sick leave with corrupted Notes
+// 1. Process 15 days sick leave (consumed from 100% tier)
+const sickEmp10 = LeaveService.processSickLeave(10, 15, '2026-09-01', '2026-09-15', db, 'المدير العام');
+const balEmp10Before = db.prepare('SELECT TotalBalance FROM LeaveBalances WHERE EmployeeID = 10 AND PayPercentage = 100').get();
+assert(balEmp10Before.TotalBalance === 15, 'Employee 10 sick 100% balance decreased to 15 days');
+
+// 2. Corrupt Notes in database to simulate legacy or manually malformed data
+db.prepare("UPDATE Leaves SET Notes = 'سجل يدوي قديم غير منسق بدون تعبير الشرائح' WHERE LeaveID = ?").run(sickEmp10.leaveId);
+
+// 3. Delete the leave -> fallback should restore to 100% and log warning audit
+const delFallbackRes = LeaveService.deleteLeave(sickEmp10.leaveId, db);
+assert(delFallbackRes.success === true, 'Delete operation succeeds even with malformed notes');
+
+// Verify balance was restored to 100% tier (15 + 15 = 30)
+const balEmp10AfterDel = db.prepare('SELECT TotalBalance FROM LeaveBalances WHERE EmployeeID = 10 AND PayPercentage = 100').get();
+assert(balEmp10AfterDel.TotalBalance === 30, 'Fallback correctly restored 15 days to 100% tier');
+
+// Verify WARNING audit log was created for the fallback event
+const warningLogDel = db.prepare(`
+  SELECT * FROM AuditLogs
+  WHERE EntityType = 'Leave' AND EntityID = ? AND ActionType = 'WARNING'
+  ORDER BY LogID DESC LIMIT 1
+`).get(sickEmp10.leaveId);
+assert(warningLogDel !== undefined, 'AuditLog contains WARNING record for deletion fallback');
+assert(warningLogDel.Details.includes('تنبيه تدقيق: فشل الاستخراج الآلي'), 'AuditLog warning details describe regex extraction failure');
+assert(warningLogDel.Details.includes('Fallback'), 'AuditLog warning details explicitly mention Fallback restoration');
+
+// Case B: Updating sick leave with corrupted Notes (e.g. converting to regular leave)
+// 1. Process 10 days sick leave
+const sickEmp10_2 = LeaveService.processSickLeave(10, 10, '2026-10-01', '2026-10-10', db, 'المدير العام');
+const balEmp10BeforeUpd = db.prepare('SELECT TotalBalance FROM LeaveBalances WHERE EmployeeID = 10 AND PayPercentage = 100').get();
+assert(balEmp10BeforeUpd.TotalBalance === 20, 'Employee 10 sick 100% balance is 20 days (30 - 10)');
+
+// 2. Corrupt Notes
+db.prepare("UPDATE Leaves SET Notes = 'ملاحظات تالفة' WHERE LeaveID = ?").run(sickEmp10_2.leaveId);
+
+// 3. Update leave to regular -> fallback should restore sick balance and log warning audit
+const updFallbackRes = LeaveService.updateLeave(sickEmp10_2.leaveId, {
+  leaveType: 'إجازة اعتيادية',
+  startDate: '2026-10-01',
+  endDate: '2026-10-10',
+  requestedDays: 10,
+  modifierName: 'مسؤول التدقيق',
+}, db);
+assert(updFallbackRes.success === true, 'Update operation succeeds with fallback restoration');
+
+const balEmp10AfterUpd = db.prepare('SELECT TotalBalance FROM LeaveBalances WHERE EmployeeID = 10 AND PayPercentage = 100').get();
+assert(balEmp10AfterUpd.TotalBalance === 30, 'Fallback in updateLeave restored 10 days to sick 100% tier (20 + 10 = 30)');
+
+const warningLogUpd = db.prepare(`
+  SELECT * FROM AuditLogs
+  WHERE EntityType = 'Leave' AND EntityID = ? AND ActionType = 'WARNING'
+  ORDER BY LogID DESC LIMIT 1
+`).get(sickEmp10_2.leaveId);
+assert(warningLogUpd !== undefined, 'AuditLog contains WARNING record for updateLeave fallback');
+assert(warningLogUpd.Details.includes('Fallback'), 'AuditLog warning for updateLeave explicitly documents Fallback');
+
+// Case C: Direct verification of _restoreSickLeaveBalance return contract
+const directMatch = LeaveService._restoreSickLeaveBalance(
+  db, 10, 2, 'Sick Leave processed: 10d @ 100% pay, 5d @ 50% pay, 0d @ 25% pay', 15, 999
+);
+assert(directMatch.matched === true && directMatch.fallback === false, '_restoreSickLeaveBalance returns matched=true on valid notes');
+assert(directMatch.tiers.d100 === 10 && directMatch.tiers.d50 === 5, '_restoreSickLeaveBalance extracts tiers accurately');
+
+const directFallback = LeaveService._restoreSickLeaveBalance(
+  db, 10, 2, 'malformed string', 7, 1000
+);
+assert(directFallback.matched === false && directFallback.fallback === true, '_restoreSickLeaveBalance returns fallback=true on invalid notes');
+
+console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 19 TEST SUITES!`);
+
 
 

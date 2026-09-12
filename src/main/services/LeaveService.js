@@ -146,6 +146,80 @@ function checkLeaveOverlap(employeeId, startDate, endDate, excludeLeaveId, db) {
   return row || null;
 }
 
+/**
+ * استرجاع رصيد الإجازة المرضية إلى أوعية الموظف (LeaveBalances) بدقة بحسب الشرائح (100%، 50%، 25%).
+ * يستخرج الأيام المخصومة من حقل الملاحظات عبر التعبير النمطي، وفي حال عدم التطابق،
+ * يُرجع الأيام لشريحة 100% كإجراء احتياطي (Fallback) مع تسجيل تحذير فني في LoggerService
+ * وتوثيق صريح في سجل التدقيق (AuditLogs) لمنع الفشل الصامت والتنبيه للمراجعة اليدوية.
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} employeeId
+ * @param {number} leaveTypeId
+ * @param {string|null} notes
+ * @param {number} daysCount
+ * @param {number|null} [leaveId=null]
+ * @returns {{ matched: boolean, fallback: boolean, tiers: { d100: number, d50: number, d25: number } }}
+ */
+function _restoreSickLeaveBalance(db, employeeId, leaveTypeId, notes, daysCount, leaveId = null) {
+  const match = typeof notes === 'string'
+    ? notes.match(/(\d+)d\s*@\s*100%\s*pay[,\s]+(\d+)d\s*@\s*50%\s*pay(?:[,\s]+(\d+)d\s*@\s*25%\s*pay)?/)
+    : null;
+
+  if (match) {
+    const d100 = parseInt(match[1], 10) || 0;
+    const d50  = parseInt(match[2], 10) || 0;
+    const d25  = parseInt(match[3] || '0', 10) || 0;
+
+    const updateBal = db.prepare(`
+      UPDATE LeaveBalances
+      SET TotalBalance = TotalBalance + ?
+      WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = ?
+    `);
+
+    if (d100 > 0) updateBal.run(d100, employeeId, leaveTypeId, 100);
+    if (d50 > 0)  updateBal.run(d50, employeeId, leaveTypeId, 50);
+    if (d25 > 0)  updateBal.run(d25, employeeId, leaveTypeId, 25);
+
+    return {
+      matched: true,
+      fallback: false,
+      tiers: { d100, d50, d25 }
+    };
+  }
+
+  // ── Fallback Path (عند فشل التعبير النمطي في قراءة الشرائح) ──
+  // 1. تسجيل تحذير واضح في LoggerService يوضح رقم الإجازة وتفاصيل الملاحظات
+  const displayId = leaveId != null ? leaveId : 'غير محدد';
+  LoggerService.warn(
+    'LeaveService',
+    `فشل استخراج شرائح الإجازة المرضية عبر التعبير النمطي للإجازة رقم (${displayId}) للموظف رقم (${employeeId}). تم استرجاع (${daysCount}) يوماً لشريحة 100% كإجراء احتياطي (Fallback) ويتطلب مراجعة يدوية. نص الملاحظات: "${notes || ''}"`,
+    { leaveId, employeeId, leaveTypeId, notes, daysCount }
+  );
+
+  // 2. استرجاع الأيام لشريحة 100% كإجراء احتياطي
+  db.prepare(`
+    UPDATE LeaveBalances
+    SET TotalBalance = TotalBalance + ?
+    WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
+  `).run(daysCount, employeeId, leaveTypeId);
+
+  // 3. توثيق صريح في سجل الأمان والتدقيق (AuditLogs) لمنع الفشل الصامت
+  AuditService.logAction(db, {
+    actionType: 'WARNING',
+    entityType: 'Leave',
+    entityID: leaveId != null ? Number(leaveId) : null,
+    oldValue: { notes, daysCount },
+    newValue: { restoredToTier: 100, restoredDays: daysCount, fallback: true },
+    details: `⚠️ تنبيه تدقيق: فشل الاستخراج الآلي لشرائح الإجازة المرضية (قيد رقم ${displayId}) من الملاحظات. تم استرجاع كامل المدة (${daysCount} يوم) إلى شريحة 100% كإجراء احتياطي (Fallback) ويتطلب تدقيقاً يدوياً من مسؤول النظام. الملاحظات الأصلية: [${notes || 'فارغ'}]`,
+  });
+
+  return {
+    matched: false,
+    fallback: true,
+    tiers: { d100: daysCount, d50: 0, d25: 0 }
+  };
+}
+
 // ══════════════════════════════════════════════════════════════
 //  PUBLIC API / واجهات الاستخدام العامة
 // ══════════════════════════════════════════════════════════════
@@ -987,29 +1061,9 @@ function deleteLeave(leaveId, db) {
     }
 
     // Step 2 & 3: IF Sick Leave, restore DaysCount back to LeaveBalances per tier
-    // استعادة الأيام إلى رصيد الإجازات المرضية للموظف بدقة لكل شريحة
+    // استعادة الأيام إلى رصيد الإجازات المرضية للموظف بدقة لكل شريحة عبر الدالة الموحدة
     if (leave.LeaveTypeName === LEAVE_NAME_SICK) {
-      const match = leave.Notes?.match(/(\d+)d\s*@\s*100%\s*pay[,\s]+(\d+)d\s*@\s*50%\s*pay(?:[,\s]+(\d+)d\s*@\s*25%\s*pay)?/);
-      if (match) {
-        const d100 = parseInt(match[1], 10) || 0;
-        const d50  = parseInt(match[2], 10) || 0;
-        const d25  = parseInt(match[3] || '0', 10) || 0;
-        const updateBal = db.prepare(`
-          UPDATE LeaveBalances
-          SET TotalBalance = TotalBalance + ?
-          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = ?
-        `);
-        if (d100 > 0) updateBal.run(d100, leave.EmployeeID, leave.LeaveTypeID, 100);
-        if (d50 > 0)  updateBal.run(d50, leave.EmployeeID, leave.LeaveTypeID, 50);
-        if (d25 > 0)  updateBal.run(d25, leave.EmployeeID, leave.LeaveTypeID, 25);
-      } else {
-        // Fallback for legacy records: restore to 100%
-        db.prepare(`
-          UPDATE LeaveBalances
-          SET TotalBalance = TotalBalance + ?
-          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
-        `).run(leave.DaysCount, leave.EmployeeID, leave.LeaveTypeID);
-      }
+      _restoreSickLeaveBalance(db, leave.EmployeeID, leave.LeaveTypeID, leave.Notes, leave.DaysCount, leaveId);
     }
 
     // Step 4: DELETE FROM Leaves WHERE LeaveID = ? / تنفيذ الحذف
@@ -1178,26 +1232,7 @@ function updateLeave(leaveId, payload, db) {
 
     // A: Handle Sick Leave Bucket Restoration / استرداد الرصيد المرضي السابق في حال تم تغيير نوع الإجازة أو تعديلها
     if (isOldSick) {
-      const match = oldLeave.Notes?.match(/(\d+)d\s*@\s*100%\s*pay[,\s]+(\d+)d\s*@\s*50%\s*pay(?:[,\s]+(\d+)d\s*@\s*25%\s*pay)?/);
-      if (match) {
-        const d100 = parseInt(match[1], 10) || 0;
-        const d50  = parseInt(match[2], 10) || 0;
-        const d25  = parseInt(match[3] || '0', 10) || 0;
-        const updateBal = db.prepare(`
-          UPDATE LeaveBalances
-          SET TotalBalance = TotalBalance + ?
-          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = ?
-        `);
-        if (d100 > 0) updateBal.run(d100, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 100);
-        if (d50 > 0)  updateBal.run(d50, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 50);
-        if (d25 > 0)  updateBal.run(d25, oldLeave.EmployeeID, oldLeave.LeaveTypeID, 25);
-      } else {
-        db.prepare(`
-          UPDATE LeaveBalances
-          SET TotalBalance = TotalBalance + ?
-          WHERE EmployeeID = ? AND LeaveTypeID = ? AND PayPercentage = 100
-        `).run(oldLeave.DaysCount, oldLeave.EmployeeID, oldLeave.LeaveTypeID);
-      }
+      _restoreSickLeaveBalance(db, oldLeave.EmployeeID, oldLeave.LeaveTypeID, oldLeave.Notes, oldLeave.DaysCount, leaveId);
     }
 
     // B: Handle Target Sick Leave Deduction / معالجة خصم الرصيد المرضي الجديد
@@ -1409,6 +1444,7 @@ module.exports = {
   deleteLeave,
   updateLeave,
   checkLeaveOverlap,
+  _restoreSickLeaveBalance,
 
   // Expose constants so IPC handlers and tests can reference them
   // without embedding magic numbers.
