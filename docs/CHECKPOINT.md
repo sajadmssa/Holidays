@@ -8,7 +8,7 @@
 
 ## 🔴 آخر نقطة توقّف (اقرأ هذا أولاً في بداية أي جلسة)
 
-**لا توجد جلسة عمل نشطة حالياً.** آخر جلسة مُنجَزة بالكامل هي الجلسة #3 أدناه (12 أيلول 2026)، ونُفِّذت فيها المعالجة الجراحية للملاحظات الثلاث المنبثقة عن التدقيق الهندسي الشامل (SEC-001، DOC-001، BUS-001) بنجاح تام وتمرير 100% من الاختبارات (77/77 اختبار)، دون المساس بقاعدة البيانات الحقيقية ودون الحاجة لإنشاء أي migration جديدة.
+**لا توجد جلسة عمل نشطة حالياً.** آخر جلسة مُنجَزة بالكامل هي الجلسة #4 أدناه (13 أيلول 2026)، ونُفِّذت فيها إضافة التعليقات العربية التوضيحية الشاملة على مستوى الدوال والكتل البرمجية (function/block-level) عبر كامل المشروع (Main Process + Renderer + Utils + Scripts) مقسمة على 5 دفعات محكمة مع الحفاظ التام على كل التعليقات الإنجليزية وعدم تغيير أي منطق برمجي، واجتياز 100% من الاختبارات (77/77 اختباراً) بعد كل دفعة وفي الختام.
 
 **الخطوة الفورية التالية عند بدء الجلسة القادمة (مقترحة، وليست ملزمة):**
 1. تأكيد مالك المشروع بخصوص تطبيق `fix-adm-zip.patch` النهائي (البند A من `IMPLEMENTATION-PLAN.md`).
@@ -99,7 +99,54 @@
 
 ---
 
-### الجلسة #4 — (فارغة — جاهزة للتعبئة عند بدء العمل التالي)
+### الجلسة #4 — 13 أيلول 2026
+
+**البند/البنود المستهدفة:**
+إضافة تعليقات عربية توضيحية شاملة على مستوى الدوال والكتل البرمجية الحرجة (function/block-level) عبر كامل المشروع (Main Process + Renderer + Utils + Scripts)، مقسمة إلى 5 دفعات تزامنية دون أي تغيير في المنطق البرمجي، مع الحفاظ التام على كل التعليقات الإنجليزية الموجودة مسبقاً.
+
+**ما أُنجز:**
+- ✅ **التزام الأمان المبدئي (Safety Commit):**
+  - تم أخذ التزام أمان كامل للمستودع قبل بدء أي تعديل: `cb10340` (`chore: safety commit before starting comprehensive Arabic comments batches`).
+- ✅ **الدفعة 1 — Main Process: Services (خدمات العملية الرئيسية):**
+  - **الملفات المعدلة بتعليقات إضافية:** `src/main/services/AuditService.js`، `src/main/services/DocumentService.js`، `src/main/services/DocumentStorageService.js`، `src/main/services/ReportService.js`.
+  - **الملفات المفحوصة والمؤكد اكتمال توثيقها:** `LeaveService.js`، `EmployeeService.js`، `AutoBackupService.js`، `NotificationService.js`، `LoggerService.js`.
+  - **الالتزام:** `043906d` (`docs: add Arabic comments to Main Process Services`).
+  - **حالة الاختبارات:** 77/77 PASS (100%).
+- ✅ **الدفعة 2 — Main Process: IPC Handlers & Preload (معالجات قنوات الاتصال والوسيط):**
+  - **الملفات المعدلة بتعليقات إضافية:** `src/main/preload.js`.
+  - **الملفات المفحوصة والمؤكد اكتمال توثيقها:** `src/main/ipc/auditHandlers.js`، `documentHandlers.js`، `employeeHandlers.js`، `leaveHandlers.js`، `reportHandlers.js`، `systemHandlers.js`.
+  - **الالتزام:** `961f5cc` (`docs: add Arabic comments to IPC Handlers and Preload`).
+  - **حالة الاختبارات:** 77/77 PASS (100%).
+- ✅ **الدفعة 3 — Main Process: Core & Utils (أساسيات المعالجة الرئيسية والأدوات):**
+  - **الملفات المعدلة بتعليقات إضافية:** `src/main/main.js`.
+  - **الملفات المفحوصة والمؤكد اكتمال توثيقها:** `src/main/database.js`، `src/main/utils/fileErrorTranslator.js`، `src/main/utils/ipcHandlerHelper.js`، `src/main/utils/orderNumberValidator.js`، `src/main/utils/sqliteErrorTranslator.js`.
+  - **الالتزام:** `bcfada0` (`docs: add Arabic comments to Main Core and Utils`).
+  - **حالة الاختبارات:** 77/77 PASS (100%).
+- ✅ **الدفعة 4 — Renderer: Main & Modules (واجهة المستخدم والموديولات):**
+  - **الملفات المعدلة بتعليقات إضافية:** `src/renderer/renderer.js` (توثيق دالة `initApp`).
+  - **الملفات المفحوصة والمؤكد اكتمال توثيقها:** جميع موديولات `src/renderer/modules/*.js` الـ 14 (`addEmployeeTab.js`، `auditLogTab.js`، `balanceReportTab.js`، `dashboardTab.js`، `employeeDocumentsModal.js`، `employeePicker.js`، `employeesTab.js`، `leaveRegistration.js`، `manageEmployeeTab.js`، `paginationComponent.js`، `searchModal.js`، `systemSettings.js`، `themeManager.js`، `uiHelpers.js`) بالإضافة إلى `src/renderer/theme-init.js`.
+  - **الالتزام:** `2b4088d` (`docs: add Arabic comments to Renderer Modules`).
+  - **حالة الاختبارات:** 77/77 PASS (100%).
+- ✅ **الدفعة 5 — Utility & Build Scripts (ملفات السكربتات والأدوات الإدارية):**
+  - **الملفات المعدلة بتعليقات إضافية:** `scripts/build.js`، `scripts/reset-db.js`.
+  - **الالتزام:** `1d9c3fe` (`docs: add Arabic comments to utility and build scripts`).
+  - **حالة الاختبارات:** 77/77 PASS (100%).
+- ✅ **التحقق من سلامة الكود وعدم المساس بالمنطق:**
+  - تم استعراض ومراجعة `git diff` بعد كل دفعة ولكامل التغييرات، وتأكد بصورة قاطعة أن التعديلات اقتصرت بنسبة 100% على التعليقات التوضيحية دون المساس بأي سطر برمجي، أو تسمية متغيرات، أو حذف/تعديل لأي تعليق إنجليزي سابق، مع عدم لمس ملفات الاختبار إطلاقاً.
+
+**حالة الاختبارات عند الإغلاق:**
+- `npm test`: نجاح كامل بنسبة 100% لجميع الاختبارات (`77/77 PASS` عبر 18 كتلة اختبار في `leaveService.test.js`، مع مطابقة تامة 47/47 قناة في حارس القنوات `ipcChannelGuard.test.js`).
+
+**ما تجمَّد (إن وجد) والسبب:**
+- لا يوجد أي بند متجمد في هذه الجلسة.
+
+**النقطة التالية عند الجلسة القادمة:**
+1. متابعة تأكيد مالك المشروع بخصوص `fix-adm-zip.patch` (البند A).
+2. الشروع في البند B (اختبار أداء 5000 موظف).
+
+---
+
+### الجلسة #5 — (فارغة — جاهزة للتعبئة عند بدء العمل التالي)
 
 **تاريخ البدء:** —
 **البند/البنود المستهدفة:** —
@@ -116,13 +163,13 @@
 
 | الفئة | العدد/الحالة | آخر تحديث |
 |---|---|---|
-| بنود مُنجَزة بالكامل (N1–N4 + ADR-016/017 + SEC-001/DOC-001/BUS-001) | 10 | الجلسة #3 |
+| بنود مُنجَزة بالكامل (N1–N4 + ADR-016/017 + SEC-001/DOC-001/BUS-001 + التعليقات العربية الشاملة) | 11 | الجلسة #4 |
 | بنود مفتوحة عالية الأولوية (A، B) | 2 | الجلسة #2 |
 | بنود مفتوحة متوسطة (C) | 1 | الجلسة #1 |
 | بنود مفتوحة منخفضة (D) | 4 | الجلسة #1 |
 | بنود محظورة (Blocked) | 1 (Phase 5 / ADR-013) | الجلسة #1 |
 | قرارات معمارية مفتوحة (`DECISIONS.md`) | 1 (ADR-013 جزئياً) | الجلسة #1 |
-| تغطية الاختبارات | حارسان: بنيوي (47 قناة IPC) + وحدة (18 جناح لاختبار منطق الإجازات بـ 77 فحصاً) | الجلسة #3 |
+| تغطية الاختبارات | حارسان: بنيوي (47 قناة IPC) + وحدة (18 جناح لاختبار منطق الإجازات بـ 77 فحصاً) | الجلسة #4 |
 
 ---
 
@@ -135,4 +182,4 @@
 
 ---
 
-*آخر تحديث: 12 أيلول 2026 (إنجاز الجلسة #3: معالجة SEC-001 و DOC-001 و BUS-001 بنجاح كامل). مراجع تكميلية: `IMPLEMENTATION-PLAN.md`، `DECISIONS.md`.*
+*آخر تحديث: 13 أيلول 2026 (إنجاز الجلسة #4: إضافة التعليقات العربية التوضيحية الشاملة لكامل المشروع بنجاح واجتياز الاختبارات 77/77). مراجع تكميلية: `IMPLEMENTATION-PLAN.md`، `DECISIONS.md`.*
