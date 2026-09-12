@@ -554,6 +554,7 @@ function processRegularLeave(
     memoDate = null,
     orderNumber = null,
     orderDate = null,
+    confirmExcess = false,
   } = {}
 ) {
   // ── Pre-flight validation (outside transaction — fast checks) ──
@@ -608,6 +609,8 @@ function processRegularLeave(
   const _runTransaction = db.transaction(() => {
     let finalBalance = null;
     let remainingBalance = null;
+    let quotaExceeded = false;
+    let deficit = 0;
 
     // Re-check overlap inside transaction for concurrency safety
     const txOverlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
@@ -622,11 +625,23 @@ function processRegularLeave(
       const balanceResult = calculateRegularLeaveBalance(employeeId, db);
       finalBalance = balanceResult.finalBalance;
 
-      // Step B: Reject if insufficient balance
       if (requestedDays > finalBalance) {
-        throw new Error(
-          `رصيد الإجازات الاعتيادية غير كافٍ (المطلوب: ${requestedDays} يوم، المتبقي: ${finalBalance} يوم).`
-        );
+        quotaExceeded = true;
+        deficit = requestedDays - finalBalance;
+
+        // Step B: Reject if insufficient balance and not explicitly confirmed
+        if (!confirmExcess) {
+          const err = new Error(
+            `رصيد الإجازات الاعتيادية غير كافٍ (المطلوب: ${requestedDays} يوم، المتبقي: ${finalBalance} يوم).`
+          );
+          err.requiresConfirmation = true;
+          err.quotaExceeded = true;
+          err.leaveType = targetLeaveName;
+          err.requestedDays = requestedDays;
+          err.availableBalance = finalBalance;
+          err.deficit = deficit;
+          throw err;
+        }
       }
 
       remainingBalance = finalBalance - requestedDays;
@@ -678,15 +693,23 @@ function processRegularLeave(
         MemoDate: memoDate ?? null,
         OrderNumber: orderNumber ?? null,
         OrderDate: orderDate ?? null,
+        QuotaExceeded: quotaExceeded ? 1 : 0,
+        DeficitDays: deficit,
+        ExcessConfirmed: confirmExcess ? 1 : 0,
       },
-      details: `تسجيل ${targetLeaveName} (${requestedDays} يوم) للموظف رقم (${employeeId}) من ${startDate} إلى ${endDate}`,
+      details: quotaExceeded
+        ? `تسجيل ${targetLeaveName} (${requestedDays} يوم) للموظف رقم (${employeeId}) من ${startDate} إلى ${endDate} — مع تجاوز الرصيد المتاح بمقدار (${deficit} يوم) بعد الموافقة والتأكيد الصريح (الرصيد المتبقي: ${remainingBalance} يوم)`
+        : `تسجيل ${targetLeaveName} (${requestedDays} يوم) للموظف رقم (${employeeId}) من ${startDate} إلى ${endDate}`,
     });
 
     return {
+      success: true,
       leaveId: newLeaveId,
       finalBalance,
       requestedDays,
       remainingBalance,
+      quotaExceeded,
+      deficit,
     };
   });
 

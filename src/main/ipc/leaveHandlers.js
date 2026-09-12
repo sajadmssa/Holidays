@@ -195,6 +195,8 @@ function registerLeaveHandlers(ipcMain, db) {
         memoDate,
         orderNumber,
         orderDate,
+        confirmExcess,
+        allowDeficit,
       } = payload ?? {};
 
       // ── Input guards / فحص قيود المدخلات ─────────────────────
@@ -234,24 +236,41 @@ function registerLeaveHandlers(ipcMain, db) {
       const validOrderNumber = validateOrderNumber(orderNumber, 'رقم الأمر الإداري');
       const validOrderRef = validateOrderNumber(orderRef, 'رقم الأمر الإداري');
 
-      return LeaveService.processRegularLeave(
-        employeeId,
-        requestedDays,
-        startDate,
-        endDate,
-        db,
-        leaveType,
-        {
-          orderRef: validOrderRef,
-          notes: notes ?? null,
-          leaveApprover: leaveApprover ?? null,
-          requestDate: requestDate ?? null,
-          memoNumber: validMemoNumber,
-          memoDate: memoDate ?? null,
-          orderNumber: validOrderNumber,
-          orderDate: orderDate ?? null,
+      try {
+        return LeaveService.processRegularLeave(
+          employeeId,
+          requestedDays,
+          startDate,
+          endDate,
+          db,
+          leaveType,
+          {
+            orderRef: validOrderRef,
+            notes: notes ?? null,
+            leaveApprover: leaveApprover ?? null,
+            requestDate: requestDate ?? null,
+            memoNumber: validMemoNumber,
+            memoDate: memoDate ?? null,
+            orderNumber: validOrderNumber,
+            orderDate: orderDate ?? null,
+            confirmExcess: Boolean(confirmExcess || allowDeficit),
+          }
+        );
+      } catch (err) {
+        if (err.requiresConfirmation) {
+          return {
+            success: false,
+            requiresConfirmation: true,
+            quotaExceeded: true,
+            leaveType: err.leaveType,
+            requestedDays: err.requestedDays,
+            availableBalance: err.availableBalance,
+            deficit: err.deficit,
+            message: `عدد الأيام المطلوبة (${err.requestedDays} يوم) يتجاوز الرصيد الاعتيادي المتاح (${err.availableBalance} يوم) بمقدار (${err.deficit} يوم). هل تريد المتابعة وتأكيد الحفظ برصيد سالب؟`
+          };
         }
-      );
+        throw err;
+      }
     })
   );
 

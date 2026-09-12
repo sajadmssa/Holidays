@@ -823,7 +823,7 @@ export function initLeaveRegistration() {
           });
 
         } else {
-          response = await window.api.leave.submitRegularLeave({
+          const regularPayload = {
             employeeId: payload.employeeId,
             requestedDays: payload.requestedDays,
             startDate: payload.startDate,
@@ -836,10 +836,40 @@ export function initLeaveRegistration() {
             memoDate: payload.memoDate,
             orderNumber: payload.orderNumber,
             orderDate: payload.orderDate,
-          });
+            confirmExcess: false,
+          };
+
+          response = await window.api.leave.submitRegularLeave(regularPayload);
+
+          // إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
+          if (response.data?.requiresConfirmation) {
+            const confirmData = response.data;
+            const warningMsg = confirmData.message || `عدد الأيام المطلوبة (${confirmData.requestedDays} يوم) يتجاوز الرصيد الاعتيادي المتاح (${confirmData.availableBalance} يوم) بمقدار (${confirmData.deficit} يوم). هل تريد المتابعة وتأكيد الحفظ برصيد سالب؟`;
+
+            const userConfirmed = await showConfirm(
+              warningMsg,
+              '⚠️ تحذير: تجاوز الرصيد المتاح'
+            );
+
+            if (userConfirmed) {
+              if (submitBtn) {
+                submitBtn.textContent = 'جارٍ تأكيد الحفظ…';
+              }
+              response = await window.api.leave.submitRegularLeave({
+                ...regularPayload,
+                confirmExcess: true,
+              });
+            } else {
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'تقديم طلب الإجازة';
+              }
+              return;
+            }
+          }
         }
 
-        if (response.success) {
+        if (response.success && response.data?.success !== false) {
           const d = response.data;
 
           // عرض إشعار النجاح المناسب مع رصيد الموظف المتبقي

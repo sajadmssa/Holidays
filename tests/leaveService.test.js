@@ -410,5 +410,35 @@ assert(
   'Summary totalLeavesThisYear strictly excludes transferred employees leave records'
 );
 
-console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 17 TEST SUITES!`);
+// ── 18. إنشاء إجازة اعتيادية برصيد سالب عند التأكيد الصريح (BUS-001) ──
+console.log('\nTest 18: Regular leave creation with negative balance upon explicit confirmation (BUS-001)');
+// Setup Employee 9 with 10 days of earned regular balance
+const emp9HireDate = new Date(Date.now() - 100 * 24 * 3600 * 1000).toISOString().split('T')[0];
+db.prepare(`
+  INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive)
+  VALUES (9, 'مصطفى كريم', 'Male', ?, 'ملاحظ', 1)
+`).run(emp9HireDate);
+
+// Case A: Request 20 days without confirmation -> must throw error with 'غير كافٍ'
+assertThrows(() => {
+  LeaveService.processRegularLeave(9, 20, '2026-08-01', '2026-08-20', db, 'إجازة اعتيادية', { confirmExcess: false });
+}, 'غير كافٍ', 'Creation without confirmExcess strictly rejected');
+
+// Case B: Request 20 days with confirmExcess: true -> succeeds and records negative balance
+const res18 = LeaveService.processRegularLeave(9, 20, '2026-08-01', '2026-08-20', db, 'إجازة اعتيادية', { confirmExcess: true });
+assert(res18 && res18.leaveId > 0, 'Regular leave created with negative balance upon explicit confirmation');
+assert(res18.quotaExceeded === true, 'quotaExceeded flag is true');
+assert(res18.deficit === 10, 'Deficit is 10 days');
+assert(res18.remainingBalance === -10, 'Remaining balance is -10 days');
+
+// Verify balance computation recognizes negative balance
+const emp9Balance = LeaveService.calculateRegularLeaveBalance(9, db);
+assert(emp9Balance.availableBalance === -10, 'calculateRegularLeaveBalance reflects negative available balance (-10)');
+
+// Verify AuditLog record contains approval details
+const auditLog9 = db.prepare(`SELECT * FROM AuditLogs WHERE EntityType = 'Leave' AND EntityID = ? ORDER BY LogID DESC LIMIT 1`).get(res18.leaveId);
+assert(auditLog9 && auditLog9.Details.includes('الموافقة والتأكيد الصريح'), 'AuditLog explicitly documents confirmation of excess');
+
+console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 18 TEST SUITES!`);
+
 

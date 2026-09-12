@@ -90,17 +90,60 @@ export function openAuditSnapshotModal(log) {
     }
   } catch (_e) {}
 
-  headerBox.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <div><strong>رقم الحركة:</strong> #${log.LogID}</div>
-      <div><strong>التوقيت:</strong> ${dateStr}</div>
-    </div>
-    <div style="display: flex; gap: 16px; align-items: center;">
-      <div><strong>الكيان:</strong> ${log.EntityType} (ID: ${log.EntityID || '-'})</div>
-      <div><strong>العملية:</strong> ${log.ActionType || log.Action || '-'}</div>
-    </div>
-    <div style="margin-top: 8px; color: #475569;"><strong>البيان:</strong> ${log.Details || '-'}</div>
-  `;
+  const row1 = document.createElement('div');
+  row1.style.display = 'flex';
+  row1.style.justifyContent = 'space-between';
+  row1.style.alignItems = 'center';
+  row1.style.marginBottom = '8px';
+
+  const logIdDiv = document.createElement('div');
+  const logIdStrong = document.createElement('strong');
+  logIdStrong.textContent = 'رقم الحركة:';
+  logIdDiv.appendChild(logIdStrong);
+  logIdDiv.appendChild(document.createTextNode(` #${log.LogID ?? ''}`));
+
+  const dateDiv = document.createElement('div');
+  const dateStrong = document.createElement('strong');
+  dateStrong.textContent = 'التوقيت:';
+  dateDiv.appendChild(dateStrong);
+  dateDiv.appendChild(document.createTextNode(` ${dateStr}`));
+
+  row1.appendChild(logIdDiv);
+  row1.appendChild(dateDiv);
+
+  const row2 = document.createElement('div');
+  row2.style.display = 'flex';
+  row2.style.gap = '16px';
+  row2.style.alignItems = 'center';
+
+  const entityDiv = document.createElement('div');
+  const entityStrong = document.createElement('strong');
+  entityStrong.textContent = 'الكيان:';
+  entityDiv.appendChild(entityStrong);
+  const entityIdText = log.EntityID ? ` (ID: ${log.EntityID})` : ' (ID: -)';
+  entityDiv.appendChild(document.createTextNode(` ${log.EntityType || '-'}${entityIdText}`));
+
+  const actionDiv = document.createElement('div');
+  const actionStrong = document.createElement('strong');
+  actionStrong.textContent = 'العملية:';
+  actionDiv.appendChild(actionStrong);
+  actionDiv.appendChild(document.createTextNode(` ${log.ActionType || log.Action || '-'}`));
+
+  row2.appendChild(entityDiv);
+  row2.appendChild(actionDiv);
+
+  const row3 = document.createElement('div');
+  row3.style.marginTop = '8px';
+  row3.style.color = '#475569';
+
+  const detailsStrong = document.createElement('strong');
+  detailsStrong.textContent = 'البيان:';
+  row3.appendChild(detailsStrong);
+  row3.appendChild(document.createTextNode(` ${log.Details || '-'}`));
+
+  headerBox.appendChild(row1);
+  headerBox.appendChild(row2);
+  headerBox.appendChild(row3);
   auditModalBody.appendChild(headerBox);
 
   // تحليل لقطة البيانات السابقة والحالية من JSON

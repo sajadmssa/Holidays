@@ -126,9 +126,9 @@ contextBridge.exposeInMainWorld('api', {
       invoke('leave:submitSickLeave', payload),
 
     /**
-     * Submits a regular-leave request after verifying sufficient balance.
-     * @param {{ employeeId:number, requestedDays:number, startDate:string, endDate:string, orderRef?:string, notes?:string }} payload
-     * @returns {Promise<{success:boolean, data: {leaveId:number, finalBalance:number, requestedDays:number, remainingBalance:number}}>}
+     * Submits a regular-leave request after verifying sufficient balance or explicit excess confirmation.
+     * @param {{ employeeId:number, requestedDays:number, startDate:string, endDate:string, orderRef?:string, notes?:string, confirmExcess?:boolean }} payload
+     * @returns {Promise<{success:boolean, data: {leaveId:number, finalBalance:number, requestedDays:number, remainingBalance:number, quotaExceeded?:boolean, deficit?:number}}>}
      */
     submitRegularLeave: (payload) =>
       invoke('leave:submitRegularLeave', payload),
