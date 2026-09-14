@@ -87,8 +87,8 @@ export function renderActiveLeavesTable(leaves) {
     const isSearching = _dashboardSearchQuery.trim().length > 0 || _isUrgentOnlyFilter;
     activeLeavestbody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="12" class="text-center">
-          ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث أو التصفية' : 'لا توجد إجازات نشطة حالياً'}
+        <td colspan="13" class="text-center">
+          ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث أو التصفية' : 'لا توجد إجازات سارية أو قادمة حالياً'}
         </td>
       </tr>
     `;
@@ -107,6 +107,8 @@ export function renderActiveLeavesTable(leaves) {
       EndDate,
       ResumptionDate,
       DaysRemaining,
+      DaysUntilStart,
+      LeaveStatus,
       SequenceNumber,
       JobNumber,
       DepartmentName,
@@ -117,6 +119,11 @@ export function renderActiveLeavesTable(leaves) {
       tr.classList.add('row-conflict');
     }
 
+    const isUpcoming = LeaveStatus === 'upcoming';
+    if (isUpcoming) {
+      tr.classList.add('row-upcoming');
+    }
+
     const tdSeq = document.createElement('td');
     const tdName = document.createElement('td');
     const tdJobNumber = document.createElement('td');
@@ -124,6 +131,7 @@ export function renderActiveLeavesTable(leaves) {
     const tdCard = document.createElement('td');
     const tdLocation = document.createElement('td');
     const tdType = document.createElement('td');
+    const tdStatus = document.createElement('td');
     const tdApprover = document.createElement('td');
     const tdStart = document.createElement('td');
     const tdEnd = document.createElement('td');
@@ -154,6 +162,21 @@ export function renderActiveLeavesTable(leaves) {
     tdCard.className = 'text-center';
     tdLocation.textContent = WorkLocation || '-';
     tdType.textContent = LeaveName || '';
+
+    // Status Badge (سارية / قادمة)
+    tdStatus.className = 'text-center';
+    const statusBadge = document.createElement('span');
+    if (isUpcoming) {
+      statusBadge.className = 'badge-leave-status badge-status-upcoming';
+      statusBadge.innerHTML = '<span class="status-dot"></span> <span>قادمة</span>';
+      statusBadge.title = `إجازة قادمة تبدأ في ${StartDate || ''}`;
+    } else {
+      statusBadge.className = 'badge-leave-status badge-status-ongoing';
+      statusBadge.innerHTML = '<span class="status-dot"></span> <span>سارية</span>';
+      statusBadge.title = `إجازة سارية حالياً حتى ${EndDate || ''}`;
+    }
+    tdStatus.appendChild(statusBadge);
+
     tdApprover.textContent = LeaveApprover || '-';
     tdStart.className = 'text-center';
     tdStart.textContent = StartDate || '';
@@ -167,27 +190,37 @@ export function renderActiveLeavesTable(leaves) {
 
     const spanDate = document.createElement('span');
     spanDate.className = 'resumption-date-text';
-    spanDate.textContent = ResumptionDate || 'غداً';
+    spanDate.textContent = ResumptionDate ? (isUpcoming ? `العودة: ${ResumptionDate}` : ResumptionDate) : 'غداً';
 
     const spanStatus = document.createElement('span');
     spanStatus.className = 'resumption-status-text';
 
-    const days = DaysRemaining != null ? Number(DaysRemaining) : 0;
-    if (days === 0) {
-      badge.classList.add('badge-resumption-urgent');
-      spanStatus.textContent = '⚠️ المباشرة غداً (آخر يوم)';
-    } else if (days === 1) {
-      badge.classList.add('badge-resumption-urgent');
-      spanStatus.textContent = '⚠️ تبقت يومان على المباشرة';
-    } else if (days === 2) {
-      badge.classList.add('badge-resumption-soon');
-      spanStatus.textContent = '⚠️ تبقت 3 أيام على المباشرة';
-    } else if (days === 3) {
-      badge.classList.add('badge-resumption-soon');
-      spanStatus.textContent = '⚠️ تبقت 4 أيام على المباشرة';
+    if (isUpcoming) {
+      badge.classList.add('badge-resumption-upcoming');
+      const until = DaysUntilStart != null ? Number(DaysUntilStart) : 0;
+      if (until <= 1) {
+        spanStatus.textContent = '⏳ تبدأ غداً';
+      } else {
+        spanStatus.textContent = `⏳ تبدأ بعد ${until} يوم`;
+      }
     } else {
-      badge.classList.add('badge-resumption-normal');
-      spanStatus.textContent = `📅 بعد ${days + 1} يوم`;
+      const days = DaysRemaining != null ? Number(DaysRemaining) : 0;
+      if (days === 0) {
+        badge.classList.add('badge-resumption-urgent');
+        spanStatus.textContent = '⚠️ المباشرة غداً (آخر يوم)';
+      } else if (days === 1) {
+        badge.classList.add('badge-resumption-urgent');
+        spanStatus.textContent = '⚠️ تبقت يومان على المباشرة';
+      } else if (days === 2) {
+        badge.classList.add('badge-resumption-soon');
+        spanStatus.textContent = '⚠️ تبقت 3 أيام على المباشرة';
+      } else if (days === 3) {
+        badge.classList.add('badge-resumption-soon');
+        spanStatus.textContent = '⚠️ تبقت 4 أيام على المباشرة';
+      } else {
+        badge.classList.add('badge-resumption-normal');
+        spanStatus.textContent = `📅 بعد ${days + 1} يوم`;
+      }
     }
 
     badge.append(spanDate, spanStatus);
@@ -203,7 +236,7 @@ export function renderActiveLeavesTable(leaves) {
     btnEdit.addEventListener('click', () => openEditLeaveModal(item));
     tdAction.appendChild(btnEdit);
 
-    tr.append(tdSeq, tdName, tdJobNumber, tdDept, tdCard, tdLocation, tdType, tdApprover, tdStart, tdEnd, tdResumption, tdAction);
+    tr.append(tdSeq, tdName, tdJobNumber, tdDept, tdCard, tdLocation, tdType, tdStatus, tdApprover, tdStart, tdEnd, tdResumption, tdAction);
     fragment.appendChild(tr);
   });
 

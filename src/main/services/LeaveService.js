@@ -850,6 +850,15 @@ function getActiveLeavesForToday(db) {
         l.OrderDate                 AS OrderDate,
         DATE(l.EndDate, '+1 day')   AS ResumptionDate,
         CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
+        CAST(ROUND(julianday(l.StartDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysUntilStart,
+        CASE
+          WHEN date('now', 'localtime') < l.StartDate THEN 'upcoming'
+          ELSE 'ongoing'
+        END AS LeaveStatus,
+        CASE
+          WHEN date('now', 'localtime') < l.StartDate THEN 'قادمة'
+          ELSE 'سارية'
+        END AS LeaveStatusText,
         (
           SELECT COUNT(*)
           FROM Leaves l2
@@ -861,7 +870,7 @@ function getActiveLeavesForToday(db) {
       JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
       LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-      WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+      WHERE  l.EndDate >= date('now', 'localtime')
         AND  e.IsTransferred = 0
       ORDER  BY l.LeaveID ASC
     `)
@@ -869,20 +878,15 @@ function getActiveLeavesForToday(db) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  getActiveLeavesTodayPaginated
+//  getActiveLeavesTodayPaginated (now getActiveAndUpcomingLeavesPaginated)
 //
-//  استرجاع الإجازات السارية اليوم مع تقسيم الصفحات وفلاتر البحث والفرز:
+//  استرجاع الإجازات السارية والقادمة مع تقسيم الصفحات وفلاتر البحث والفرز:
+//  - يشمل الإجازات السارية (تاريخ اليوم بين البداية والنهاية) والإجازات القادمة (البداية بعد اليوم).
+//  - يستبعد الإجازات المنتهية (EndDate < تاريخ اليوم).
 //  - يدعم البحث بالاسم أو رقم الكرت أو نوع الإجازة أو موقع العمل أو القسم أو الرقم الوظيفي.
 //  - يدعم فلترة الحالات العاجلة (urgentOnly) التي توشك على الانتهاء خلال 3 أيام.
-//  - يدعم الفرز الديناميكي بحسب تاريخ الاستئناف أو الاسم.
+//  - يدعم الفرز الديناميكي بحسب تاريخ الاستئناف أو الاسم أو تسلسل الإدخال (LeaveID ASC).
 //  - يكتشف التعارضات والتكرار HasConflict دون إخفاء أي سجل.
-//
-//  Server-side paginated query for Active Leaves Today tab with
-//  search filter, total count, and 15 rows per page.
-//
-//  @param {{ page?: number, pageSize?: number, search?: string, sortBy?: string, urgentOnly?: boolean }} options
-//  @param {import('better-sqlite3').Database} db
-//  @returns {{ data: Array<any>, totalCount: number, page: number, pageSize: number, totalPages: number }}
 // ──────────────────────────────────────────────────────────────
 function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', sortBy = 'entry_asc', urgentOnly = false } = {}, db) {
   const safePage = Math.max(1, parseInt(page, 10) || 1);
@@ -913,7 +917,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
   }
 
   if (urgentOnly) {
-    searchClause += ` AND CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) <= 3 `;
+    searchClause += ` AND date('now', 'localtime') >= l.StartDate AND CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) <= 3 `;
   }
 
   // 1. Total matching count / احتساب العدد الكلي للسجلات المطابقة
@@ -923,7 +927,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
     LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-    WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+    WHERE  l.EndDate >= date('now', 'localtime')
       AND  e.IsTransferred = 0
     ${searchClause}
   `;
@@ -971,6 +975,15 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
       l.OrderDate                 AS OrderDate,
       DATE(l.EndDate, '+1 day')   AS ResumptionDate,
       CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
+      CAST(ROUND(julianday(l.StartDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysUntilStart,
+      CASE
+        WHEN date('now', 'localtime') < l.StartDate THEN 'upcoming'
+        ELSE 'ongoing'
+      END AS LeaveStatus,
+      CASE
+        WHEN date('now', 'localtime') < l.StartDate THEN 'قادمة'
+        ELSE 'سارية'
+      END AS LeaveStatusText,
       (
         SELECT COUNT(*)
         FROM Leaves l2
@@ -982,7 +995,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
     LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
-    WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
+    WHERE  l.EndDate >= date('now', 'localtime')
       AND  e.IsTransferred = 0
     ${searchClause}
     ${orderByClause}
@@ -1494,6 +1507,8 @@ module.exports = {
   getActiveLeavesForToday,
   getActiveLeavesToday: getActiveLeavesForToday,
   getActiveLeavesTodayPaginated,
+  getActiveAndUpcomingLeaves: getActiveLeavesForToday,
+  getActiveAndUpcomingLeavesPaginated: getActiveLeavesTodayPaginated,
   getApproachingResumptions,
   getEmployeeLeaves,
   deleteLeave,

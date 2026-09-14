@@ -692,11 +692,12 @@ async function exportActiveLeavesToExcel(filePath, db) {
     { key: 'workLocation',   width: 18 }, // موقع العمل
     { key: 'cardNum',        width: 16 }, // رقم كرت الإجازة
     { key: 'leaveType',      width: 20 }, // نوع الإجازة
+    { key: 'leaveStatus',    width: 16 }, // حالة الإجازة (سارية / قادمة)
     { key: 'startDate',      width: 15 }, // تاريخ البداية
     { key: 'endDate',        width: 15 }, // تاريخ النهاية
     { key: 'resumptionDate', width: 22 }, // تاريخ المباشرة المتوقع
-    { key: 'daysRemaining',  width: 22 }, // الأيام المتبقية
-    { key: 'statusAlert',    width: 24 }, // حالة الإجازة / تنبيهات
+    { key: 'daysRemaining',  width: 24 }, // الأيام المتبقية / حتى البدء
+    { key: 'statusAlert',    width: 26 }, // تنبيهات (تعارض/تكرار)
     { key: 'leaveApprover',  width: 26 }, // مسؤول الإجازة
   ];
   const COL_COUNT = COLUMNS.length;
@@ -704,7 +705,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
 
   // Apply Official Top Header
   const headerStartRow = applyOfficialHeader(ws, {
-    title: 'كشف الموظفين المجازين حالياً ومواعيد مباشرتهم',
+    title: 'كشف الموظفين المجازين حالياً والقادمة ومواعيد مباشرتهم',
     db,
     colCount: COL_COUNT,
   });
@@ -719,11 +720,12 @@ async function exportActiveLeavesToExcel(filePath, db) {
     'موقع العمل',
     'رقم كرت الإجازة',
     'نوع الإجازة',
+    'حالة الإجازة',
     'تاريخ البداية',
     'تاريخ النهاية',
     'تاريخ المباشرة المتوقع',
-    'الأيام المتبقية',
-    'حالة الإجازة / تنبيهات',
+    'الأيام المتبقية / حتى البدء',
+    'تنبيهات وتعارضات',
     'مسؤول الإجازة'
   ]);
   applyRowStyle(headerRow, STYLE.header, COL_COUNT);
@@ -734,28 +736,42 @@ async function exportActiveLeavesToExcel(filePath, db) {
     const emptyRowNum = headerStartRow + 1;
     ws.mergeCells(emptyRowNum, 1, emptyRowNum, COL_COUNT);
     const emptyCell = ws.getCell(`A${emptyRowNum}`);
-    emptyCell.value = 'لا يوجد موظفون في إجازة حالياً (تاريخ اليوم)';
+    emptyCell.value = 'لا توجد إجازات سارية أو قادمة مسجلة في النظام';
     emptyCell.font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF888888' } };
     emptyCell.alignment = { horizontal: 'center', vertical: 'middle', readingOrder: 'rtl' };
     emptyCell.border = borderThin();
     ws.getRow(emptyRowNum).height = 24;
   } else {
     activeLeaves.forEach((item, index) => {
+      const isUpcoming = item.LeaveStatus === 'upcoming';
+      const statusText = item.LeaveStatusText || (isUpcoming ? 'قادمة' : 'سارية');
       const days = item.DaysRemaining != null ? Number(item.DaysRemaining) : 0;
-      let daysRemainingText = `${days} يوم`;
-      if (days === 0) {
-        daysRemainingText = 'المباشرة غداً (آخر يوم إجازة)';
-      } else if (days === 1) {
-        daysRemainingText = 'المباشرة غداً (يوم متبقٍ)';
-      } else if (days <= 3) {
-        daysRemainingText = `المباشرة خلال ${days + 1} أيام (${days} متبقية)`;
+      const daysUntil = item.DaysUntilStart != null ? Number(item.DaysUntilStart) : 0;
+
+      let daysRemainingText = '';
+      if (isUpcoming) {
+        if (daysUntil === 1) {
+          daysRemainingText = 'تبدأ غداً';
+        } else {
+          daysRemainingText = `تبدأ بعد ${daysUntil} يوم`;
+        }
+      } else {
+        if (days === 0) {
+          daysRemainingText = 'المباشرة غداً (آخر يوم إجازة)';
+        } else if (days === 1) {
+          daysRemainingText = 'المباشرة غداً (يوم متبقٍ)';
+        } else if (days <= 3) {
+          daysRemainingText = `المباشرة خلال ${days + 1} أيام (${days} متبقية)`;
+        } else {
+          daysRemainingText = `${days} يوم متبقٍ`;
+        }
       }
 
       const cardVal = (item.LeaveCardNumber !== null && item.LeaveCardNumber !== undefined && item.LeaveCardNumber !== '' && !isNaN(Number(item.LeaveCardNumber)))
         ? Number(item.LeaveCardNumber)
         : (item.LeaveCardNumber || '-');
 
-      const alertText = item.HasConflict ? '⚠️ تعارض / تكرار إجازة' : 'سارية';
+      const alertText = item.HasConflict ? '⚠️ تعارض / تكرار إجازة' : 'سليمة';
 
       const row = ws.addRow([
         item.SequenceNumber || (index + 1),
@@ -766,6 +782,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
         item.WorkLocation || '-',
         cardVal,
         item.LeaveName || '-',
+        statusText,
         item.StartDate,
         item.EndDate,
         item.ResumptionDate || '-',
@@ -787,19 +804,34 @@ async function exportActiveLeavesToExcel(filePath, db) {
         row.getCell(7).numFmt = '0';
       }
 
-      // Highlight Badges for DaysRemaining
-      const cellRemaining = row.getCell(12);
-      if (days <= 1) {
-        cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
-        cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
-      } else if (days <= 3) {
-        cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
-        cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+      // Highlight Status Badge in Column 9
+      const cellStatus = row.getCell(9);
+      if (isUpcoming) {
+        cellStatus.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }; // soft sky blue
+        cellStatus.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0369A1' } };
+      } else {
+        cellStatus.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } }; // soft green
+        cellStatus.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF166534' } };
       }
 
-      // Highlight Conflict Badges
+      // Highlight Badges for DaysRemaining in Column 13
+      const cellRemaining = row.getCell(13);
+      if (!isUpcoming) {
+        if (days <= 1) {
+          cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+          cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
+        } else if (days <= 3) {
+          cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+          cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+        }
+      } else {
+        cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F9FF' } };
+        cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0284C7' } };
+      }
+
+      // Highlight Conflict Badges in Column 14 and Employee Name
       if (item.HasConflict) {
-        const cellAlert = row.getCell(13);
+        const cellAlert = row.getCell(14);
         cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } };
         cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
         const cellName = row.getCell(3);

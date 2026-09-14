@@ -825,8 +825,96 @@ migTestDb.close();
   assert(fs.existsSync(testExcelPath) && fs.statSync(testExcelPath).size > 0, 'exportActiveLeavesToExcel successfully produces Excel file with conflict badges');
   try { fs.unlinkSync(testExcelPath); } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 26 TEST SUITES!`);
+  // ── Suite 27: Active & Upcoming Leaves Scope, Status Distinction & Conflict Check ──
+  console.log('\n--- Suite 27: Active & Upcoming Leaves Scope, Status Distinction & Conflict Check ---');
+  
+  // Setup Employee 999
+  db.prepare(`
+    INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive)
+    VALUES (999, 'موظف تجربة النطاق الزمني', 'Male', '2020-01-01', 'مهندس نظم', 1)
+  `).run();
+
+  const regType = db.prepare(`SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة اعتيادية'`).get().LeaveTypeID;
+
+  // 1. Finished leave: Ended yesterday (today - 10 to today - 1)
+  const pastDates = db.prepare(`
+    SELECT date('now', 'localtime', '-10 day') AS s, date('now', 'localtime', '-1 day') AS e
+  `).get();
+  const pastLeave = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount)
+    VALUES (999, ?, ?, ?, 10)
+  `).run(regType, pastDates.s, pastDates.e);
+  const pastLeaveId = pastLeave.lastInsertRowid;
+
+  // 2. Ongoing leave: Active today (today - 2 to today + 5)
+  const ongoingDates = db.prepare(`
+    SELECT date('now', 'localtime', '-2 day') AS s, date('now', 'localtime', '+5 day') AS e
+  `).get();
+  const ongoingLeave = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount)
+    VALUES (999, ?, ?, ?, 8)
+  `).run(regType, ongoingDates.s, ongoingDates.e);
+  const ongoingLeaveId = ongoingLeave.lastInsertRowid;
+
+  // 3. Upcoming leave: Starts in 7 days (today + 7 to today + 14)
+  const upcomingDates1 = db.prepare(`
+    SELECT date('now', 'localtime', '+7 day') AS s, date('now', 'localtime', '+14 day') AS e
+  `).get();
+  const upcomingLeave1 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount)
+    VALUES (999, ?, ?, ?, 8)
+  `).run(regType, upcomingDates1.s, upcomingDates1.e);
+  const upcomingLeaveId1 = upcomingLeave1.lastInsertRowid;
+
+  // 4. Overlapping Upcoming leave: (today + 10 to today + 18)
+  const upcomingDates2 = db.prepare(`
+    SELECT date('now', 'localtime', '+10 day') AS s, date('now', 'localtime', '+18 day') AS e
+  `).get();
+  const upcomingLeave2 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount)
+    VALUES (999, ?, ?, ?, 9)
+  `).run(regType, upcomingDates2.s, upcomingDates2.e);
+  const upcomingLeaveId2 = upcomingLeave2.lastInsertRowid;
+
+  // Query all active/upcoming leaves
+  const allCurrent = LeaveService.getActiveLeavesForToday(db);
+
+  // Assert 1: Past leave is strictly EXCLUDED
+  assert(!allCurrent.some(l => l.LeaveID === pastLeaveId), 'Finished leave ended yesterday is strictly EXCLUDED');
+
+  // Assert 2: Ongoing leave is INCLUDED with status "سارية"
+  const foundOngoing = allCurrent.find(l => l.LeaveID === ongoingLeaveId);
+  assert(foundOngoing != null, 'Ongoing leave active today is INCLUDED in results');
+  assert(foundOngoing.LeaveStatus === 'ongoing', 'Ongoing leave has LeaveStatus = "ongoing"');
+  assert(foundOngoing.LeaveStatusText === 'سارية', 'Ongoing leave has LeaveStatusText = "سارية"');
+  assert(foundOngoing.DaysRemaining >= 0, 'Ongoing leave has valid DaysRemaining');
+
+  // Assert 3: Upcoming leave is INCLUDED with status "قادمة"
+  const foundUpcoming1 = allCurrent.find(l => l.LeaveID === upcomingLeaveId1);
+  assert(foundUpcoming1 != null, 'Upcoming leave starting in future is INCLUDED in results');
+  assert(foundUpcoming1.LeaveStatus === 'upcoming', 'Upcoming leave has LeaveStatus = "upcoming"');
+  assert(foundUpcoming1.LeaveStatusText === 'قادمة', 'Upcoming leave has LeaveStatusText = "قادمة"');
+  assert(foundUpcoming1.DaysUntilStart === 7, 'Upcoming leave DaysUntilStart accurately reflects 7 days');
+
+  // Assert 4: HasConflict accurately detects overlap between two upcoming leaves
+  const foundUpcoming2 = allCurrent.find(l => l.LeaveID === upcomingLeaveId2);
+  assert(foundUpcoming1.HasConflict === 1, 'Upcoming leave 1 reports HasConflict = 1 due to overlapping upcoming leave 2');
+  assert(foundUpcoming2.HasConflict === 1, 'Upcoming leave 2 reports HasConflict = 1 due to overlapping upcoming leave 1');
+
+  // Assert 5: Paginated query returns both ongoing and upcoming leaves
+  const pagedCurrent = LeaveService.getActiveLeavesTodayPaginated({ search: 'موظف تجربة النطاق الزمني' }, db);
+  assert(pagedCurrent.totalCount === 3, 'Paginated query totalCount matches exactly 3 (1 ongoing + 2 upcoming, 0 past)');
+  assert(!pagedCurrent.data.some(l => l.LeaveID === pastLeaveId), 'Paginated query excludes past leave');
+
+  // Assert 6: Excel export with new status column generates successfully
+  const testExcelPath2 = path.join(__dirname, 'test_active_and_upcoming_leaves.xlsx');
+  await ReportService.exportActiveLeavesToExcel(testExcelPath2, db);
+  assert(fs.existsSync(testExcelPath2) && fs.statSync(testExcelPath2).size > 0, 'Excel export generates successfully with Leave Status column');
+  try { fs.unlinkSync(testExcelPath2); } catch (_) {}
+
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 27 TEST SUITES!`);
 })();
+
 
 
 
