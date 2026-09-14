@@ -195,9 +195,17 @@ function addEmployee(employeeData, db) {
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
   // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
-    // Generate SequenceNumber atomically within transaction (التسلسل الداخلي التلقائي غير المتكرر)
-    const maxSeqRow = db.prepare('SELECT COALESCE(MAX(SequenceNumber), 0) AS maxSeq FROM Employees').get();
-    const sequenceNumber = (maxSeqRow ? maxSeqRow.maxSeq : 0) + 1;
+    // Generate SequenceNumber atomically within transaction (التسلسل الداخلي التلقائي غير المتكرر مع صمام حفظ القمة التراكمية)
+    const savedSeqRow = db.prepare("SELECT Value FROM _AppSettings WHERE Key = 'last_employee_sequence'").get();
+    const maxInTable = db.prepare('SELECT COALESCE(MAX(SequenceNumber), 0) AS maxSeq FROM Employees').get()?.maxSeq || 0;
+    const lastSeq = Math.max(savedSeqRow ? parseInt(savedSeqRow.Value, 10) || 0 : 0, maxInTable);
+    const sequenceNumber = lastSeq + 1;
+
+    db.prepare(`
+      INSERT INTO _AppSettings (Key, Value, UpdatedAt)
+      VALUES ('last_employee_sequence', ?, datetime('now', 'localtime'))
+      ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = excluded.UpdatedAt
+    `).run(String(sequenceNumber));
 
     const info = db
       .prepare(`

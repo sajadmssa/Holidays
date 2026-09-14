@@ -628,6 +628,25 @@ const fetchedSeq1 = EmployeeService.getEmployeeById(1001, db);
 assert(fetchedSeq1.SequenceNumber === empSeq1.SequenceNumber, 'SequenceNumber cannot be altered via updateEmployee');
 assert(fetchedSeq1.FullName === 'موظف تجربة تسلسل 1 معدل', 'Other fields are updated successfully');
 
+// Test Hardening: Delete latest employee and verify sequence does not roll back or reuse
+const latestSeqBeforeDelete = empSeq2.SequenceNumber;
+db.prepare('DELETE FROM LeaveBalances WHERE EmployeeID = 1002').run();
+db.prepare("DELETE FROM AuditLogs WHERE EntityType = 'EMPLOYEE' AND EntityID = '1002'").run();
+db.prepare('DELETE FROM Employees WHERE EmployeeID = 1002').run();
+
+EmployeeService.addEmployee({
+  employeeId: 1003,
+  fullName: 'موظف تجربة تسلسل 3 بعد الحذف',
+  gender: 'Male',
+  hireDate: '2022-01-01',
+  jobTitle: 'تقني',
+  jobNumber: 'J-1003',
+  departmentId: 1
+}, db);
+const empSeq3 = EmployeeService.getEmployeeById(1003, db);
+assert(empSeq3.SequenceNumber === latestSeqBeforeDelete + 1, 'SequenceNumber strictly increments even after deleting the latest employee row (persisted high-water mark)');
+
+
 // ── Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ─
 console.log('\n--- Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ---');
 const allDepts = DepartmentService.getAllDepartments(db);
