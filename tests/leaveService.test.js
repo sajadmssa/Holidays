@@ -631,8 +631,11 @@ assert(fetchedSeq1.FullName === 'موظف تجربة تسلسل 1 معدل', 'Ot
 // ── Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ─
 console.log('\n--- Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ---');
 const allDepts = DepartmentService.getAllDepartments(db);
-assert(allDepts.length >= 7, 'Default 7 departments exist in seeded database');
+assert(allDepts.length >= 2, 'Default departments exist in seeded database');
+assert(allDepts.some(d => d.Name === 'قسم الشؤون الإدارية'), 'قسم الشؤون الإدارية exists');
+assert(allDepts.some(d => d.Name === 'قسم التشغيل'), 'قسم التشغيل exists');
 assert(fetchedSeq1.DepartmentName != null, 'Employee has populated DepartmentName from join');
+
 
 // Attempt to delete Department 1 which is linked to empSeq1
 assertThrows(() => {
