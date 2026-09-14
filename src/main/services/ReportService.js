@@ -494,10 +494,12 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         FullName LIKE ? OR
         LeaveCardNumber LIKE ? OR
         WorkLocation LIKE ? OR
-        CAST(EmployeeID AS TEXT) LIKE ?
+        CAST(EmployeeID AS TEXT) LIKE ? OR
+        (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
       )
     `;
-    params.push(pattern, pattern, pattern, pattern);
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   const query = `
@@ -509,13 +511,17 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         WorkLocation,
         LeaveCardNumber,
         LeaveApprover,
-        IsActive
+        IsActive,
+        DepartmentID,
+        SequenceNumber,
+        JobNumber
       FROM Employees
       ${whereClause}
       ORDER BY IsActive DESC, FullName ASC
     )
     SELECT
       me.*,
+      d.Name AS DepartmentName,
       (
         SELECT l.StartDate FROM Leaves l
         WHERE l.EmployeeID = me.EmployeeID
@@ -536,6 +542,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         LIMIT 1
       ) AS LastLeaveTypeName
     FROM MatchedEmps me
+    LEFT JOIN Departments d ON me.DepartmentID = d.DepartmentID
     ORDER BY me.IsActive DESC, me.FullName ASC
   `;
 
@@ -558,9 +565,10 @@ async function exportAllEmployees(arg1, arg2, arg3) {
   });
 
   const COLUMNS = [
-    { key: 'seq',        width: 8  },
-    { key: 'empId',      width: 14 },
+    { key: 'seq',        width: 10 },
+    { key: 'jobNumber',  width: 15 },
     { key: 'name',       width: 26 },
+    { key: 'department', width: 22 },
     { key: 'jobTitle',   width: 22 },
     { key: 'location',   width: 20 },
     { key: 'card',       width: 16 },
@@ -581,9 +589,10 @@ async function exportAllEmployees(arg1, arg2, arg3) {
 
   // Header Row
   const headerRow = ws.addRow([
-    'ت',
+    'التسلسل',
     'الرقم الوظيفي',
     'الاسم الكامل',
+    'القسم',
     'المسمى الوظيفي',
     'موقع العمل',
     'رقم كرت الإجازة',
@@ -615,9 +624,10 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         : (emp.LeaveCardNumber || '-');
 
       const dataRow = ws.addRow([
-        index + 1,
-        Number(emp.EmployeeID) || emp.EmployeeID,
+        emp.SequenceNumber || (index + 1),
+        emp.JobNumber || emp.EmployeeID,
         emp.FullName,
+        emp.DepartmentName || '-',
         emp.JobTitle || '-',
         emp.WorkLocation || '-',
         cardVal,
@@ -630,11 +640,13 @@ async function exportAllEmployees(arg1, arg2, arg3) {
       applyRowStyle(dataRow, index % 2 === 0 ? STYLE.rowEven : STYLE.rowOdd, COL_COUNT);
       dataRow.height = 18;
 
-      // Numeric formatting for ID and Card columns
+      // Numeric formatting for Sequence, ID and Card columns
       dataRow.getCell(1).numFmt = '0';
-      dataRow.getCell(2).numFmt = '0';
+      if (!isNaN(Number(emp.JobNumber || emp.EmployeeID))) {
+        dataRow.getCell(2).numFmt = '0';
+      }
       if (typeof cardVal === 'number') {
-        dataRow.getCell(6).numFmt = '0';
+        dataRow.getCell(7).numFmt = '0';
       }
     });
   }
@@ -672,8 +684,10 @@ async function exportActiveLeavesToExcel(filePath, db) {
   });
 
   const COLUMNS = [
-    { key: 'empId',          width: 15 }, // الرقم الوظيفي
+    { key: 'seq',            width: 10 }, // التسلسل
+    { key: 'jobNumber',      width: 15 }, // الرقم الوظيفي
     { key: 'fullName',       width: 26 }, // الاسم الكامل
+    { key: 'department',     width: 22 }, // القسم
     { key: 'jobTitle',       width: 20 }, // المسمى
     { key: 'workLocation',   width: 18 }, // موقع العمل
     { key: 'cardNum',        width: 16 }, // رقم كرت الإجازة
@@ -682,6 +696,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
     { key: 'endDate',        width: 15 }, // تاريخ النهاية
     { key: 'resumptionDate', width: 22 }, // تاريخ المباشرة المتوقع
     { key: 'daysRemaining',  width: 22 }, // الأيام المتبقية
+    { key: 'statusAlert',    width: 24 }, // حالة الإجازة / تنبيهات
     { key: 'leaveApprover',  width: 26 }, // مسؤول الإجازة
   ];
   const COL_COUNT = COLUMNS.length;
@@ -696,8 +711,10 @@ async function exportActiveLeavesToExcel(filePath, db) {
 
   // Header Row
   const headerRow = ws.addRow([
+    'التسلسل',
     'الرقم الوظيفي',
     'الاسم الكامل',
+    'القسم',
     'المسمى',
     'موقع العمل',
     'رقم كرت الإجازة',
@@ -706,6 +723,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
     'تاريخ النهاية',
     'تاريخ المباشرة المتوقع',
     'الأيام المتبقية',
+    'حالة الإجازة / تنبيهات',
     'مسؤول الإجازة'
   ]);
   applyRowStyle(headerRow, STYLE.header, COL_COUNT);
@@ -737,9 +755,13 @@ async function exportActiveLeavesToExcel(filePath, db) {
         ? Number(item.LeaveCardNumber)
         : (item.LeaveCardNumber || '-');
 
+      const alertText = item.HasConflict ? '⚠️ تعارض / تكرار إجازة' : 'سارية';
+
       const row = ws.addRow([
-        Number(item.EmployeeID) || item.EmployeeID,
+        item.SequenceNumber || (index + 1),
+        item.JobNumber || item.EmployeeID,
         item.FullName,
+        item.DepartmentName || '-',
         item.JobTitle || '-',
         item.WorkLocation || '-',
         cardVal,
@@ -748,6 +770,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
         item.EndDate,
         item.ResumptionDate || '-',
         daysRemainingText,
+        alertText,
         item.LeaveApprover || '-',
       ]);
 
@@ -755,20 +778,30 @@ async function exportActiveLeavesToExcel(filePath, db) {
       applyRowStyle(row, baseStyle, COL_COUNT);
       row.height = 20;
 
-      // Numeric formatting for ID and Card columns
+      // Numeric formatting for Sequence, ID and Card columns
       row.getCell(1).numFmt = '0';
+      if (!isNaN(Number(item.JobNumber || item.EmployeeID))) {
+        row.getCell(2).numFmt = '0';
+      }
       if (typeof cardVal === 'number') {
-        row.getCell(5).numFmt = '0';
+        row.getCell(7).numFmt = '0';
       }
 
       // Highlight Badges for DaysRemaining
-      const cellRemaining = row.getCell(10);
+      const cellRemaining = row.getCell(12);
       if (days <= 1) {
         cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
         cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
       } else if (days <= 3) {
         cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
         cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+      }
+
+      // Highlight Conflict Badges
+      if (item.HasConflict) {
+        const cellAlert = row.getCell(13);
+        cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } };
+        cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
       }
     });
   }

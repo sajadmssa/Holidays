@@ -3,17 +3,13 @@
 
 <head>
   <meta charset="UTF-8" />
-  <!-- Content Security Policy allowing local assets & Google Fonts -->
+  <!-- Content Security Policy: 100% Offline Local Assets Only -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:;" />
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>نظام إدارة الإجازات</title>
 
-  <!-- Google Fonts: Cairo -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
+  <link rel="icon" type="image/x-icon" href="../assets/icon.ico" />
   <link rel="stylesheet" href="styles.css" />
 
   <script src="theme-init.js"></script>
@@ -205,8 +201,14 @@
               <div id="employee-summary-badge" class="card-panel-sub summary-badge hidden" role="region"
                 aria-label="بيانات الموظف المحدد">
                 <div class="summary-badge-grid">
+                  <div class="summary-item"><span class="summary-label">🔢 التسلسل:</span> <strong
+                      id="summary-emp-sequence">-</strong></div>
                   <div class="summary-item"><span class="summary-label">👤 الموظف:</span> <strong
                       id="summary-emp-name">-</strong></div>
+                  <div class="summary-item"><span class="summary-label">🪪 الرقم الوظيفي:</span> <span
+                      id="summary-emp-job-number">-</span></div>
+                  <div class="summary-item"><span class="summary-label">🏛️ القسم / الشعبة:</span> <span
+                      id="summary-emp-department">-</span></div>
                   <div class="summary-item"><span class="summary-label">💼 المسمى:</span> <span
                       id="summary-emp-title">-</span></div>
                   <div class="summary-item"><span class="summary-label">🏢 موقع العمل:</span> <span
@@ -403,7 +405,10 @@
               <table id="active-leaves-table" class="data-table">
                 <thead>
                   <tr>
+                    <th scope="col" class="text-center" style="width: 50px;">ت</th>
                     <th scope="col">اسم الموظف</th>
+                    <th scope="col" class="text-center">الرقم الوظيفي</th>
+                    <th scope="col">القسم / الشعبة</th>
                     <th scope="col" class="text-center">رقم كرت الإجازة</th>
                     <th scope="col">موقع العمل</th>
                     <th scope="col">نوع الإجازة</th>
@@ -454,13 +459,31 @@
               </div>
 
               <div class="form-grid">
-                <!-- Employee ID -->
-                <div class="form-group full-width">
+                <!-- Employee ID (Primary Key) -->
+                <div class="form-group">
                   <label for="emp-employee-id">
-                    الرقم الوظيفي <span class="required" aria-hidden="true">*</span>
+                    رقم الموظف (المعرّف الأساسي) <span class="required" aria-hidden="true">*</span>
                   </label>
-                  <input id="emp-employee-id" type="number" min="1" step="1" placeholder="أدخل الرقم الوظيفي للموظف"
+                  <input id="emp-employee-id" type="number" min="1" step="1" placeholder="أدخل رقم الموظف الأساسي"
                     required aria-required="true" />
+                </div>
+
+                <!-- Job Number -->
+                <div class="form-group">
+                  <label for="emp-job-number">
+                    الرقم الوظيفي
+                  </label>
+                  <input id="emp-job-number" type="text" maxlength="100" placeholder="أدخل الرقم الوظيفي (اختياري)" />
+                </div>
+
+                <!-- Department -->
+                <div class="form-group full-width">
+                  <label for="emp-department">
+                    القسم / الشعبة
+                  </label>
+                  <select id="emp-department">
+                    <option value="" selected>— اختر القسم / الشعبة (اختياري) —</option>
+                  </select>
                 </div>
 
                 <!-- Full Name -->
@@ -633,6 +656,23 @@
               </div>
 
               <div class="form-grid">
+                <div class="form-group">
+                  <label for="manage-sequence-number">التسلسل (تلقائي)</label>
+                  <input id="manage-sequence-number" type="text" readonly disabled class="readonly-input" />
+                </div>
+
+                <div class="form-group">
+                  <label for="manage-job-number">الرقم الوظيفي</label>
+                  <input id="manage-job-number" type="text" maxlength="100" placeholder="أدخل الرقم الوظيفي" />
+                </div>
+
+                <div class="form-group full-width">
+                  <label for="manage-department">القسم / الشعبة</label>
+                  <select id="manage-department">
+                    <option value="">— بدون قسم —</option>
+                  </select>
+                </div>
+
                 <div class="form-group full-width">
                   <label for="manage-full-name">
                     الاسم الكامل <span class="required" aria-hidden="true">*</span>
@@ -720,8 +760,11 @@
               <table id="all-employees-table" class="data-table">
                 <thead>
                   <tr>
+                    <th scope="col" class="text-center" style="width: 50px;">ت</th>
+                    <th scope="col" class="text-center">رقم الموظف</th>
                     <th scope="col" class="text-center">الرقم الوظيفي</th>
                     <th scope="col">الاسم الكامل</th>
+                    <th scope="col">القسم / الشعبة</th>
                     <th scope="col">المسمى الوظيفي</th>
                     <th scope="col">موقع العمل</th>
                     <th scope="col" class="text-center">رقم كرت الإجازة</th>
@@ -1106,6 +1149,32 @@
               placeholder="مثال: دائرة توزيع كهرباء الجنوب - قسم الموارد البشرية" autocomplete="off" />
             <span class="helper-text">
               📌 يظهر هذا الاسم تلقائياً في أعلى الترويسة لكافة ملفات وتصديرات Excel الرسمية.
+            </span>
+          </div>
+        </div>
+
+        <!-- Section 1.5: Departments & Divisions Management -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">🏛️</span>
+            <div class="settings-section-title-wrap">
+              <span class="settings-section-title">إدارة الأقسام والشعب الإدارية</span>
+              <span class="settings-section-desc">إضافة وتعديل وحذف الأقسام وتصنيف الموظفين ضمنها</span>
+            </div>
+          </div>
+          <div class="departments-manage-box">
+            <div class="dept-add-row">
+              <input type="text" id="input-new-department-name" class="form-input"
+                placeholder="أدخل اسم القسم الجديد (مثال: قسم الشؤون الإدارية والمالية)" autocomplete="off" />
+              <button type="button" id="btn-add-department" class="btn-primary" style="white-space: nowrap; height: 42px; min-height: 42px;">
+                ➕ إضافة قسم
+              </button>
+            </div>
+            <div id="departments-list-container" class="departments-list-container">
+              <!-- Rendered dynamically -->
+            </div>
+            <span class="helper-text">
+              🔒 الأقسام محمية بسياسة الحذف المشروط (RESTRICT): لن يُسمح بحذف أي قسم مرتبط بموظفين نشطين قبل نقلهم.
             </span>
           </div>
         </div>

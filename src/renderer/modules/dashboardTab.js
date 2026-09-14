@@ -87,7 +87,7 @@ export function renderActiveLeavesTable(leaves) {
     const isSearching = _dashboardSearchQuery.trim().length > 0 || _isUrgentOnlyFilter;
     activeLeavestbody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="9" class="text-center">
+        <td colspan="12" class="text-center">
           ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث أو التصفية' : 'لا توجد إجازات نشطة حالياً'}
         </td>
       </tr>
@@ -97,10 +97,27 @@ export function renderActiveLeavesTable(leaves) {
 
   const fragment = document.createDocumentFragment();
   leaves.forEach((item) => {
-    const { FullName, LeaveCardNumber, WorkLocation, LeaveName, LeaveApprover, StartDate, EndDate, ResumptionDate, DaysRemaining } = item;
+    const {
+      FullName,
+      LeaveCardNumber,
+      WorkLocation,
+      LeaveName,
+      LeaveApprover,
+      StartDate,
+      EndDate,
+      ResumptionDate,
+      DaysRemaining,
+      SequenceNumber,
+      JobNumber,
+      DepartmentName,
+      HasConflict
+    } = item;
     const tr = document.createElement('tr');
 
+    const tdSeq = document.createElement('td');
     const tdName = document.createElement('td');
+    const tdJobNumber = document.createElement('td');
+    const tdDept = document.createElement('td');
     const tdCard = document.createElement('td');
     const tdLocation = document.createElement('td');
     const tdType = document.createElement('td');
@@ -110,7 +127,26 @@ export function renderActiveLeavesTable(leaves) {
     const tdResumption = document.createElement('td');
     const tdAction = document.createElement('td');
 
-    tdName.textContent = FullName || '';
+    tdSeq.className = 'text-center font-bold';
+    tdSeq.textContent = SequenceNumber != null ? String(SequenceNumber) : '-';
+
+    const spanName = document.createElement('span');
+    spanName.textContent = FullName || '';
+    tdName.appendChild(spanName);
+
+    if (HasConflict) {
+      const conflictBadge = document.createElement('span');
+      conflictBadge.className = 'conflict-badge';
+      conflictBadge.title = 'تنبيه: يوجد تداخل أو تكرار في تواريخ الإجازات المسجلة لهذا الموظف';
+      conflictBadge.textContent = '⚠️ تعارض / تكرار إجازة';
+      tdName.appendChild(conflictBadge);
+    }
+
+    tdJobNumber.className = 'text-center';
+    tdJobNumber.textContent = JobNumber || '-';
+
+    tdDept.textContent = DepartmentName || '-';
+
     tdCard.textContent = LeaveCardNumber || '-';
     tdCard.className = 'text-center';
     tdLocation.textContent = WorkLocation || '-';
@@ -164,7 +200,7 @@ export function renderActiveLeavesTable(leaves) {
     btnEdit.addEventListener('click', () => openEditLeaveModal(item));
     tdAction.appendChild(btnEdit);
 
-    tr.append(tdName, tdCard, tdLocation, tdType, tdApprover, tdStart, tdEnd, tdResumption, tdAction);
+    tr.append(tdSeq, tdName, tdJobNumber, tdDept, tdCard, tdLocation, tdType, tdApprover, tdStart, tdEnd, tdResumption, tdAction);
     fragment.appendChild(tr);
   });
 

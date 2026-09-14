@@ -9,6 +9,17 @@
    ============================================================ */
 
 /* ────────────────────────────────────────────────────────────
+   0. Offline Local Fonts
+   ──────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./assets/fonts/Cairo-SemiBold.ttf') format('truetype');
+}
+
+/* ────────────────────────────────────────────────────────────
    1. Design Tokens & CSS Variables
    ──────────────────────────────────────────────────────────── */
 :root {
@@ -33,7 +44,8 @@
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-alt: #f1f5f9;
-  --color-border: #e2e8f0;
+  --color-border: #cbd5e1;
+  --color-input-bg: #ffffff;
   --color-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
   --color-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --color-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
@@ -89,6 +101,7 @@
   --color-surface: #111827;
   --color-surface-alt: #1f2937;
   --color-border: #374151;
+  --color-input-bg: #1f2937;
   --color-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --color-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --color-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.6);
@@ -711,7 +724,7 @@ textarea,
   font-family: inherit;
   font-size: 0.95rem;
   color: var(--color-text);
-  background-color: var(--color-surface-alt);
+  background-color: var(--color-input-bg, #ffffff);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
   outline: none;
@@ -4202,4 +4215,128 @@ textarea:focus,
 
 .btn-edit-leave-cancel {
   flex: 1;
+}
+
+/* ────────────────────────────────────────────────────────────
+   15. Leave Conflict / Duplicate Warning Badge
+   ──────────────────────────────────────────────────────────── */
+.badge-conflict,
+.conflict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #b45309;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  margin-inline-start: 6px;
+}
+
+:root[data-theme="dark"] .badge-conflict,
+:root[data-theme="dark"] .conflict-badge {
+  color: #fde68a;
+  background-color: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* ────────────────────────────────────────────────────────────
+   16. Department Management (Settings Modal)
+   ──────────────────────────────────────────────────────────── */
+.departments-manage-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.dept-add-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dept-add-row input {
+  flex: 1;
+}
+
+.departments-list-container {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.departments-table-wrapper {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.departments-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.departments-table-wrapper th,
+.departments-table-wrapper td {
+  padding: 10px 14px;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.departments-table-wrapper thead {
+  background-color: var(--color-surface-alt);
+}
+
+.dept-name-cell {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ────────────────────────────────────────────────────────────
+   17. Responsive Layouts & Windows DPI Scaling (125%, 150%)
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 1440px) {
+  .content-body {
+    padding: 20px 24px;
+  }
+
+  .card-panel {
+    padding: 22px 24px;
+    margin-block-end: 18px;
+  }
+
+  .summary-badge-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 1200px) {
+  .app-sidebar {
+    width: 230px;
+  }
+
+  .sidebar-brand h1 {
+    font-size: 1.1rem;
+  }
+
+  .tab-btn {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+
+  .summary-badge-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

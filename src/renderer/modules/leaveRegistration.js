@@ -53,6 +53,9 @@ let summaryEmpCard = null;
 let summaryEmpApprover = null;
 let summaryEmpTransferWrap = null;
 let summaryEmpTransfer = null;
+let summaryEmpSequence = null;
+let summaryEmpJobNumber = null;
+let summaryEmpDepartment = null;
 
 // قفل منع الحلقات التكرارية أثناء التحديث التفاعلي التلقائي للتواريخ
 let isAutoUpdating = false;
@@ -132,6 +135,9 @@ export function hideEmployeeSummary() {
   if (employeeSummaryBadge) {
     employeeSummaryBadge.classList.add('hidden');
     if (summaryEmpName) summaryEmpName.textContent = '-';
+    if (summaryEmpSequence) summaryEmpSequence.textContent = '-';
+    if (summaryEmpJobNumber) summaryEmpJobNumber.textContent = '-';
+    if (summaryEmpDepartment) summaryEmpDepartment.textContent = '-';
     if (summaryEmpTitle) summaryEmpTitle.textContent = '-';
     if (summaryEmpLocation) summaryEmpLocation.textContent = '-';
     if (summaryEmpCard) summaryEmpCard.textContent = '-';
@@ -151,6 +157,9 @@ export async function loadEmployeeSummary(id) {
     if (response.success && response.data) {
       const emp = response.data;
       if (summaryEmpName) summaryEmpName.textContent = emp.FullName || '-';
+      if (summaryEmpSequence) summaryEmpSequence.textContent = emp.SequenceNumber != null ? String(emp.SequenceNumber) : '-';
+      if (summaryEmpJobNumber) summaryEmpJobNumber.textContent = emp.JobNumber || '-';
+      if (summaryEmpDepartment) summaryEmpDepartment.textContent = emp.DepartmentName || 'غير محدد';
       if (summaryEmpTitle) summaryEmpTitle.textContent = emp.JobTitle || '-';
       if (summaryEmpLocation) summaryEmpLocation.textContent = emp.WorkLocation || 'غير محدد';
       if (summaryEmpCard) summaryEmpCard.textContent = emp.LeaveCardNumber || 'غير محدد';
@@ -564,6 +573,9 @@ export function initLeaveRegistration() {
 
   employeeSummaryBadge = document.getElementById('employee-summary-badge');
   summaryEmpName = document.getElementById('summary-emp-name');
+  summaryEmpSequence = document.getElementById('summary-emp-sequence');
+  summaryEmpJobNumber = document.getElementById('summary-emp-job-number');
+  summaryEmpDepartment = document.getElementById('summary-emp-department');
   summaryEmpTitle = document.getElementById('summary-emp-title');
   summaryEmpLocation = document.getElementById('summary-emp-location');
   summaryEmpCard = document.getElementById('summary-emp-card');

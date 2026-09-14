@@ -46,6 +46,7 @@
       "output": "release"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         { "target": "nsis", "arch": ["x64", "ia32"] }
       ]
@@ -54,7 +55,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "runAfterFinish": true,
-      "shortcutName": "نظام الإجازات"
+      "shortcutName": "نظام الإجازات",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     }
   }
 }

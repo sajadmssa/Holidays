@@ -39,6 +39,9 @@ let btnManageOpenTimecards = null;
 let btnManageOpenLeavecards = null;
 let manageBadgeTimecardCount = null;
 let manageBadgeLeavecardCount = null;
+let manageSequenceNumberInput = null;
+let manageJobNumberInput = null;
+let manageDepartmentSelect = null;
 
 // حالة الموظف المفتوح حالياً في الذاكرة
 let currentManagingEmpId = null;
@@ -60,6 +63,24 @@ let transferOrderDateInput = null;
 let transferNotesInput = null;
 let btnSaveTransfer = null;
 let btnCancelTransferStatus = null;
+
+/**
+ * تحميل وتعبئة قائمة الأقسام في القائمة المنسدلة لشاشة إدارة الموظف
+ */
+export async function populateManageDepartments() {
+  if (!manageDepartmentSelect) return;
+  try {
+    const res = await window.api.departments.getAll();
+    if (res && res.success && Array.isArray(res.data)) {
+      const currentVal = manageDepartmentSelect.value;
+      manageDepartmentSelect.innerHTML = '<option value="">— بدون قسم —</option>' +
+        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`).join('');
+      if (currentVal) manageDepartmentSelect.value = currentVal;
+    }
+  } catch (err) {
+    console.error('Failed to load departments in manageEmployeeTab:', err);
+  }
+}
 
 /**
  * جلب وتحميل كافة بيانات الموظف وأرصدته ومستنداته وعرضها في شاشة الإدارة
@@ -98,6 +119,9 @@ export async function loadEmployeeForManagement(id) {
     currentManagingEmpData = emp;
 
     // تعبئة حقول البيانات الأساسية
+    if (manageSequenceNumberInput) manageSequenceNumberInput.value = emp.SequenceNumber != null ? String(emp.SequenceNumber) : '-';
+    if (manageJobNumberInput) manageJobNumberInput.value = emp.JobNumber || '';
+    if (manageDepartmentSelect) manageDepartmentSelect.value = emp.DepartmentID != null ? String(emp.DepartmentID) : '';
     if (manageFullNameInput) manageFullNameInput.value = emp.FullName || '';
     if (manageJobTitleInput) manageJobTitleInput.value = emp.JobTitle || '';
     if (manageWorkLocationInput) manageWorkLocationInput.value = emp.WorkLocation || '';
@@ -253,6 +277,13 @@ export function initManageEmployeeTab(options = {}) {
   manageEmpTransferredDetails = document.getElementById('manage-emp-transferred-details');
   btnTransferEmp = document.getElementById('btn-transfer-emp');
 
+  manageSequenceNumberInput = document.getElementById('manage-sequence-number');
+  manageJobNumberInput = document.getElementById('manage-job-number');
+  manageDepartmentSelect = document.getElementById('manage-department');
+
+  // تحميل قائمة الأقسام
+  populateManageDepartments();
+
   transferModal = document.getElementById('transfer-employee-modal');
   btnCloseTransferModal = document.getElementById('btn-close-transfer-modal');
   btnCancelTransferModal = document.getElementById('btn-cancel-transfer-modal');
@@ -330,6 +361,8 @@ export function initManageEmployeeTab(options = {}) {
         const newRegularVal = parseInt(manageRegularBalanceInput?.value || '0', 10);
         const baseline = parseInt(manageRegularBalanceInput?.dataset.baseline || '0', 10);
         const adjustmentDays = newRegularVal - baseline;
+        const jobNumber = manageJobNumberInput ? manageJobNumberInput.value.trim() : null;
+        const departmentId = manageDepartmentSelect && manageDepartmentSelect.value ? parseInt(manageDepartmentSelect.value, 10) : null;
 
         // 2. تحديث جدول الموظفين (EmployeeService.updateEmployee)
         const response = await window.api.employee.update(currentManagingEmpId, {
@@ -337,7 +370,9 @@ export function initManageEmployeeTab(options = {}) {
           jobTitle,
           workLocation: workLocation || null,
           leaveCardNumber: leaveCardNumber || null,
-          adjustmentDays
+          adjustmentDays,
+          jobNumber: jobNumber || null,
+          departmentId: departmentId || null
         });
 
         if (!response.success) {

@@ -84,6 +84,8 @@ function addEmployee(employeeData, db) {
     workLocation,
     leaveCardNumber,
     leaveApprover,
+    departmentId,
+    jobNumber,
   } = employeeData;
 
   // ── Step 1b: EmployeeID Validation / التحقق من الرقم الوظيفي ───
@@ -171,13 +173,39 @@ function addEmployee(employeeData, db) {
     throw new Error(`اسم المسؤول عن منح الإجازة طويل جداً (الحد الأقصى المسموح به ${MAX_APPROVER_LENGTH} حرف).`);
   }
 
+  // Department Validation / التحقق من القسم
+  let cleanDepartmentId = null;
+  if (departmentId !== undefined && departmentId !== null && departmentId !== '') {
+    const dId = parseInt(departmentId, 10);
+    if (!Number.isInteger(dId) || dId <= 0) {
+      throw new Error('معرف القسم غير صالح.');
+    }
+    const deptExists = db.prepare('SELECT DepartmentID FROM Departments WHERE DepartmentID = ?').get(dId);
+    if (!deptExists) {
+      throw new Error('القسم المختار غير موجود في النظام.');
+    }
+    cleanDepartmentId = dId;
+  }
+
+  // JobNumber Validation / التحقق من الرقم الوظيفي
+  const cleanJobNumber = typeof jobNumber === 'string' && jobNumber.trim().length > 0
+    ? jobNumber.trim()
+    : (employeeId ? String(employeeId) : null);
+
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
   // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
+    // Generate SequenceNumber atomically within transaction (التسلسل الداخلي التلقائي غير المتكرر)
+    const maxSeqRow = db.prepare('SELECT COALESCE(MAX(SequenceNumber), 0) AS maxSeq FROM Employees').get();
+    const sequenceNumber = (maxSeqRow ? maxSeqRow.maxSeq : 0) + 1;
+
     const info = db
       .prepare(`
-        INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, WorkLocation, LeaveCardNumber, LeaveApprover, IsActive)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO Employees (
+          EmployeeID, FullName, Gender, HireDate, JobTitle, WorkLocation, 
+          LeaveCardNumber, LeaveApprover, DepartmentID, SequenceNumber, JobNumber, IsActive
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `)
       .run(
         employeeId,
@@ -187,7 +215,10 @@ function addEmployee(employeeData, db) {
         jobTitle.trim(),
         cleanLocation,
         cleanCardNumber,
-        cleanApprover
+        cleanApprover,
+        cleanDepartmentId,
+        sequenceNumber,
+        cleanJobNumber
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
@@ -221,8 +252,11 @@ function addEmployee(employeeData, db) {
         WorkLocation: cleanLocation,
         LeaveCardNumber: cleanCardNumber,
         LeaveApprover: cleanApprover,
+        DepartmentID: cleanDepartmentId,
+        SequenceNumber: sequenceNumber,
+        JobNumber: cleanJobNumber,
       },
-      details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${employeeId})`,
+      details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${cleanJobNumber || employeeId}، التسلسل: ${sequenceNumber})`,
     });
 
     return Number(info.lastInsertRowid);
@@ -256,18 +290,23 @@ function searchEmployees(keyword, db) {
 
   return db
     .prepare(`
-      SELECT EmployeeID, FullName, JobTitle, WorkLocation, LeaveCardNumber, LeaveApprover, IsTransferred, TransferOrderNumber
-      FROM   Employees
+      SELECT e.EmployeeID, e.FullName, e.JobTitle, e.WorkLocation, e.LeaveCardNumber, e.LeaveApprover, 
+             e.IsTransferred, e.TransferOrderNumber, e.DepartmentID, e.SequenceNumber, e.JobNumber,
+             d.Name AS DepartmentName
+      FROM   Employees e
+      LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
       WHERE  (
-               FullName LIKE ?
-               OR LeaveCardNumber LIKE ?
-               OR CAST(EmployeeID AS TEXT) LIKE ?
+               e.FullName LIKE ?
+               OR e.LeaveCardNumber LIKE ?
+               OR CAST(e.EmployeeID AS TEXT) LIKE ?
+               OR (e.JobNumber IS NOT NULL AND e.JobNumber LIKE ?)
+               OR (e.SequenceNumber IS NOT NULL AND CAST(e.SequenceNumber AS TEXT) LIKE ?)
              )
-        AND  IsActive = 1
-      ORDER  BY FullName ASC
+        AND  e.IsActive = 1
+      ORDER  BY e.FullName ASC
       LIMIT  50
     `)
-    .all(pattern, pattern, pattern);
+    .all(pattern, pattern, pattern, pattern, pattern);
 }
 
 const { calculateRegularLeaveBalance } = require('./LeaveService');
@@ -276,7 +315,7 @@ const { calculateRegularLeaveBalance } = require('./LeaveService');
 //  getEmployeeById
 //
 //  استرجاع بيانات موظف محدد بالرقم الوظيفي مع احتساب الأرصدة الحالية:
-//  - يجلب السجل الأساسي من جدول Employees.
+//  - يجلب السجل الأساسي من جدول Employees مع اسم القسم DepartmentName.
 //  - يستدعي محرك احتساب رصيد الإجازة الاعتيادية بدقة (المستحق الكلي، المستهلك، والمتبقي الصافي).
 //  - يتحقق من وجود أرصدة الإجازة المرضية (100% و 50%) وينشئها تلقائياً إذا كانت مفقودة.
 //
@@ -293,7 +332,12 @@ function getEmployeeById(employeeId, db) {
   }
 
   const employee = db
-    .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
+    .prepare(`
+      SELECT e.*, d.Name AS DepartmentName
+      FROM   Employees e
+      LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
+      WHERE  e.EmployeeID = ?
+    `)
     .get(employeeId);
 
   if (!employee) {
@@ -395,7 +439,9 @@ function updateEmployee(employeeId, updateData, db) {
     workLocation,
     leaveCardNumber,
     leaveApprover,
-    adjustmentDays
+    adjustmentDays,
+    departmentId,
+    jobNumber,
   } = updateData;
 
   if (typeof fullName !== 'string' || fullName.trim().length === 0) {
@@ -446,6 +492,32 @@ function updateEmployee(employeeId, updateData, db) {
     throw new Error(`اسم المسؤول عن منح الإجازة طويل جداً (الحد الأقصى المسموح به ${MAX_APPROVER_LENGTH} حرف).`);
   }
 
+  // Department Validation for Update / التحقق من القسم عند التعديل
+  let cleanDepartmentId = undefined;
+  if (departmentId !== undefined) {
+    if (departmentId === null || departmentId === '' || departmentId === 0) {
+      cleanDepartmentId = null;
+    } else {
+      const dId = parseInt(departmentId, 10);
+      if (!Number.isInteger(dId) || dId <= 0) {
+        throw new Error('معرف القسم غير صالح.');
+      }
+      const deptExists = db.prepare('SELECT DepartmentID FROM Departments WHERE DepartmentID = ?').get(dId);
+      if (!deptExists) {
+        throw new Error('القسم المختار غير موجود في النظام.');
+      }
+      cleanDepartmentId = dId;
+    }
+  }
+
+  // JobNumber Validation for Update / التحقق من الرقم الوظيفي عند التعديل
+  let cleanJobNumber = undefined;
+  if (jobNumber !== undefined) {
+    cleanJobNumber = typeof jobNumber === 'string' && jobNumber.trim().length > 0
+      ? jobNumber.trim()
+      : (jobNumber != null && String(jobNumber).trim().length > 0 ? String(jobNumber).trim() : null);
+  }
+
   return db.transaction(() => {
     const oldEmployee = db
       .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
@@ -459,7 +531,9 @@ function updateEmployee(employeeId, updateData, db) {
             WorkLocation    = ?,
             LeaveCardNumber = ?,
             LeaveApprover   = ?,
-            AdjustmentDays  = COALESCE(?, AdjustmentDays)
+            AdjustmentDays  = COALESCE(?, AdjustmentDays),
+            DepartmentID    = CASE WHEN ? = 1 THEN ? ELSE DepartmentID END,
+            JobNumber       = CASE WHEN ? = 1 THEN ? ELSE JobNumber END
         WHERE EmployeeID = ?
       `)
       .run(
@@ -469,6 +543,10 @@ function updateEmployee(employeeId, updateData, db) {
         cleanCardNumber,
         cleanApprover,
         adjustmentDays,
+        cleanDepartmentId !== undefined ? 1 : 0,
+        cleanDepartmentId !== undefined ? cleanDepartmentId : null,
+        cleanJobNumber !== undefined ? 1 : 0,
+        cleanJobNumber !== undefined ? cleanJobNumber : null,
         employeeId
       );
 
@@ -486,7 +564,7 @@ function updateEmployee(employeeId, updateData, db) {
       entityID: employeeId,
       oldValue: oldEmployee,
       newValue: newEmployee,
-      details: `تعديل بيانات الموظف: ${fullName.trim()} (الرقم الوظيفي: ${employeeId})`,
+      details: `تعديل بيانات الموظف: ${fullName.trim()} (الرقم الوظيفي: ${newEmployee.JobNumber || employeeId})`,
     });
 
     return { success: true, changes: result.changes };
@@ -514,23 +592,29 @@ function deactivateEmployee(employeeId, db) {
   }
 
   return db.transaction(() => {
-    const emp = db.prepare('SELECT * FROM Employees WHERE EmployeeID = ?').get(employeeId);
+    const oldEmployee = db
+      .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
+      .get(employeeId);
+
+    if (!oldEmployee) {
+      throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
+    }
 
     const result = db
       .prepare('UPDATE Employees SET IsActive = 0 WHERE EmployeeID = ?')
       .run(employeeId);
 
     if (result.changes === 0) {
-      throw new Error(`تعذر تعطيل حساب الموظف برقم (${employeeId}).`);
+      throw new Error(`تعذر تجميد حساب الموظف برقم (${employeeId}).`);
     }
 
     AuditService.logAction(db, {
-      actionType: 'STATUS_CHANGE',
+      actionType: 'DEACTIVATE',
       entityType: 'Employee',
       entityID: employeeId,
-      oldValue: { IsActive: 1 },
-      newValue: { IsActive: 0 },
-      details: `تجميد / تعطيل حساب الموظف: ${emp?.FullName || employeeId} (الرقم: ${employeeId})`,
+      oldValue: oldEmployee,
+      newValue: { ...oldEmployee, IsActive: 0 },
+      details: `تجميد حساب الموظف: ${oldEmployee.FullName} (الرقم: ${employeeId})`,
     });
 
     return { success: true, changes: result.changes };
@@ -540,11 +624,11 @@ function deactivateEmployee(employeeId, db) {
 // ══════════════════════════════════════════════════════════════
 //  activateEmployee
 //
-//  إعادة تنشيط حساب موظف مجمد مسبقاً:
-//  - يعيد تعيين IsActive = 1 ليظهر مجدداً في استعلامات البحث وقوائم النظام النشطة.
-//  - يوثق العملية في سجل التدقيق والأمان داخل معاملة ذرية.
+//  إعادة تنشيط حساب الموظف المجمد:
+//  - يعيد IsActive = 1 ليظهر مجدداً في كافة القوائم وعمليات البحث.
+//  - يُنفذ في معاملة ذرية مع توثيق التنشيط في سجل التدقيق الأمني.
 //
-//  Reactivates a deactivated employee by setting IsActive = 1.
+//  Reactivates a soft-deleted employee (IsActive = 1).
 //
 //  @param {number} employeeId
 //  @param {import('better-sqlite3').Database} db
@@ -556,23 +640,29 @@ function activateEmployee(employeeId, db) {
   }
 
   return db.transaction(() => {
-    const emp = db.prepare('SELECT * FROM Employees WHERE EmployeeID = ?').get(employeeId);
+    const oldEmployee = db
+      .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
+      .get(employeeId);
+
+    if (!oldEmployee) {
+      throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
+    }
 
     const result = db
       .prepare('UPDATE Employees SET IsActive = 1 WHERE EmployeeID = ?')
       .run(employeeId);
 
     if (result.changes === 0) {
-      throw new Error(`تعذر إعادة تفعيل حساب الموظف برقم (${employeeId}).`);
+      throw new Error(`تعذر إعادة تنشيط حساب الموظف برقم (${employeeId}).`);
     }
 
     AuditService.logAction(db, {
-      actionType: 'STATUS_CHANGE',
+      actionType: 'ACTIVATE',
       entityType: 'Employee',
       entityID: employeeId,
-      oldValue: { IsActive: 0 },
-      newValue: { IsActive: 1 },
-      details: `إعادة تنشيط حساب الموظف: ${emp?.FullName || employeeId} (الرقم: ${employeeId})`,
+      oldValue: oldEmployee,
+      newValue: { ...oldEmployee, IsActive: 1 },
+      details: `إعادة تنشيط حساب الموظف: ${oldEmployee.FullName} (الرقم: ${employeeId})`,
     });
 
     return { success: true, changes: result.changes };
@@ -582,65 +672,56 @@ function activateEmployee(employeeId, db) {
 // ══════════════════════════════════════════════════════════════
 //  transferEmployee
 //
-//  تسجيل النقل الخارجي لموظف:
-//  - قرار معماري جوهري: الموظف المنقول يظل نشطاً بالكامل (IsActive = 1)
-//    حتى يتمكن مسؤولو الموارد البشرية من استعراض بطاقته وسجلاته السابقة.
-//  - يتم التحقق من رقم الأمر الإداري وتاريخ الأمر والملاحظات.
-//  - تُنفذ العملية وتُسجل في سجل التدقيق داخل db.transaction ذري لحماية البيانات عند انقطاع الطاقة.
+//  تسجيل نقل خارجي للموظف:
+//  - يقوم بتعيين IsTransferred = 1 وتوثيق رقم وتاريخ وأمر النقل.
+//  - يمنح الموظف ميزة التجميد عن منح الإجازات مع بقائه في السجلات.
+//  - يُنفذ في معاملة ذرية مع توثيق النقل في سجل التدقيق الأمني.
 //
-//  Records external transfer for an employee.
-//  CRITICAL: Employee remains active (IsActive remains 1).
+//  Marks an employee as transferred externally with mandatory order details.
 //
-//  @param {number} employeeId
 //  @param {{
-//    transferOrderNumber?: string|null,
-//    transferOrderDate?: string|null,
-//    transferNotes?: string|null
-//  }} transferData
+//    employeeId:          number,
+//    transferOrderNumber: string,
+//    transferOrderDate:   string,
+//    transferNotes?:      string
+//  }} data
 //  @param {import('better-sqlite3').Database} db
 //  @returns {{ success: boolean, changes: number }}
 // ══════════════════════════════════════════════════════════════
-function transferEmployee(employeeId, transferData, db) {
+function transferEmployee(data, db) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('بيانات النقل غير صالحة أو غير مكتملة.');
+  }
+
+  const { employeeId, transferOrderNumber, transferOrderDate, transferNotes } = data;
+
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     throw new Error('الرقم الوظيفي غير صالح.');
   }
 
+  const validOrderNumber = validateOrderNumber(transferOrderNumber, 'رقم الأمر الإداري الخاص بالنقل');
+
+  if (!isValidIsoDate(transferOrderDate)) {
+    throw new Error('يرجى تحديد تاريخ أمر نقل صالح بصيغة (YYYY-MM-DD).');
+  }
+  const orderDateObj = new Date(transferOrderDate);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (orderDateObj.getFullYear() < 1900) {
+    throw new Error('تاريخ أمر النقل قديم جداً (يجب أن يكون بعد عام 1900).');
+  }
+  if (orderDateObj > today) {
+    throw new Error('لا يمكن أن يكون تاريخ أمر النقل في المستقبل.');
+  }
+  const validOrderDate = transferOrderDate;
+
+  const validNotes = typeof transferNotes === 'string' && transferNotes.trim().length > 0
+    ? transferNotes.trim()
+    : null;
+
   const emp = db.prepare('SELECT * FROM Employees WHERE EmployeeID = ?').get(employeeId);
   if (!emp) {
     throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
-  }
-
-  const {
-    transferOrderNumber = null,
-    transferOrderDate = null,
-    transferNotes = null,
-  } = transferData || {};
-
-  // 1. Validate transferOrderNumber (optional, purely numeric) / التحقق من رقم أمر النقل (أرقام فقط)
-  const validOrderNumber = validateOrderNumber(transferOrderNumber, 'رقم الأمر الإداري الخاص بالنقل');
-
-  // 2. Validate transferOrderDate (optional, valid ISO date YYYY-MM-DD) / التحقق من تاريخ أمر النقل
-  let validOrderDate = null;
-  if (transferOrderDate !== null && transferOrderDate !== undefined) {
-    const trimmedDate = String(transferOrderDate).trim();
-    if (trimmedDate !== '') {
-      if (!isValidIsoDate(trimmedDate)) {
-        throw new Error('تاريخ أمر النقل الإداري غير صالح. يرجى إدخال تاريخ حقيقي بصيغة YYYY-MM-DD.');
-      }
-      validOrderDate = trimmedDate;
-    }
-  }
-
-  // 3. Validate transferNotes (optional, max length 500) / التحقق من ملاحظات النقل (الحد الأقصى 500 حرف)
-  let validNotes = null;
-  if (transferNotes !== null && transferNotes !== undefined) {
-    const trimmedNotes = String(transferNotes).trim();
-    if (trimmedNotes !== '') {
-      if (trimmedNotes.length > 500) {
-        throw new Error('ملاحظات النقل طويلة جداً (الحد الأقصى 500 حرف).');
-      }
-      validNotes = trimmedNotes;
-    }
   }
 
   return db.transaction(() => {
@@ -748,7 +829,7 @@ function cancelEmployeeTransfer(employeeId, db) {
 //  getEmployeesPaginated
 //
 //  استعلام ترقيم الصفحات من جانب الخادم (Server-Side Pagination):
-//  - يتيح فلترة وتصفية مرنة حسب الاسم، رقم الكرت، موقع العمل، أو الرقم الوظيفي.
+//  - يتيح فلترة وتصفية مرنة حسب الاسم، رقم الكرت، موقع العمل، الرقم الوظيفي، أو التسلسل.
 //  - أداء فائق: يستخدم تعبيرات الجدول الشائعة (CTE) مع استعلام فرعي لجلب بيانات
 //    آخر إجازة لكل موظف في استعلام واحد متكامل وسريع يمنع مشكلة N+1 استعلام نهائياً.
 //
@@ -783,7 +864,9 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         FullName LIKE ? OR
         LeaveCardNumber LIKE ? OR
         WorkLocation LIKE ? OR
-        CAST(EmployeeID AS TEXT) LIKE ?
+        CAST(EmployeeID AS TEXT) LIKE ? OR
+        (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
       )
     `;
     countWhereClause = `
@@ -791,11 +874,13 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         FullName LIKE ? OR
         LeaveCardNumber LIKE ? OR
         WorkLocation LIKE ? OR
-        CAST(EmployeeID AS TEXT) LIKE ?
+        CAST(EmployeeID AS TEXT) LIKE ? OR
+        (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
       )
     `;
-    params.push(pattern, pattern, pattern, pattern);
-    countParams.push(pattern, pattern, pattern, pattern);
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    countParams.push(pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   // 1. Total matching count / احتساب العدد الكلي للسجلات المطابقة لحساب عدد الصفحات
@@ -806,7 +891,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
   const totalPages = Math.ceil(totalCount / safePageSize) || 1;
 
   // 2. High-performance paginated query with CTE + latest leave subquery
-  // الاستعلام عالي الكفاءة: جلب الصفحة المحددة مع استعلام فرعي لآخر إجازة لكل موظف
+  // الاستعلام عالي الكفاءة: جلب الصفحة المحددة مع استعلام فرعي لآخر إجازة لكل موظف واسم القسم
   const dataQuery = `
     WITH PagedEmps AS (
       SELECT
@@ -820,7 +905,10 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         IsTransferred,
         TransferOrderNumber,
         TransferOrderDate,
-        TransferNotes
+        TransferNotes,
+        DepartmentID,
+        SequenceNumber,
+        JobNumber
       FROM Employees
       ${whereClause}
       ORDER BY IsActive DESC, FullName ASC
@@ -828,6 +916,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
     )
     SELECT
       pe.*,
+      d.Name AS DepartmentName,
       (
         SELECT l.StartDate FROM Leaves l
         WHERE l.EmployeeID = pe.EmployeeID
@@ -854,6 +943,7 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         LIMIT 1
       ) AS LastLeaveTypeName
     FROM PagedEmps pe
+    LEFT JOIN Departments d ON pe.DepartmentID = d.DepartmentID
     ORDER BY pe.IsActive DESC, pe.FullName ASC
   `;
 

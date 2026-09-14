@@ -34,6 +34,128 @@ let btnPurgeDeletedDocs = null;
 let btnExportTransferredReport = null;
 let _currentDeletedDocsCount = 0;
 
+let inputNewDepartmentName = null;
+let btnAddDepartment = null;
+let departmentsListContainer = null;
+let _onDepartmentsChangedCallbacks = [];
+
+export function onDepartmentsChanged(cb) {
+  if (typeof cb === 'function') _onDepartmentsChangedCallbacks.push(cb);
+}
+
+function notifyDepartmentsChanged() {
+  _onDepartmentsChangedCallbacks.forEach(cb => {
+    try { cb(); } catch (e) { console.error(e); }
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+/**
+ * تحميل وقراءة قائمة الأقسام وعرضها في جدول إدارة الأقسام بنافذة الإعدادات
+ */
+export async function loadDepartmentsList() {
+  if (!departmentsListContainer) return;
+  try {
+    const res = await window.api.departments.getAll();
+    if (res && res.success && Array.isArray(res.data)) {
+      if (res.data.length === 0) {
+        departmentsListContainer.innerHTML = '<div style="padding: 14px; text-align: center; color: var(--color-text-muted);">لا توجد أقسام مسجلة حالياً.</div>';
+        return;
+      }
+      departmentsListContainer.innerHTML = `
+        <div class="departments-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;" class="text-center">#</th>
+                <th>اسم القسم / الشعبة</th>
+                <th style="width: 130px;" class="text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.data.map(d => `
+                <tr data-dept-id="${d.DepartmentID}">
+                  <td class="text-center font-bold">${d.DepartmentID}</td>
+                  <td class="dept-name-cell">${escapeHtml(d.DepartmentName)}</td>
+                  <td class="text-center table-actions-cell">
+                    <button type="button" class="btn-action-icon btn-edit-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(d.DepartmentName)}" title="تعديل اسم القسم">✏️</button>
+                    <button type="button" class="btn-action-icon btn-delete-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(d.DepartmentName)}" title="حذف القسم">🗑️</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // ربط أزرار التعديل
+      departmentsListContainer.querySelectorAll('.btn-edit-dept').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.id, 10);
+          const currentName = btn.dataset.name;
+          const newName = prompt('أدخل الاسم الجديد للقسم:', currentName);
+          if (newName === null) return;
+          const trimmed = newName.trim();
+          if (!trimmed) {
+            showToast('اسم القسم لا يمكن أن يكون فارغاً.', 'warning');
+            return;
+          }
+          if (trimmed === currentName) return;
+
+          try {
+            const updateRes = await window.api.departments.update(id, trimmed);
+            if (updateRes && updateRes.success) {
+              showToast('تم تعديل اسم القسم بنجاح.', 'success');
+              await loadDepartmentsList();
+              notifyDepartmentsChanged();
+            } else {
+              showToast(updateRes?.error || 'تعذر تعديل اسم القسم.', 'error');
+            }
+          } catch (err) {
+            showToast('حدث خطأ أثناء تعديل القسم.', 'error');
+          }
+        });
+      });
+
+      // ربط أزرار الحذف مع تطبيق سياسة الحذف المشروط والتنبيه المانع
+      departmentsListContainer.querySelectorAll('.btn-delete-dept').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.id, 10);
+          const deptName = btn.dataset.name;
+
+          const confirmed = await showConfirm(
+            `هل أنت متأكد من رغبتك في حذف قسم "${deptName}"؟\nملاحظة: إذا كان هناك موظفون مسجلون ضمن هذا القسم فلن يسمح النظام بحذفه.`,
+            'تأكيد حذف القسم'
+          );
+          if (!confirmed) return;
+
+          try {
+            const delRes = await window.api.departments.delete(id);
+            if (delRes && delRes.success) {
+              showToast(`تم حذف قسم "${deptName}" بنجاح.`, 'success');
+              await loadDepartmentsList();
+              notifyDepartmentsChanged();
+            } else {
+              // إظهار رسالة التنبيه المانعة المعتمدة من المستخدم
+              showToast(delRes?.error || 'تعذر حذف القسم لوجود موظفين مرتبطين.', 'error');
+            }
+          } catch (err) {
+            showToast(err.message || 'حدث خطأ أثناء محاولة حذف القسم.', 'error');
+          }
+        });
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load departments list:', err);
+  }
+}
+
 /**
  * جلب إحصائيات المستندات المحذوفة ناعماً (Soft-deleted) وتحديث العداد والحجم الإجمالي وزر الإفراغ
  */
@@ -125,6 +247,9 @@ export async function loadSystemSettings() {
 
   // 5. إحصائيات المستندات المحذوفة ناعماً
   await loadDeletedDocsStats();
+
+  // 6. قائمة الأقسام الإدارية والشعب
+  await loadDepartmentsList();
 }
 
 /**
@@ -182,6 +307,45 @@ export function initSystemSettings() {
   btnSaveSettings = document.getElementById('btn-save-settings');
   btnSystemBackup = document.getElementById('btn-system-backup');
   btnSystemRestore = document.getElementById('btn-system-restore');
+
+  inputNewDepartmentName = document.getElementById('input-new-department-name');
+  btnAddDepartment = document.getElementById('btn-add-department');
+  departmentsListContainer = document.getElementById('departments-list-container');
+
+  if (btnAddDepartment && inputNewDepartmentName) {
+    const handleAddDept = async () => {
+      const name = inputNewDepartmentName.value.trim();
+      if (!name) {
+        showToast('يرجى إدخال اسم القسم أولاً.', 'warning');
+        inputNewDepartmentName.focus();
+        return;
+      }
+      try {
+        btnAddDepartment.disabled = true;
+        const addRes = await window.api.departments.add(name);
+        if (addRes && addRes.success) {
+          showToast(`تمت إضافة قسم "${name}" بنجاح.`, 'success');
+          inputNewDepartmentName.value = '';
+          await loadDepartmentsList();
+          notifyDepartmentsChanged();
+        } else {
+          showToast(addRes?.error || 'تعذر إضافة القسم.', 'error');
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء إضافة القسم.', 'error');
+      } finally {
+        btnAddDepartment.disabled = false;
+      }
+    };
+
+    btnAddDepartment.addEventListener('click', handleAddDept);
+    inputNewDepartmentName.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddDept();
+      }
+    });
+  }
 
   // فتح نافذة إعدادات النظام وتحميل البيانات الحالية
   if (btnSystemSettings && systemSettingsModal) {

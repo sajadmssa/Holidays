@@ -35,6 +35,8 @@ const fs = require('fs');
 const path = require('path');
 const LeaveService = require('../src/main/services/LeaveService');
 const ReportService = require('../src/main/services/ReportService');
+const EmployeeService = require('../src/main/services/EmployeeService');
+const DepartmentService = require('../src/main/services/DepartmentService');
 
 console.log('🧪 [LeaveService Unit Tests] Starting test suite...\n');
 
@@ -588,7 +590,130 @@ const updateFakeDateRes = mockIpc.handlers['leave:update']({}, {
 assert(updateFakeDateRes.success === false, 'Update leave with fake date 2023-02-29 is rejected by IPC handler');
 assert(updateFakeDateRes.error.includes('يرجى إدخال تاريخ بداية الإجازة بصيغة صحيحة'), 'Update leave rejection error clearly states invalid calendar date');
 
-console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 20 TEST SUITES!`);
+// ── Suite 21: Auto SequenceNumber Generation & Immutability ─
+console.log('\n--- Suite 21: Auto SequenceNumber Generation & Immutability ---');
+EmployeeService.addEmployee({
+  employeeId: 1001,
+  fullName: 'موظف تجربة تسلسل 1',
+  gender: 'Male',
+  hireDate: '2020-01-01',
+  jobTitle: 'مهندس',
+  workLocation: 'المقر',
+  jobNumber: 'J-1001',
+  departmentId: 1
+}, db);
+const empSeq1 = EmployeeService.getEmployeeById(1001, db);
+assert(empSeq1.SequenceNumber != null && empSeq1.SequenceNumber >= 1, 'First employee receives valid SequenceNumber');
+
+EmployeeService.addEmployee({
+  employeeId: 1002,
+  fullName: 'موظف تجربة تسلسل 2',
+  gender: 'Female',
+  hireDate: '2021-01-01',
+  jobTitle: 'محلل نظم',
+  workLocation: 'المقر',
+  jobNumber: 'J-1002',
+  departmentId: 2
+}, db);
+const empSeq2 = EmployeeService.getEmployeeById(1002, db);
+assert(empSeq2.SequenceNumber === empSeq1.SequenceNumber + 1, 'Second employee receives strictly incremented SequenceNumber (MAX+1)');
+
+// Try updating employee; SequenceNumber must NOT change
+EmployeeService.updateEmployee(1001, {
+  fullName: 'موظف تجربة تسلسل 1 معدل',
+  jobTitle: 'مهندس أقدم',
+  SequenceNumber: 9999 // Should be ignored
+}, db);
+const fetchedSeq1 = EmployeeService.getEmployeeById(1001, db);
+assert(fetchedSeq1.SequenceNumber === empSeq1.SequenceNumber, 'SequenceNumber cannot be altered via updateEmployee');
+assert(fetchedSeq1.FullName === 'موظف تجربة تسلسل 1 معدل', 'Other fields are updated successfully');
+
+// ── Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ─
+console.log('\n--- Suite 22: JobNumber, Department Association & ON DELETE RESTRICT ---');
+const allDepts = DepartmentService.getAllDepartments(db);
+assert(allDepts.length >= 7, 'Default 7 departments exist in seeded database');
+assert(fetchedSeq1.DepartmentName != null, 'Employee has populated DepartmentName from join');
+
+// Attempt to delete Department 1 which is linked to empSeq1
+assertThrows(() => {
+  DepartmentService.deleteDepartment(1, db);
+}, 'لا يمكن حذف هذا القسم لأنه مرتبط بـ', 'DepartmentService.deleteDepartment throws ON DELETE RESTRICT when employees are linked');
+
+// Move empSeq1 to Department 2
+EmployeeService.updateEmployee(1001, {
+  fullName: 'موظف تجربة تسلسل 1 معدل',
+  jobTitle: 'مهندس أقدم',
+  departmentId: 2,
+  jobNumber: 'J-1001-MOD'
+}, db);
+const updatedSeq1 = EmployeeService.getEmployeeById(1001, db);
+assert(updatedSeq1.DepartmentID === 2, 'Employee moved to Department 2 successfully');
+assert(updatedSeq1.JobNumber === 'J-1001-MOD', 'Employee JobNumber updated successfully');
+
+// Add and delete a department with no employees
+const newDept = DepartmentService.addDepartment({ name: 'قسم اختبار جديد مؤقت' }, db);
+assert(newDept.DepartmentID != null, 'Department added successfully');
+const delDeptRes = DepartmentService.deleteDepartment(newDept.DepartmentID, db);
+assert(delDeptRes.success === true, 'Deleting unlinked department succeeds');
+
+// ── Suite 23: New Leave Types (Companion Leave & 1-5 Years Leaves) ─
+console.log('\n--- Suite 23: New Leave Types (Companion Leave & 1-5 Years Leaves) ---');
+const companionType = db.prepare(`SELECT * FROM LeaveTypes WHERE Name = 'إجازة المعين'`).get();
+assert(companionType != null, 'LeaveType "إجازة المعين" exists in database');
+
+const year1Type = db.prepare(`SELECT * FROM LeaveTypes WHERE Name = 'إجازة السنة'`).get();
+const year5Type = db.prepare(`SELECT * FROM LeaveTypes WHERE Name = 'إجازة خمس سنوات'`).get();
+assert(year1Type != null && year1Type.MaxDaysPerInstance >= 365, '"إجازة السنة" has MaxDaysPerInstance >= 365');
+assert(year5Type != null && year5Type.MaxDaysPerInstance >= 1825, '"إجازة خمس سنوات" has MaxDaysPerInstance >= 1825');
+
+// Verify submitting companion leave up to 365 days
+const compLeave = LeaveService.processRegularLeave(1001, 365, '2025-01-01', '2025-12-31', db, 'إجازة المعين');
+assert(compLeave != null && compLeave.leaveId != null, 'Submitting 365-day companion leave succeeds with updated constraints');
+
+// ── Suite 24: Leave Conflict/Overlap Detection & Excel Matching ─
+console.log('\n--- Suite 24: Leave Conflict/Overlap Detection & Excel Matching ---');
+const datesRow = db.prepare(`
+  SELECT 
+    date('now', 'localtime', '-5 days') AS start1,
+    date('now', 'localtime', '+5 days') AS end1,
+    date('now', 'localtime', '-2 days') AS start2,
+    date('now', 'localtime', '+3 days') AS end2
+`).get();
+
+const regularType = db.prepare(`SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة اعتيادية'`).get();
+
+// Insert two overlapping active leaves for employee 1001 covering today (simulating legacy data or concurrent record)
+db.prepare(`
+  INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+  VALUES (?, ?, ?, ?, 11, 'إجازة متداخلة 1')
+`).run(1001, regularType.LeaveTypeID, datesRow.start1, datesRow.end1);
+
+db.prepare(`
+  INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+  VALUES (?, ?, ?, ?, 6, 'إجازة متداخلة 2')
+`).run(1001, regularType.LeaveTypeID, datesRow.start2, datesRow.end2);
+
+// Query active leaves for employee 1001 during overlap
+const activeWithConflict = LeaveService.getActiveLeavesForToday(db);
+const emp1001Leaves = activeWithConflict.filter(l => l.EmployeeID === 1001);
+assert(emp1001Leaves.length === 2, 'All overlapping active leave records are returned (none hidden)');
+assert(emp1001Leaves.every(l => l.HasConflict > 0), 'All overlapping records have HasConflict flag set');
+
+// Query active leaves paginated
+const activePaginated = LeaveService.getActiveLeavesTodayPaginated({ page: 1, pageSize: 20 }, db);
+const paginatedEmp1001 = activePaginated.data.filter(l => l.EmployeeID === 1001);
+assert(paginatedEmp1001.length === 2, 'Paginated active leaves returns all records with HasConflict flag');
+assert(paginatedEmp1001[0].HasConflict > 0 && paginatedEmp1001[1].HasConflict > 0, 'Paginated leaves accurately report HasConflict');
+
+// Export active leaves to Excel with matching data
+(async () => {
+  const testExcelPath = path.join(__dirname, 'test_active_leaves.xlsx');
+  await ReportService.exportActiveLeavesToExcel(testExcelPath, db);
+  assert(fs.existsSync(testExcelPath) && fs.statSync(testExcelPath).size > 0, 'exportActiveLeavesToExcel successfully produces Excel file with conflict badges');
+  try { fs.unlinkSync(testExcelPath); } catch (_) {}
+
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 24 TEST SUITES!`);
+})();
 
 
 

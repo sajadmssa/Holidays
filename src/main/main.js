@@ -23,6 +23,7 @@ const { registerReportHandlers }   = require('./ipc/reportHandlers');
 const { registerSystemHandlers }   = require('./ipc/systemHandlers');
 const { registerAuditHandlers }    = require('./ipc/auditHandlers');
 const { registerDocumentHandlers } = require('./ipc/documentHandlers');
+const { registerDepartmentHandlers } = require('./ipc/departmentHandlers');
 const notificationService          = require('./services/NotificationService');
 const autoBackupService            = require('./services/AutoBackupService');
 const LoggerService                = require('./services/LoggerService');
@@ -43,6 +44,7 @@ function createWindow() {
     minHeight: 600,
     show: false, // show after 'ready-to-show' to avoid flash (تأخير العرض حتى اكتمال التحميل لمنع الوميض الأبيض)
     title: 'نظام إدارة الإجازات',
+    icon: path.join(__dirname, '../assets/icon.ico'),
     webPreferences: {
       // ── SECURITY / إعدادات الأمان الصارمة ───────────────────
       nodeIntegration: false,      // MUST remain false (منع وصول الواجهة المباشر لـ Node.js)
@@ -176,4 +178,8 @@ function registerIpcHandlers() {
   // ── EMPLOYEE DOCUMENTS ─────────────────────────────────────
   //  تفويض قنوات كروت وأرشيف مستندات الموظفين إلى documentHandlers
   registerDocumentHandlers(ipcMain, db.getDb());
+
+  // ── DEPARTMENTS (Phase 13) ─────────────────────────────────
+  //  تفويض قنوات إدارة الأقسام إلى departmentHandlers
+  registerDepartmentHandlers(ipcMain, db.getDb());
 }

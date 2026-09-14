@@ -56,7 +56,7 @@ export function renderAllEmployeesTable(employees) {
     const isSearching = _allEmpsSearchQuery.trim().length > 0;
     allEmployeesTbody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="9" class="text-center">
+        <td colspan="12" class="text-center">
           ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث' : 'لا يوجد موظفون مسجلون في النظام'}
         </td>
       </tr>
@@ -69,8 +69,11 @@ export function renderAllEmployeesTable(employees) {
   employees.forEach((emp) => {
     const tr = document.createElement('tr');
 
+    const tdSeq = document.createElement('td');
     const tdId = document.createElement('td');
+    const tdJobNumber = document.createElement('td');
     const tdName = document.createElement('td');
+    const tdDept = document.createElement('td');
     const tdJobTitle = document.createElement('td');
     const tdLocation = document.createElement('td');
     const tdCard = document.createElement('td');
@@ -79,10 +82,17 @@ export function renderAllEmployeesTable(employees) {
     const tdStatus = document.createElement('td');
     const tdActions = document.createElement('td');
 
+    tdSeq.className = 'text-center font-bold';
+    tdSeq.textContent = emp.SequenceNumber != null ? String(emp.SequenceNumber) : '-';
+
     tdId.className = 'text-center font-bold';
     tdId.textContent = String(emp.EmployeeID);
 
+    tdJobNumber.className = 'text-center';
+    tdJobNumber.textContent = emp.JobNumber || '-';
+
     tdName.textContent = emp.FullName || '-';
+    tdDept.textContent = emp.DepartmentName || '-';
     tdJobTitle.textContent = emp.JobTitle || '-';
     tdLocation.textContent = emp.WorkLocation || '-';
 
@@ -165,7 +175,7 @@ export function renderAllEmployeesTable(employees) {
 
     tdActions.append(btnTimeCard, btnLeaveCard, btnEdit);
 
-    tr.append(tdId, tdName, tdJobTitle, tdLocation, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
+    tr.append(tdSeq, tdId, tdJobNumber, tdName, tdDept, tdJobTitle, tdLocation, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
     fragment.appendChild(tr);
   });
 

@@ -4,7 +4,7 @@
 //
 //  المسؤوليات الرئيسية:
 //    • جمع مدخلات استمارة تسجيل الموظف والتحقق من صحتها من جانب العميل (Client-side validation).
-//    • التحقق من إيجابية وصحة الرقم الوظيفي والاسم والجنس وتاريخ التعيين والعنوان الوظيفي.
+//    • التحقق من إيجابية وصحة الرقم الوظيفي والاسم والجنس وتاريخ التعيين والعنوان الوظيفي والقسم.
 //    • استدعاء خدمة إضافة الموظف عبر قناة IPC (employee:add) والتعامل مع حالات النجاح والفشل.
 //    • إعادة تعيين النموذج وتنبيه المستخدم بنجاح العملية وتحديث جداول الموظفين في التبويبات الأخرى.
 // ============================================================
@@ -16,6 +16,8 @@ import { showToast } from './uiHelpers.js';
 // مراجع عناصر الاستمارة في واجهة المستخدم
 let addEmployeeForm = null;
 let empEmployeeIdEl = null;
+let empJobNumberEl = null;
+let empDepartmentEl = null;
 let empFullNameEl = null;
 let empGenderEl = null;
 let empHireDateEl = null;
@@ -25,12 +27,32 @@ let empLeaveCardNumberEl = null;
 let addEmployeeBtn = null;
 
 /**
+ * تحميل وتعبئة قائمة الأقسام المتاحة في القائمة المنسدلة
+ */
+export async function populateAddEmployeeDepartments() {
+  if (!empDepartmentEl) return;
+  try {
+    const res = await window.api.departments.getAll();
+    if (res && res.success && Array.isArray(res.data)) {
+      const currentVal = empDepartmentEl.value;
+      empDepartmentEl.innerHTML = '<option value="" selected>— اختر القسم / الشعبة (اختياري) —</option>' +
+        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`).join('');
+      if (currentVal) empDepartmentEl.value = currentVal;
+    }
+  } catch (err) {
+    console.error('Failed to load departments in addEmployeeTab:', err);
+  }
+}
+
+/**
  * استخراج وقراءة بيانات الموظف من الحقول وإجراء التحقق الأولي من صحتها
  * @returns {object|null} كائن بيانات الموظف أو null في حال وجود خطأ في الإدخال
  */
 export function collectAndValidateEmployee() {
   const rawId = empEmployeeIdEl ? empEmployeeIdEl.value.trim() : '';
   const employeeId = parseInt(rawId, 10);
+  const jobNumber = empJobNumberEl ? empJobNumberEl.value.trim() : '';
+  const departmentId = empDepartmentEl && empDepartmentEl.value ? parseInt(empDepartmentEl.value, 10) : null;
   const fullName = empFullNameEl ? empFullNameEl.value.trim() : '';
   const gender = empGenderEl ? empGenderEl.value : '';
   const hireDate = empHireDateEl ? empHireDateEl.value : '';
@@ -38,9 +60,9 @@ export function collectAndValidateEmployee() {
   const workLocation = empWorkLocationEl ? empWorkLocationEl.value.trim() : '';
   const leaveCardNumber = empLeaveCardNumberEl ? empLeaveCardNumberEl.value.trim() : '';
 
-  // التحقق من صحة الرقم الوظيفي
+  // التحقق من صحة رقم الموظف الأساسي
   if (!rawId || !Number.isInteger(employeeId) || employeeId <= 0) {
-    showToast('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.', 'warning');
+    showToast('رقم الموظف مطلوب ويجب أن يكون رقماً صحيحاً موجباً.', 'warning');
     empEmployeeIdEl?.focus();
     return null;
   }
@@ -77,6 +99,8 @@ export function collectAndValidateEmployee() {
     jobTitle,
     workLocation: workLocation || null,
     leaveCardNumber: leaveCardNumber || null,
+    jobNumber: jobNumber || null,
+    departmentId: departmentId || null
   };
 }
 
@@ -88,6 +112,8 @@ export function initAddEmployeeTab(options = {}) {
   const onEmployeeAdded = options.onEmployeeAdded || null;
   addEmployeeForm = document.getElementById('add-employee-form');
   empEmployeeIdEl = document.getElementById('emp-employee-id');
+  empJobNumberEl = document.getElementById('emp-job-number');
+  empDepartmentEl = document.getElementById('emp-department');
   empFullNameEl = document.getElementById('emp-full-name');
   empGenderEl = document.getElementById('emp-gender');
   empHireDateEl = document.getElementById('emp-hire-date');
@@ -95,6 +121,9 @@ export function initAddEmployeeTab(options = {}) {
   empWorkLocationEl = document.getElementById('emp-work-location');
   empLeaveCardNumberEl = document.getElementById('emp-leave-card-number');
   addEmployeeBtn = document.getElementById('add-employee-btn');
+
+  // تحميل قائمة الأقسام
+  populateAddEmployeeDepartments();
 
   if (addEmployeeForm) {
     addEmployeeForm.addEventListener('submit', async (event) => {
@@ -134,4 +163,3 @@ export function initAddEmployeeTab(options = {}) {
     });
   }
 }
-

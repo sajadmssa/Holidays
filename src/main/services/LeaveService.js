@@ -820,6 +820,10 @@ function getActiveLeavesForToday(db) {
         e.JobTitle                  AS JobTitle,
         e.LeaveCardNumber           AS LeaveCardNumber,
         e.WorkLocation              AS WorkLocation,
+        e.DepartmentID              AS DepartmentID,
+        e.SequenceNumber            AS SequenceNumber,
+        e.JobNumber                 AS JobNumber,
+        d.Name                      AS DepartmentName,
         lt.Name                     AS LeaveName,
         l.LeaveApprover             AS LeaveApprover,
         l.StartDate                 AS StartDate,
@@ -833,9 +837,17 @@ function getActiveLeavesForToday(db) {
         l.OrderNumber               AS OrderNumber,
         l.OrderDate                 AS OrderDate,
         DATE(l.EndDate, '+1 day')   AS ResumptionDate,
-        CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining
+        CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
+        (
+          SELECT COUNT(*)
+          FROM Leaves l2
+          WHERE l2.EmployeeID = l.EmployeeID
+            AND l2.LeaveID != l.LeaveID
+            AND date('now', 'localtime') BETWEEN l2.StartDate AND l2.EndDate
+        ) > 0 AS HasConflict
       FROM   Leaves     l
       JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
+      LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
       WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
         AND  e.IsTransferred = 0
@@ -848,9 +860,10 @@ function getActiveLeavesForToday(db) {
 //  getActiveLeavesTodayPaginated
 //
 //  استرجاع الإجازات السارية اليوم مع تقسيم الصفحات وفلاتر البحث والفرز:
-//  - يدعم البحث بالاسم أو رقم الكرت أو نوع الإجازة أو موقع العمل.
+//  - يدعم البحث بالاسم أو رقم الكرت أو نوع الإجازة أو موقع العمل أو القسم أو الرقم الوظيفي.
 //  - يدعم فلترة الحالات العاجلة (urgentOnly) التي توشك على الانتهاء خلال 3 أيام.
 //  - يدعم الفرز الديناميكي بحسب تاريخ الاستئناف أو الاسم.
+//  - يكتشف التعارضات والتكرار HasConflict دون إخفاء أي سجل.
 //
 //  Server-side paginated query for Active Leaves Today tab with
 //  search filter, total count, and 15 rows per page.
@@ -877,11 +890,14 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
         e.LeaveCardNumber LIKE ? OR
         e.WorkLocation LIKE ? OR
         lt.Name LIKE ? OR
-        CAST(e.EmployeeID AS TEXT) LIKE ?
+        CAST(e.EmployeeID AS TEXT) LIKE ? OR
+        (e.JobNumber IS NOT NULL AND e.JobNumber LIKE ?) OR
+        (e.SequenceNumber IS NOT NULL AND CAST(e.SequenceNumber AS TEXT) LIKE ?) OR
+        (d.Name IS NOT NULL AND d.Name LIKE ?)
       )
     `;
-    params.push(pattern, pattern, pattern, pattern, pattern);
-    countParams.push(pattern, pattern, pattern, pattern, pattern);
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern);
+    countParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   if (urgentOnly) {
@@ -893,6 +909,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
     SELECT COUNT(*) AS total
     FROM   Leaves     l
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
+    LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
     WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
       AND  e.IsTransferred = 0
@@ -920,6 +937,10 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
       e.JobTitle                  AS JobTitle,
       e.LeaveCardNumber           AS LeaveCardNumber,
       e.WorkLocation              AS WorkLocation,
+      e.DepartmentID              AS DepartmentID,
+      e.SequenceNumber            AS SequenceNumber,
+      e.JobNumber                 AS JobNumber,
+      d.Name                      AS DepartmentName,
       lt.Name                     AS LeaveName,
       l.LeaveApprover             AS LeaveApprover,
       l.StartDate                 AS StartDate,
@@ -933,9 +954,17 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
       l.OrderNumber               AS OrderNumber,
       l.OrderDate                 AS OrderDate,
       DATE(l.EndDate, '+1 day')   AS ResumptionDate,
-      CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining
+      CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
+      (
+        SELECT COUNT(*)
+        FROM Leaves l2
+        WHERE l2.EmployeeID = l.EmployeeID
+          AND l2.LeaveID != l.LeaveID
+          AND date('now', 'localtime') BETWEEN l2.StartDate AND l2.EndDate
+      ) > 0 AS HasConflict
     FROM   Leaves     l
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
+    LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
     JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
     WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
       AND  e.IsTransferred = 0

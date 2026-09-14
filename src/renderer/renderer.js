@@ -15,12 +15,12 @@ import { initEmployeePicker, selectEmployeeForPicker } from './modules/employeeP
 import { initSearchModal } from './modules/searchModal.js';
 import { initLeaveRegistration } from './modules/leaveRegistration.js';
 import { initDashboardTab, loadActiveLeaves } from './modules/dashboardTab.js';
-import { initAddEmployeeTab } from './modules/addEmployeeTab.js';
-import { initManageEmployeeTab, loadEmployeeForManagement } from './modules/manageEmployeeTab.js';
+import { initAddEmployeeTab, populateAddEmployeeDepartments } from './modules/addEmployeeTab.js';
+import { initManageEmployeeTab, loadEmployeeForManagement, populateManageDepartments } from './modules/manageEmployeeTab.js';
 import { initEmployeesTab, loadAllEmployees } from './modules/employeesTab.js';
 import { initBalanceReportTab, loadBalanceAndAccumulationReport } from './modules/balanceReportTab.js';
 import { initAuditLogTab, loadAuditLogs } from './modules/auditLogTab.js';
-import { initSystemSettings } from './modules/systemSettings.js';
+import { initSystemSettings, onDepartmentsChanged } from './modules/systemSettings.js';
 import { initThemeManager } from './modules/themeManager.js';
 import { initEmployeeDocumentsModal } from './modules/employeeDocumentsModal.js';
 
@@ -155,6 +155,12 @@ function initApp() {
 
   // إعدادات النظام والنسخ الاحتياطي
   initSystemSettings();
+
+  // تحديث القوائم المنسدلة للأقسام عند أي تعديل أو إضافة في الإعدادات
+  onDepartmentsChanged(() => {
+    populateAddEmployeeDepartments();
+    populateManageDepartments();
+  });
 
   // نافذة أرشيف مستندات الموظف
   initEmployeeDocumentsModal({

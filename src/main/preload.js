@@ -70,6 +70,11 @@ const VALID_CHANNELS = new Set([
   'document:print',
   'document:getDeletedStats',
   'document:purgeDeleted',
+  // ── Departments ────────────────────────────────────────────
+  'department:getAll',
+  'department:add',
+  'department:update',
+  'department:delete',
 ]);
 
 /**
@@ -450,6 +455,18 @@ contextBridge.exposeInMainWorld('api', {
     onOpenDashboard: (callback) => {
       ipcRenderer.on('notification:open-dashboard', () => callback());
     },
+  },
+
+  // ── Departments / الأقسام الإدارية ──────────────────────────
+  departments: {
+    /** @returns {Promise<{success:boolean, data: Array<{DepartmentID:number, Name:string, CreatedAt:string, EmployeeCount:number}>}>} */
+    getAll: () => invoke('department:getAll'),
+    /** @param {{name:string}} data */
+    add: (data) => invoke('department:add', data),
+    /** @param {{id:number, name:string}} data */
+    update: (data) => invoke('department:update', data),
+    /** @param {number} id */
+    delete: (id) => invoke('department:delete', id),
   },
 
 });
