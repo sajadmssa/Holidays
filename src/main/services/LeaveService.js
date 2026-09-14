@@ -396,7 +396,7 @@ function processSickLeave(
   endDate,
   db,
   leaveApprover = null,
-  { requestDate = null, memoNumber = null, memoDate = null, orderNumber = null, orderDate = null } = {}
+  { requestDate = null, memoNumber = null, memoDate = null, orderNumber = null, orderDate = null, confirmOverlap = false } = {}
 ) {
 
   // ── Pre-flight validation (outside transaction — fast checks) ──
@@ -420,12 +420,15 @@ function processSickLeave(
     );
   }
 
-  // ── Overlap Guard (Strict Prevention) / فحص منع تداخل التواريخ ─
+  // ── Overlap Guard with Explicit User Confirmation / فحص التداخل مع طلب تأكيد المستخدم ─
   const overlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
-  if (overlap) {
-    throw new Error(
-      `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
+  if (overlap && !confirmOverlap) {
+    const err = new Error(
+      `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). هل تريد المتابعة وتأكيد تسجيل هذه الإجازة كسجل متداخل؟`
     );
+    err.requiresOverlapConfirmation = true;
+    err.overlap = overlap;
+    throw err;
   }
 
   // ── Resolve LeaveTypeID for Sick Leave ─────────────────────
@@ -635,6 +638,7 @@ function processRegularLeave(
     orderNumber = null,
     orderDate = null,
     confirmExcess = false,
+    confirmOverlap = false,
   } = {}
 ) {
   // ── Pre-flight validation (outside transaction — fast checks) ──
@@ -677,12 +681,15 @@ function processRegularLeave(
   targetLeaveName = targetLeaveType.Name;
   const isBalanced = (targetLeaveName === 'إجازة اعتيادية' || targetLeaveName === 'سبب آخر');
 
-  // ── Step 0: Check Overlap (Strict Prevention) ─────────────
+  // ── Step 0: Check Overlap with Explicit User Confirmation ──
   const overlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
-  if (overlap) {
-    throw new Error(
-      `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
+  if (overlap && !confirmOverlap) {
+    const err = new Error(
+      `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). هل تريد المتابعة وتأكيد تسجيل هذه الإجازة كسجل متداخل؟`
     );
+    err.requiresOverlapConfirmation = true;
+    err.overlap = overlap;
+    throw err;
   }
 
   // ── Define atomic transaction ─────────────────────────────
@@ -692,12 +699,17 @@ function processRegularLeave(
     let quotaExceeded = false;
     let deficit = 0;
 
-    // Re-check overlap inside transaction for concurrency safety
-    const txOverlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
-    if (txOverlap) {
-      throw new Error(
-        `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${txOverlap.LeaveTypeName} من ${txOverlap.StartDate} إلى ${txOverlap.EndDate} — ${txOverlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
-      );
+    // Re-check overlap inside transaction if not explicitly confirmed
+    if (!confirmOverlap) {
+      const txOverlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
+      if (txOverlap) {
+        const err = new Error(
+          `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${txOverlap.LeaveTypeName} من ${txOverlap.StartDate} إلى ${txOverlap.EndDate} — ${txOverlap.DaysCount} يوم). هل تريد المتابعة وتأكيد تسجيل هذه الإجازة كسجل متداخل؟`
+        );
+        err.requiresOverlapConfirmation = true;
+        err.overlap = txOverlap;
+        throw err;
+      }
     }
 
     if (isBalanced) {
@@ -843,7 +855,7 @@ function getActiveLeavesForToday(db) {
           FROM Leaves l2
           WHERE l2.EmployeeID = l.EmployeeID
             AND l2.LeaveID != l.LeaveID
-            AND date('now', 'localtime') BETWEEN l2.StartDate AND l2.EndDate
+            AND (l2.StartDate <= l.EndDate AND l2.EndDate >= l.StartDate)
         ) > 0 AS HasConflict
       FROM   Leaves     l
       JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
@@ -851,7 +863,7 @@ function getActiveLeavesForToday(db) {
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
       WHERE  date('now', 'localtime') BETWEEN l.StartDate AND l.EndDate
         AND  e.IsTransferred = 0
-      ORDER  BY l.EndDate ASC, e.FullName ASC
+      ORDER  BY l.LeaveID ASC
     `)
     .all();
 }
@@ -872,7 +884,7 @@ function getActiveLeavesForToday(db) {
 //  @param {import('better-sqlite3').Database} db
 //  @returns {{ data: Array<any>, totalCount: number, page: number, pageSize: number, totalPages: number }}
 // ──────────────────────────────────────────────────────────────
-function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', sortBy = 'resumption_asc', urgentOnly = false } = {}, db) {
+function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', sortBy = 'entry_asc', urgentOnly = false } = {}, db) {
   const safePage = Math.max(1, parseInt(page, 10) || 1);
   const safePageSize = Math.max(1, Math.min(200, parseInt(pageSize, 10) || 15));
   const offset = (safePage - 1) * safePageSize;
@@ -920,11 +932,15 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
   const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
 
   // Determine dynamic sort order / تحديد ترتيب الفرز المطلوب
-  let orderByClause = 'ORDER BY l.EndDate ASC, e.FullName ASC';
-  if (sortBy === 'resumption_desc') {
+  let orderByClause = 'ORDER BY l.LeaveID ASC';
+  if (sortBy === 'entry_desc') {
+    orderByClause = 'ORDER BY l.LeaveID DESC';
+  } else if (sortBy === 'resumption_asc') {
+    orderByClause = 'ORDER BY l.EndDate ASC, e.FullName ASC';
+  } else if (sortBy === 'resumption_desc') {
     orderByClause = 'ORDER BY l.EndDate DESC, e.FullName ASC';
   } else if (sortBy === 'name_asc') {
-    orderByClause = 'ORDER BY e.FullName ASC, l.EndDate ASC';
+    orderByClause = 'ORDER BY e.FullName ASC, l.LeaveID ASC';
   }
 
   // 2. Paginated data query / استعلام جلب بيانات الصفحة المحددة
@@ -960,7 +976,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
         FROM Leaves l2
         WHERE l2.EmployeeID = l.EmployeeID
           AND l2.LeaveID != l.LeaveID
-          AND date('now', 'localtime') BETWEEN l2.StartDate AND l2.EndDate
+          AND (l2.StartDate <= l.EndDate AND l2.EndDate >= l.StartDate)
       ) > 0 AS HasConflict
     FROM   Leaves     l
     JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
@@ -1163,6 +1179,7 @@ function updateLeave(leaveId, payload, db) {
     notes,
     modifierName,
     confirmExcess = false,
+    confirmOverlap = false,
   } = payload || {};
 
   const trimmedModifier = (modifierName || '').trim();
@@ -1243,13 +1260,16 @@ function updateLeave(leaveId, payload, db) {
     throw new Error(`رقم الأمر الإداري إلزامي لنوع الإجازة (${targetLeaveType.Name}).`);
   }
 
-  // ── Overlap Guard (Strict Prevention, Excluding Current Leave) ─
-  // التحقق من عدم التداخل مع إجازات الموظف الأخرى (باستثناء الإجازة الحالية الجاري تعديلها)
+  // ── Overlap Guard with Explicit User Confirmation (Excluding Current Leave) ─
+  // التحقق من عدم التداخل مع إجازات الموظف الأخرى مع طلب تأكيد المستخدم
   const overlap = checkLeaveOverlap(oldLeave.EmployeeID, startDate, endDate, leaveId, db);
-  if (overlap) {
-    throw new Error(
-      `تعذر الحفظ: يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). يرجى تصحيح التواريخ أو تعديل الإجازة السابقة.`
+  if (overlap && !confirmOverlap) {
+    const err = new Error(
+      `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف (${overlap.LeaveTypeName} من ${overlap.StartDate} إلى ${overlap.EndDate} — ${overlap.DaysCount} يوم). هل تريد المتابعة وتأكيد تعديل هذه الإجازة كسجل متداخل؟`
     );
+    err.requiresOverlapConfirmation = true;
+    err.overlap = overlap;
+    throw err;
   }
 
   // 3. Balance management inside atomic transaction

@@ -30,7 +30,7 @@ let _onSwitchToDashboard = null;
 let btnFilterUrgentResumption = null;
 let dashboardSortSelect = null;
 let _isUrgentOnlyFilter = false;
-let _dashboardSortBy = 'resumption_asc';
+let _dashboardSortBy = 'entry_asc';
 
 // عناصر النافذة المنبثقة لتعديل الإجازة (Modal)
 let editLeaveModal = null;
@@ -113,6 +113,9 @@ export function renderActiveLeavesTable(leaves) {
       HasConflict
     } = item;
     const tr = document.createElement('tr');
+    if (HasConflict) {
+      tr.classList.add('row-conflict');
+    }
 
     const tdSeq = document.createElement('td');
     const tdName = document.createElement('td');
@@ -425,7 +428,31 @@ async function handleEditLeaveSubmit(event) {
   try {
     let response = await window.api.leave.update(payload);
 
-    // إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
+    // 1. التحقق من تأكيد التداخل عند تعديل الإجازة لتتداخل مع إجازة أخرى
+    if (!response.success && response.data?.requiresOverlapConfirmation) {
+      const overlapData = response.data?.overlap || {};
+      const overlapMsg = `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف:\n\n• نوع الإجازة السابقة: ${overlapData.LeaveTypeName || 'إجازة مسجلة'}\n• الفترة: من ${overlapData.StartDate || ''} إلى ${overlapData.EndDate || ''} (${overlapData.DaysCount || ''} يوم)\n\nهل تريد المتابعة وتأكيد تعديل هذه الإجازة كسجل متداخل؟`;
+
+      const userConfirmed = await showConfirm(
+        overlapMsg,
+        '⚠️ تأكيد تعديل إجازة متداخلة'
+      );
+
+      if (userConfirmed) {
+        if (btnSaveEditLeave) {
+          btnSaveEditLeave.textContent = 'جارٍ تأكيد الحفظ…';
+        }
+        response = await window.api.leave.update({ ...payload, confirmOverlap: true });
+      } else {
+        if (btnSaveEditLeave) {
+          btnSaveEditLeave.disabled = false;
+          btnSaveEditLeave.textContent = '💾 حفظ التعديلات';
+        }
+        return;
+      }
+    }
+
+    // 2. إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
     if (!response.success && response.data?.requiresConfirmation) {
       const confirmData = response.data;
       const warningMsg = confirmData.message || `عدد الأيام المطلوبة (${confirmData.requestedDays} يوم) يتجاوز الرصيد المتاح (${confirmData.availableBalance} يوم) بمقدار (${confirmData.deficit} يوم). هل تريد المتابعة وتأكيد الحفظ برصيد سالب؟`;

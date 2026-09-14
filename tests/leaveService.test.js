@@ -762,12 +762,57 @@ migTestDb.close();
 
 // Export active leaves to Excel with matching data
 (async () => {
+  // ── Suite 26: Overlap Confirmation Flow & Migration 018 Verification ─
+  console.log('\n--- Suite 26: Overlap Confirmation Flow & Migration 018 Verification ---');
+  
+  // Test 1: Service rejects overlap without confirmation
+  let rejectedWithoutConfirm = false;
+  try {
+    LeaveService.processRegularLeave(1001, 11, datesRow.start1, datesRow.end1, db, 'إجازة اعتيادية', { confirmOverlap: false });
+  } catch (err) {
+    if (err.requiresOverlapConfirmation) {
+      rejectedWithoutConfirm = true;
+      assert(err.overlap != null, 'Error includes overlap details');
+    }
+  }
+  assert(rejectedWithoutConfirm, 'processRegularLeave rejects overlapping leave when confirmOverlap is false');
+
+  // Test 2: Service saves overlap with explicit confirmation
+  const confirmedSave = LeaveService.processRegularLeave(1001, 11, datesRow.start1, datesRow.end1, db, 'إجازة اعتيادية', { confirmOverlap: true });
+  assert(confirmedSave && confirmedSave.leaveId > 0, 'processRegularLeave succeeds when confirmOverlap is true');
+
+  // Test 3: getActiveLeavesTodayPaginated default order is LeaveID ASC (entry sequence)
+  const defaultPaginated = LeaveService.getActiveLeavesTodayPaginated({ page: 1, pageSize: 50 }, db);
+  const leaveIds = defaultPaginated.data.map(l => l.LeaveID);
+  const isSortedAsc = leaveIds.every((id, idx) => idx === 0 || id >= leaveIds[idx - 1]);
+  assert(isSortedAsc, 'Active leaves today are sorted in ascending entry sequence (LeaveID ASC) by default');
+
+  // Test 4: Migration 018 executes cleanly and allows exact same date records
+  const mig18Db = new Database(':memory:');
+  mig18Db.pragma('foreign_keys = ON');
+  for (let i = 1; i <= 18; i++) {
+    const file = fs.readdirSync(migrationsDir).find(f => f.startsWith(String(i).padStart(3, '0') + '_'));
+    if (file) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      try { mig18Db.exec(sql); } catch (e) { if (!e.message.includes('duplicate column')) throw e; }
+    }
+  }
+  assert(mig18Db.pragma('foreign_key_check').length === 0, 'No foreign key violations after migration 018');
+
+  // Insert two identical date leaves in migrated DB
+  mig18Db.prepare(`INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive) VALUES (77, 'موظف تجربة', 'Male', '2020-01-01', 'كاتب', 1)`).run();
+  const regTypeId = mig18Db.prepare(`SELECT LeaveTypeID FROM LeaveTypes WHERE Name = 'إجازة اعتيادية'`).get().LeaveTypeID;
+  const ins1 = mig18Db.prepare(`INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount) VALUES (77, ?, '2026-10-01', '2026-10-05', 5)`).run(regTypeId);
+  const ins2 = mig18Db.prepare(`INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount) VALUES (77, ?, '2026-10-01', '2026-10-05', 5)`).run(regTypeId);
+  assert(ins1.lastInsertRowid > 0 && ins2.lastInsertRowid > 0, 'Exact same date records are saved without UNIQUE error after migration 018');
+  mig18Db.close();
+
   const testExcelPath = path.join(__dirname, 'test_active_leaves.xlsx');
   await ReportService.exportActiveLeavesToExcel(testExcelPath, db);
   assert(fs.existsSync(testExcelPath) && fs.statSync(testExcelPath).size > 0, 'exportActiveLeavesToExcel successfully produces Excel file with conflict badges');
   try { fs.unlinkSync(testExcelPath); } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 25 TEST SUITES!`);
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 26 TEST SUITES!`);
 })();
 
 

@@ -173,21 +173,34 @@ function registerLeaveHandlers(ipcMain, db) {
       const validMemoNumber = validateOrderNumber(memoNumber, 'رقم المذكرة');
       const validOrderNumber = validateOrderNumber(orderNumber, 'رقم الأمر الإداري');
 
-      return LeaveService.processSickLeave(
-        employeeId,
-        requestedDays,
-        startDate,
-        endDate,
-        db,
-        leaveApprover ?? null,
-        {
-          requestDate: requestDate || null,
-          memoNumber: validMemoNumber,
-          memoDate: memoDate || null,
-          orderNumber: validOrderNumber,
-          orderDate: orderDate || null,
+      try {
+        return LeaveService.processSickLeave(
+          employeeId,
+          requestedDays,
+          startDate,
+          endDate,
+          db,
+          leaveApprover ?? null,
+          {
+            requestDate: requestDate || null,
+            memoNumber: validMemoNumber,
+            memoDate: memoDate || null,
+            orderNumber: validOrderNumber,
+            orderDate: orderDate || null,
+            confirmOverlap: Boolean(payload?.confirmOverlap),
+          }
+        );
+      } catch (err) {
+        if (err.requiresOverlapConfirmation) {
+          return {
+            success: false,
+            requiresOverlapConfirmation: true,
+            overlap: err.overlap,
+            message: err.message,
+          };
         }
-      );
+        throw err;
+      }
     })
   );
 
@@ -277,9 +290,18 @@ function registerLeaveHandlers(ipcMain, db) {
             orderNumber: validOrderNumber,
             orderDate: orderDate ?? null,
             confirmExcess: Boolean(confirmExcess || allowDeficit),
+            confirmOverlap: Boolean(payload?.confirmOverlap),
           }
         );
       } catch (err) {
+        if (err.requiresOverlapConfirmation) {
+          return {
+            success: false,
+            requiresOverlapConfirmation: true,
+            overlap: err.overlap,
+            message: err.message,
+          };
+        }
         if (err.requiresConfirmation) {
           return {
             success: false,
@@ -406,7 +428,19 @@ function registerLeaveHandlers(ipcMain, db) {
         orderNumber: validateOrderNumber(payload.orderNumber, 'رقم الأمر الإداري'),
       };
 
-      return LeaveService.updateLeave(leaveId, validPayload, db);
+      try {
+        return LeaveService.updateLeave(leaveId, validPayload, db);
+      } catch (err) {
+        if (err.requiresOverlapConfirmation) {
+          return {
+            success: false,
+            requiresOverlapConfirmation: true,
+            overlap: err.overlap,
+            message: err.message,
+          };
+        }
+        throw err;
+      }
     })
   );
 

@@ -795,7 +795,7 @@ export function initLeaveRegistration() {
 
         // إرسال الإجازة عبر قناة IPC المناسبة بحسب نوع الإجازة
         if (payload.leaveType === 'sick' || payload.leaveType === 'إجازة مرضية') {
-          response = await window.api.leave.submitSickLeave({
+          const sickPayload = {
             employeeId: payload.employeeId,
             requestedDays: payload.requestedDays,
             startDate: payload.startDate,
@@ -806,7 +806,37 @@ export function initLeaveRegistration() {
             memoDate: payload.memoDate,
             orderNumber: payload.orderNumber,
             orderDate: payload.orderDate,
-          });
+            confirmOverlap: false,
+          };
+
+          response = await window.api.leave.submitSickLeave(sickPayload);
+
+          // التحقق من تأكيد التداخل عند وجود إجازة متداخلة سابقة
+          if (response.data?.requiresOverlapConfirmation || response.requiresOverlapConfirmation) {
+            const overlapData = response.data?.overlap || response.overlap || {};
+            const overlapMsg = `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف:\n\n• نوع الإجازة السابقة: ${overlapData.LeaveTypeName || 'إجازة مسجلة'}\n• الفترة: من ${overlapData.StartDate || ''} إلى ${overlapData.EndDate || ''} (${overlapData.DaysCount || ''} يوم)\n\nهل تريد المتابعة وتأكيد تسجيل هذه الإجازة كسجل متداخل؟`;
+
+            const userConfirmed = await showConfirm(
+              overlapMsg,
+              '⚠️ تأكيد تسجيل إجازة متداخلة'
+            );
+
+            if (userConfirmed) {
+              if (submitBtn) {
+                submitBtn.textContent = 'جارٍ تأكيد الحفظ…';
+              }
+              response = await window.api.leave.submitSickLeave({
+                ...sickPayload,
+                confirmOverlap: true,
+              });
+            } else {
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'تقديم طلب الإجازة';
+              }
+              return;
+            }
+          }
 
         } else {
           const regularPayload = {
@@ -823,13 +853,39 @@ export function initLeaveRegistration() {
             orderNumber: payload.orderNumber,
             orderDate: payload.orderDate,
             confirmExcess: false,
+            confirmOverlap: false,
           };
 
           response = await window.api.leave.submitRegularLeave(regularPayload);
 
-          // إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
-          if (response.data?.requiresConfirmation) {
-            const confirmData = response.data;
+          // 1. التحقق من تأكيد التداخل أولاً
+          if (response.data?.requiresOverlapConfirmation || response.requiresOverlapConfirmation) {
+            const overlapData = response.data?.overlap || response.overlap || {};
+            const overlapMsg = `يوجد تداخل في التواريخ مع إجازة مسجلة مسبقاً لهذا الموظف:\n\n• نوع الإجازة السابقة: ${overlapData.LeaveTypeName || 'إجازة مسجلة'}\n• الفترة: من ${overlapData.StartDate || ''} إلى ${overlapData.EndDate || ''} (${overlapData.DaysCount || ''} يوم)\n\nهل تريد المتابعة وتأكيد تسجيل هذه الإجازة كسجل متداخل؟`;
+
+            const userConfirmed = await showConfirm(
+              overlapMsg,
+              '⚠️ تأكيد تسجيل إجازة متداخلة'
+            );
+
+            if (userConfirmed) {
+              regularPayload.confirmOverlap = true;
+              if (submitBtn) {
+                submitBtn.textContent = 'جارٍ تأكيد الحفظ…';
+              }
+              response = await window.api.leave.submitRegularLeave(regularPayload);
+            } else {
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'تقديم طلب الإجازة';
+              }
+              return;
+            }
+          }
+
+          // 2. إذا تجاوزت الإجازة الرصيد المتاح، يتم عرض نافذة تأكيد بمقدار العجز بدقة
+          if (response.data?.requiresConfirmation || response.requiresConfirmation) {
+            const confirmData = response.data || response;
             const warningMsg = confirmData.message || `عدد الأيام المطلوبة (${confirmData.requestedDays} يوم) يتجاوز الرصيد الاعتيادي المتاح (${confirmData.availableBalance} يوم) بمقدار (${confirmData.deficit} يوم). هل تريد المتابعة وتأكيد الحفظ برصيد سالب؟`;
 
             const userConfirmed = await showConfirm(

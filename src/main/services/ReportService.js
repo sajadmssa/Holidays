@@ -802,6 +802,8 @@ async function exportActiveLeavesToExcel(filePath, db) {
         const cellAlert = row.getCell(13);
         cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } };
         cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
+        const cellName = row.getCell(3);
+        cellName.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFB45309' } };
       }
     });
   }
