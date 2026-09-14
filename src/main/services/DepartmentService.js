@@ -26,6 +26,7 @@ function getAllDepartments(db) {
     SELECT 
       d.DepartmentID,
       d.Name,
+      d.Name AS DepartmentName,
       d.CreatedAt,
       (
         SELECT COUNT(*) 
@@ -49,20 +50,29 @@ function getDepartmentById(id, db) {
   if (!Number.isInteger(deptId) || deptId <= 0) {
     throw new Error('معرف القسم غير صالح.');
   }
-  return db.prepare('SELECT * FROM Departments WHERE DepartmentID = ?').get(deptId) || null;
+  const row = db.prepare('SELECT * FROM Departments WHERE DepartmentID = ?').get(deptId);
+  if (!row) return null;
+  return {
+    ...row,
+    DepartmentName: row.Name
+  };
 }
 
 /**
  * إضافة قسم إداري جديد
- * @param {{ name: string }} data
+ * @param {{ name: string } | string} data
  * @param {import('better-sqlite3').Database} db
  */
 function addDepartment(data, db) {
-  if (!data || typeof data.name !== 'string') {
+  const rawName = typeof data === 'string'
+    ? data
+    : (data && typeof data.name === 'string' ? data.name : '');
+
+  if (!rawName) {
     throw new Error('يرجى إدخال اسم القسم بشكل صحيح.');
   }
 
-  const name = data.name.trim();
+  const name = rawName.trim();
   if (name.length === 0) {
     throw new Error('اسم القسم مطلوب ولا يمكن تركه فارغاً.');
   }
@@ -90,28 +100,41 @@ function addDepartment(data, db) {
 
   return {
     DepartmentID: Number(info.lastInsertRowid),
-    Name: name
+    Name: name,
+    DepartmentName: name
   };
 }
 
 /**
  * تعديل اسم قسم إداري
- * @param {{ id: number, name: string }} data
- * @param {import('better-sqlite3').Database} db
+ * @param {{ id: number, name: string } | number} data
+ * @param {import('better-sqlite3').Database | string} dbOrName
+ * @param {import('better-sqlite3').Database} [maybeDb]
  */
-function updateDepartment(data, db) {
-  if (!data) throw new Error('بيانات التعديل غير مكتملة.');
+function updateDepartment(data, dbOrName, maybeDb) {
+  let id = null;
+  let rawName = '';
+  let db = null;
 
-  const id = parseInt(data.id, 10);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (data && typeof data === 'object') {
+    id = parseInt(data.id, 10);
+    rawName = typeof data.name === 'string' ? data.name : '';
+    db = dbOrName;
+  } else {
+    id = parseInt(data, 10);
+    rawName = typeof dbOrName === 'string' ? dbOrName : '';
+    db = maybeDb;
+  }
+
+  if (!id || !Number.isInteger(id) || id <= 0) {
     throw new Error('معرف القسم غير صالح.');
   }
 
-  if (typeof data.name !== 'string') {
+  if (!rawName || typeof rawName !== 'string') {
     throw new Error('يرجى إدخال اسم القسم الجديد.');
   }
 
-  const name = data.name.trim();
+  const name = rawName.trim();
   if (name.length === 0) {
     throw new Error('اسم القسم لا يمكن أن يكون فارغاً.');
   }
@@ -143,7 +166,7 @@ function updateDepartment(data, db) {
     details: `تعديل اسم القسم من "${current.Name}" إلى "${name}"`,
   });
 
-  return { DepartmentID: id, Name: name };
+  return { DepartmentID: id, Name: name, DepartmentName: name };
 }
 
 /**

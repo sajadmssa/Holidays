@@ -459,12 +459,17 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── Departments / الأقسام الإدارية ──────────────────────────
   departments: {
-    /** @returns {Promise<{success:boolean, data: Array<{DepartmentID:number, Name:string, CreatedAt:string, EmployeeCount:number}>}>} */
+    /** @returns {Promise<{success:boolean, data: Array<{DepartmentID:number, Name:string, DepartmentName:string, CreatedAt:string, EmployeeCount:number}>}>} */
     getAll: () => invoke('department:getAll'),
-    /** @param {{name:string}} data */
-    add: (data) => invoke('department:add', data),
-    /** @param {{id:number, name:string}} data */
-    update: (data) => invoke('department:update', data),
+    /** @param {{name:string} | string} data */
+    add: (data) => invoke('department:add', typeof data === 'string' ? { name: data } : data),
+    /** @param {{id:number, name:string} | number} data @param {string} [name] */
+    update: (data, name) => {
+      if (name !== undefined || typeof data !== 'object') {
+        return invoke('department:update', { id: data, name });
+      }
+      return invoke('department:update', data);
+    },
     /** @param {number} id */
     delete: (id) => invoke('department:delete', id),
   },

@@ -483,9 +483,14 @@
                   <label for="emp-department">
                     القسم / الشعبة
                   </label>
-                  <select id="emp-department">
-                    <option value="" selected>— اختر القسم / الشعبة (اختياري) —</option>
-                  </select>
+                  <div class="input-action-group">
+                    <select id="emp-department">
+                      <option value="" selected>— اختر القسم / الشعبة (اختياري) —</option>
+                    </select>
+                    <button type="button" id="btn-add-dept-from-add-emp" class="btn-action-secondary" title="إضافة قسم جديد فوراً" style="white-space: nowrap; height: 42px; min-height: 42px;">
+                      ➕ إضافة قسم
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Full Name -->
@@ -670,9 +675,14 @@
 
                 <div class="form-group full-width">
                   <label for="manage-department">القسم / الشعبة</label>
-                  <select id="manage-department">
-                    <option value="">— بدون قسم —</option>
-                  </select>
+                  <div class="input-action-group">
+                    <select id="manage-department">
+                      <option value="">— بدون قسم —</option>
+                    </select>
+                    <button type="button" id="btn-add-dept-from-manage-emp" class="btn-action-secondary" title="إضافة قسم جديد فوراً" style="white-space: nowrap; height: 42px; min-height: 42px;">
+                      ➕ إضافة قسم
+                    </button>
+                  </div>
                 </div>
 
                 <div class="form-group full-width">
@@ -1117,6 +1127,38 @@
         <button type="button" id="btn-confirm-yes" class="btn-primary-large flex-1">تأكيد</button>
         <button type="button" id="btn-confirm-no" class="btn-action-secondary flex-1">إلغاء</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Quick Add Department Modal Dialog
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="quick-add-dept-modal" class="custom-dialog" aria-modal="true" aria-labelledby="quick-add-dept-title">
+    <div class="dialog-content" style="max-width: 480px;">
+      <div class="dialog-header">
+        <h3 id="quick-add-dept-title" class="dialog-title">🏛️ إضافة قسم / شعبة جديدة</h3>
+        <button type="button" id="btn-close-quick-add-dept" class="dialog-close-btn" aria-label="إغلاق نافذة إضافة قسم">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form id="form-quick-add-dept" class="dialog-form" style="padding: 16px 20px;">
+        <div class="form-group full-width">
+          <label for="input-quick-add-dept-name">اسم القسم الجديد <span class="required">*</span></label>
+          <input type="text" id="input-quick-add-dept-name" class="form-input" placeholder="مثال: قسم الشؤون الإدارية" maxlength="100" required autocomplete="off" />
+          <span class="helper-text">سيتم حفظ القسم وتحديده تلقائياً في النموذج وتحديث كافة الشاشات.</span>
+        </div>
+        <div class="form-actions" style="margin-top: 18px; display: flex; gap: 10px;">
+          <button type="submit" id="btn-submit-quick-add-dept" class="btn-primary-large flex-1">
+            💾 إضافة وتحديد القسم
+          </button>
+          <button type="button" id="btn-cancel-quick-add-dept" class="btn-action-secondary flex-1">
+            إلغاء
+          </button>
+        </div>
+      </form>
     </div>
   </dialog>
 

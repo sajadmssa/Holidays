@@ -39,7 +39,10 @@ function registerDepartmentHandlers(ipcMain, db) {
   // تعديل اسم قسم
   ipcMain.handle(
     'department:update',
-    safeHandle(async (data) => {
+    safeHandle(async (data, nameArg) => {
+      if (nameArg !== undefined && typeof data !== 'object') {
+        return updateDepartment({ id: data, name: nameArg }, db);
+      }
       return updateDepartment(data, db);
     })
   );

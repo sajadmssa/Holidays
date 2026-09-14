@@ -77,16 +77,18 @@ export async function loadDepartmentsList() {
               </tr>
             </thead>
             <tbody>
-              ${res.data.map(d => `
+              ${res.data.map(d => {
+                const deptName = d.DepartmentName || d.Name || '';
+                return `
                 <tr data-dept-id="${d.DepartmentID}">
                   <td class="text-center font-bold">${d.DepartmentID}</td>
-                  <td class="dept-name-cell">${escapeHtml(d.DepartmentName)}</td>
+                  <td class="dept-name-cell">${escapeHtml(deptName)}</td>
                   <td class="text-center table-actions-cell">
-                    <button type="button" class="btn-action-icon btn-edit-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(d.DepartmentName)}" title="تعديل اسم القسم">✏️</button>
-                    <button type="button" class="btn-action-icon btn-delete-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(d.DepartmentName)}" title="حذف القسم">🗑️</button>
+                    <button type="button" class="btn-action-icon btn-edit-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="تعديل اسم القسم">✏️</button>
+                    <button type="button" class="btn-action-icon btn-delete-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="حذف القسم">🗑️</button>
                   </td>
                 </tr>
-              `).join('')}
+              `;}).join('')}
             </tbody>
           </table>
         </div>
@@ -647,3 +649,103 @@ export function initSystemSettings() {
   loadSystemSettings();
   checkAutoBackupStatus();
 }
+
+// ──────────────────────────────────────────────────────────────
+//  Quick Add Department Modal Dialog (For Employee Forms)
+//  نافذة الإضافة السريعة للأقسام من داخل استمارات الموظفين
+// ──────────────────────────────────────────────────────────────
+let quickAddDeptModal = null;
+let formQuickAddDept = null;
+let inputQuickAddDeptName = null;
+let btnCloseQuickAddDept = null;
+let btnCancelQuickAddDept = null;
+let btnSubmitQuickAddDept = null;
+let _currentQuickAddTargetSelect = null;
+let _quickAddInitialized = false;
+
+function initQuickAddDeptModalListeners() {
+  if (_quickAddInitialized) return;
+  quickAddDeptModal = document.getElementById('quick-add-dept-modal');
+  formQuickAddDept = document.getElementById('form-quick-add-dept');
+  inputQuickAddDeptName = document.getElementById('input-quick-add-dept-name');
+  btnCloseQuickAddDept = document.getElementById('btn-close-quick-add-dept');
+  btnCancelQuickAddDept = document.getElementById('btn-cancel-quick-add-dept');
+  btnSubmitQuickAddDept = document.getElementById('btn-submit-quick-add-dept');
+
+  if (formQuickAddDept) {
+    formQuickAddDept.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = inputQuickAddDeptName ? inputQuickAddDeptName.value.trim() : '';
+      if (!name) {
+        showToast('يرجى إدخال اسم القسم أولاً.', 'warning');
+        inputQuickAddDeptName?.focus();
+        return;
+      }
+
+      if (btnSubmitQuickAddDept) {
+        btnSubmitQuickAddDept.disabled = true;
+        btnSubmitQuickAddDept.textContent = 'جارٍ الحفظ…';
+      }
+
+      try {
+        const res = await window.api.departments.add(name);
+        if (res && res.success) {
+          showToast(`تمت إضافة قسم "${name}" بنجاح وتحديده في النموذج.`, 'success');
+          if (quickAddDeptModal && typeof quickAddDeptModal.close === 'function') {
+            quickAddDeptModal.close();
+          }
+          if (inputQuickAddDeptName) inputQuickAddDeptName.value = '';
+
+          // تحديث جدول الأقسام في الإعدادات
+          await loadDepartmentsList();
+
+          // تنبيه كافة القوائم المنسدلة للأقسام
+          notifyDepartmentsChanged();
+
+          // تحديد القسم المنشأ حديثاً في القائمة المنسدلة المستهدفة
+          const newDeptId = res.data?.DepartmentID;
+          if (_currentQuickAddTargetSelect && newDeptId) {
+            setTimeout(() => {
+              _currentQuickAddTargetSelect.value = String(newDeptId);
+            }, 50);
+          }
+        } else {
+          showToast(res?.error || 'تعذر إضافة القسم. يرجى مراجعة البيانات.', 'error');
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء إضافة القسم.', 'error');
+      } finally {
+        if (btnSubmitQuickAddDept) {
+          btnSubmitQuickAddDept.disabled = false;
+          btnSubmitQuickAddDept.textContent = '💾 إضافة وتحديد القسم';
+        }
+      }
+    });
+  }
+
+  const handleClose = () => {
+    if (quickAddDeptModal && typeof quickAddDeptModal.close === 'function') {
+      quickAddDeptModal.close();
+    }
+  };
+  if (btnCloseQuickAddDept) btnCloseQuickAddDept.addEventListener('click', handleClose);
+  if (btnCancelQuickAddDept) btnCancelQuickAddDept.addEventListener('click', handleClose);
+
+  _quickAddInitialized = true;
+}
+
+/**
+ * فتح نافذة إضافة قسم سريع وتعيينه فوراً في القائمة المنسدلة المحددة
+ * @param {HTMLSelectElement} [targetSelectEl]
+ */
+export function openQuickAddDepartmentModal(targetSelectEl = null) {
+  initQuickAddDeptModalListeners();
+  _currentQuickAddTargetSelect = targetSelectEl || null;
+
+  if (inputQuickAddDeptName) inputQuickAddDeptName.value = '';
+  if (quickAddDeptModal && typeof quickAddDeptModal.showModal === 'function') {
+    quickAddDeptModal.showModal();
+    inputQuickAddDeptName?.focus();
+  }
+}
+

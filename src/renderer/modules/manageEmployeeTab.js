@@ -15,6 +15,7 @@
 
 import { showToast, showConfirm } from './uiHelpers.js';
 import { openEmployeeDocumentsModal } from './employeeDocumentsModal.js';
+import { openQuickAddDepartmentModal } from './systemSettings.js';
 
 // مراجع عناصر الإدخال والاستمارات
 let manageEmpIdInput = null;
@@ -42,6 +43,7 @@ let manageBadgeLeavecardCount = null;
 let manageSequenceNumberInput = null;
 let manageJobNumberInput = null;
 let manageDepartmentSelect = null;
+let btnAddDeptFromManageEmp = null;
 
 // حالة الموظف المفتوح حالياً في الذاكرة
 let currentManagingEmpId = null;
@@ -66,15 +68,16 @@ let btnCancelTransferStatus = null;
 
 /**
  * تحميل وتعبئة قائمة الأقسام في القائمة المنسدلة لشاشة إدارة الموظف
+ * @param {number|string|null} [selectIdToSet]
  */
-export async function populateManageDepartments() {
+export async function populateManageDepartments(selectIdToSet = null) {
   if (!manageDepartmentSelect) return;
   try {
     const res = await window.api.departments.getAll();
     if (res && res.success && Array.isArray(res.data)) {
-      const currentVal = manageDepartmentSelect.value;
+      const currentVal = selectIdToSet != null ? String(selectIdToSet) : manageDepartmentSelect.value;
       manageDepartmentSelect.innerHTML = '<option value="">— بدون قسم —</option>' +
-        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`).join('');
+        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName || d.Name}</option>`).join('');
       if (currentVal) manageDepartmentSelect.value = currentVal;
     }
   } catch (err) {
@@ -280,9 +283,18 @@ export function initManageEmployeeTab(options = {}) {
   manageSequenceNumberInput = document.getElementById('manage-sequence-number');
   manageJobNumberInput = document.getElementById('manage-job-number');
   manageDepartmentSelect = document.getElementById('manage-department');
+  btnAddDeptFromManageEmp = document.getElementById('btn-add-dept-from-manage-emp');
 
   // تحميل قائمة الأقسام
   populateManageDepartments();
+
+  // ربط زر الإضافة السريعة لقسم جديد من شاشة إدارة الموظف
+  if (btnAddDeptFromManageEmp) {
+    btnAddDeptFromManageEmp.addEventListener('click', (e) => {
+      e.preventDefault();
+      openQuickAddDepartmentModal(manageDepartmentSelect);
+    });
+  }
 
   transferModal = document.getElementById('transfer-employee-modal');
   btnCloseTransferModal = document.getElementById('btn-close-transfer-modal');

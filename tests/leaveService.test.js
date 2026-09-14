@@ -650,11 +650,21 @@ const updatedSeq1 = EmployeeService.getEmployeeById(1001, db);
 assert(updatedSeq1.DepartmentID === 2, 'Employee moved to Department 2 successfully');
 assert(updatedSeq1.JobNumber === 'J-1001-MOD', 'Employee JobNumber updated successfully');
 
-// Add and delete a department with no employees
+// Add and delete a department with no employees (Object signature)
 const newDept = DepartmentService.addDepartment({ name: 'قسم اختبار جديد مؤقت' }, db);
-assert(newDept.DepartmentID != null, 'Department added successfully');
+assert(newDept.DepartmentID != null, 'Department added successfully with object signature');
+assert(newDept.DepartmentName === 'قسم اختبار جديد مؤقت', 'addDepartment returns DepartmentName alias');
 const delDeptRes = DepartmentService.deleteDepartment(newDept.DepartmentID, db);
 assert(delDeptRes.success === true, 'Deleting unlinked department succeeds');
+
+// Add and update a department using plain string signatures (String signature)
+const deptString = DepartmentService.addDepartment('قسم اختبار بالسلسلة النصية', db);
+assert(deptString.DepartmentID != null, 'addDepartment accepts plain string');
+assert(deptString.DepartmentName === 'قسم اختبار بالسلسلة النصية', 'DepartmentName is populated on plain string insert');
+const updatedDept = DepartmentService.updateDepartment(deptString.DepartmentID, 'قسم اختبار بالسلسلة معدل', db);
+assert(updatedDept.DepartmentName === 'قسم اختبار بالسلسلة معدل', 'updateDepartment accepts (id, name) signature');
+DepartmentService.deleteDepartment(deptString.DepartmentID, db);
+assert(allDepts.every(d => d.DepartmentName != null && d.DepartmentName === d.Name), 'getAllDepartments returns DepartmentName on all rows');
 
 // ── Suite 23: New Leave Types (Companion Leave & 1-5 Years Leaves) ─
 console.log('\n--- Suite 23: New Leave Types (Companion Leave & 1-5 Years Leaves) ---');

@@ -12,12 +12,14 @@
 'use strict';
 
 import { showToast } from './uiHelpers.js';
+import { openQuickAddDepartmentModal } from './systemSettings.js';
 
 // مراجع عناصر الاستمارة في واجهة المستخدم
 let addEmployeeForm = null;
 let empEmployeeIdEl = null;
 let empJobNumberEl = null;
 let empDepartmentEl = null;
+let btnAddDeptFromAddEmp = null;
 let empFullNameEl = null;
 let empGenderEl = null;
 let empHireDateEl = null;
@@ -28,15 +30,16 @@ let addEmployeeBtn = null;
 
 /**
  * تحميل وتعبئة قائمة الأقسام المتاحة في القائمة المنسدلة
+ * @param {number|string|null} [selectIdToSet]
  */
-export async function populateAddEmployeeDepartments() {
+export async function populateAddEmployeeDepartments(selectIdToSet = null) {
   if (!empDepartmentEl) return;
   try {
     const res = await window.api.departments.getAll();
     if (res && res.success && Array.isArray(res.data)) {
-      const currentVal = empDepartmentEl.value;
+      const currentVal = selectIdToSet != null ? String(selectIdToSet) : empDepartmentEl.value;
       empDepartmentEl.innerHTML = '<option value="" selected>— اختر القسم / الشعبة (اختياري) —</option>' +
-        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`).join('');
+        res.data.map(d => `<option value="${d.DepartmentID}">${d.DepartmentName || d.Name}</option>`).join('');
       if (currentVal) empDepartmentEl.value = currentVal;
     }
   } catch (err) {
@@ -114,6 +117,7 @@ export function initAddEmployeeTab(options = {}) {
   empEmployeeIdEl = document.getElementById('emp-employee-id');
   empJobNumberEl = document.getElementById('emp-job-number');
   empDepartmentEl = document.getElementById('emp-department');
+  btnAddDeptFromAddEmp = document.getElementById('btn-add-dept-from-add-emp');
   empFullNameEl = document.getElementById('emp-full-name');
   empGenderEl = document.getElementById('emp-gender');
   empHireDateEl = document.getElementById('emp-hire-date');
@@ -124,6 +128,14 @@ export function initAddEmployeeTab(options = {}) {
 
   // تحميل قائمة الأقسام
   populateAddEmployeeDepartments();
+
+  // ربط زر الإضافة السريعة لقسم جديد من داخل النموذج
+  if (btnAddDeptFromAddEmp) {
+    btnAddDeptFromAddEmp.addEventListener('click', (e) => {
+      e.preventDefault();
+      openQuickAddDepartmentModal(empDepartmentEl);
+    });
+  }
 
   if (addEmployeeForm) {
     addEmployeeForm.addEventListener('submit', async (event) => {
