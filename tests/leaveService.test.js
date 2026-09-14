@@ -705,6 +705,61 @@ const paginatedEmp1001 = activePaginated.data.filter(l => l.EmployeeID === 1001)
 assert(paginatedEmp1001.length === 2, 'Paginated active leaves returns all records with HasConflict flag');
 assert(paginatedEmp1001[0].HasConflict > 0 && paginatedEmp1001[1].HasConflict > 0, 'Paginated leaves accurately report HasConflict');
 
+// --- Suite 25: Migration Engine FK Safety with Pre-existing Data ---
+console.log('\n--- Suite 25: Migration Engine FK Safety with Pre-existing Data ---');
+const migTestDb = new Database(':memory:');
+migTestDb.pragma('foreign_keys = ON');
+
+const migrationsDir = path.join(__dirname, '..', 'src', 'main', 'migrations');
+// Apply migrations 001 - 016
+for (let i = 1; i <= 16; i++) {
+  const file = fs.readdirSync(migrationsDir).find(f => f.startsWith(String(i).padStart(3, '0') + '_'));
+  if (file) {
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+    try {
+      migTestDb.exec(sql);
+    } catch (e) {
+      if (!e.message.includes('duplicate column')) throw e;
+    }
+  }
+}
+
+// Insert an employee and leaves referencing LeaveTypes before migration 017
+migTestDb.prepare(`
+  INSERT INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive)
+  VALUES (99, 'موظف اختبار ترحيل', 'Male', '2020-01-01', 'مهندس', 1)
+`).run();
+
+migTestDb.prepare(`
+  INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount)
+  VALUES (99, 1, '2026-08-01', '2026-08-10', 10)
+`).run();
+
+// Now apply migration 017 using database.js pattern
+const mig017File = '017_add_departments_sequence_and_leave_types.sql';
+const mig017Sql = fs.readFileSync(path.join(migrationsDir, mig017File), 'utf8');
+
+migTestDb.pragma('foreign_keys = OFF');
+migTestDb.transaction(() => {
+  migTestDb.exec(mig017Sql);
+  const violations = migTestDb.pragma('foreign_key_check');
+  if (violations.length > 0) {
+    throw new Error('FK violations found: ' + JSON.stringify(violations));
+  }
+})();
+migTestDb.pragma('foreign_keys = ON');
+
+assert(migTestDb.pragma('foreign_keys', { simple: true }) === 1, 'foreign_keys remains ON after migration 017');
+assert(migTestDb.pragma('foreign_key_check').length === 0, 'No foreign key violations exist after table reconstruction');
+
+const preLeaves = migTestDb.prepare('SELECT * FROM Leaves WHERE EmployeeID = 99').all();
+assert(preLeaves.length === 1 && preLeaves[0].LeaveTypeID === 1, 'Existing child records in Leaves are intact');
+
+const preEmp = migTestDb.prepare('SELECT * FROM Employees WHERE EmployeeID = 99').get();
+assert(preEmp && preEmp.JobNumber === '99' && preEmp.SequenceNumber === 1, 'Employee migrated with populated JobNumber and SequenceNumber');
+
+migTestDb.close();
+
 // Export active leaves to Excel with matching data
 (async () => {
   const testExcelPath = path.join(__dirname, 'test_active_leaves.xlsx');
@@ -712,7 +767,7 @@ assert(paginatedEmp1001[0].HasConflict > 0 && paginatedEmp1001[1].HasConflict > 
   assert(fs.existsSync(testExcelPath) && fs.statSync(testExcelPath).size > 0, 'exportActiveLeavesToExcel successfully produces Excel file with conflict badges');
   try { fs.unlinkSync(testExcelPath); } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 24 TEST SUITES!`);
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 25 TEST SUITES!`);
 })();
 
 

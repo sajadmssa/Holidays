@@ -30,6 +30,7 @@ DROP TABLE LeaveTypes;
 ALTER TABLE LeaveTypes_new RENAME TO LeaveTypes;
 
 PRAGMA foreign_keys = ON;
+PRAGMA foreign_key_check;
 
 -- 3. Recreate the triggers on Leaves referencing LeaveTypes
 CREATE TRIGGER IF NOT EXISTS trg_prevent_female_leave_for_male

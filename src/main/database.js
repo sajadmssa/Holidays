@@ -122,18 +122,33 @@ function runMigrations() {
     if (!executed.has(file)) {
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
       LoggerService.info('DB', `Applying migration: ${file}`);
-      _db.transaction(() => {
-        try {
-          _db.exec(sql);
-        } catch (err) {
-          if (err.message.includes('duplicate column name')) {
-            LoggerService.info('DB', `[DB Migration Notice] Column already exists in ${file}: ${err.message}`);
-          } else {
-            throw err;
+      // SQLite requires PRAGMA foreign_keys = OFF to be set OUTSIDE an active transaction
+      // so table rebuilds/drops/renames work seamlessly without FK triggers blocking DROP TABLE.
+      _db.pragma('foreign_keys = OFF');
+      try {
+        _db.transaction(() => {
+          try {
+            _db.exec(sql);
+          } catch (err) {
+            if (err.message.includes('duplicate column name')) {
+              LoggerService.info('DB', `[DB Migration Notice] Column already exists in ${file}: ${err.message}`);
+            } else {
+              throw err;
+            }
           }
-        }
-        _db.prepare('INSERT INTO _Migrations (name) VALUES (?)').run(file);
-      })();
+
+          // Verify referential integrity before committing transaction
+          const fkViolations = _db.pragma('foreign_key_check');
+          if (fkViolations && fkViolations.length > 0) {
+            throw new Error(`FOREIGN KEY constraint check failed in migration ${file}: ` + JSON.stringify(fkViolations));
+          }
+
+          _db.prepare('INSERT INTO _Migrations (name) VALUES (?)').run(file);
+        })();
+      } finally {
+        // Always re-enable foreign keys after each migration
+        _db.pragma('foreign_keys = ON');
+      }
     }
   }
 }
