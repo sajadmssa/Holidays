@@ -14,9 +14,25 @@
 @font-face {
   font-family: 'Cairo';
   font-style: normal;
-  font-weight: 400 800;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/Cairo-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 600;
   font-display: swap;
   src: url('./assets/fonts/Cairo-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/Cairo-Bold.ttf') format('truetype');
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -45,7 +61,7 @@
   --color-surface: #ffffff;
   --color-surface-alt: #f1f5f9;
   --color-border: #cbd5e1;
-  --color-input-bg: #ffffff;
+  --color-input-bg: #f1f5f9;
   --color-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
   --color-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --color-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
@@ -596,8 +612,8 @@ body {
 }
 
 .view-title {
-  font-size: 1.25rem;
-  font-weight: 800;
+  font-size: 1.35rem;
+  font-weight: 700;
   color: var(--color-text);
 }
 
@@ -652,7 +668,7 @@ body {
 }
 
 .form-section-header h3 {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--color-text);
 }
@@ -940,17 +956,20 @@ textarea:focus,
 .data-table th {
   padding: 14px 16px;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--color-text-muted);
   white-space: nowrap;
   position: sticky;
   top: 0;
   background-color: var(--color-surface-alt);
   z-index: 2;
+  letter-spacing: 0.01em;
 }
 
 .data-table td {
-  padding: 12px 16px;
+  padding: 13px 16px;
+  font-size: 0.95rem;
+  font-weight: 400;
   color: var(--color-text);
   border-block-end: 1px solid var(--color-border);
   vertical-align: middle;
@@ -4218,29 +4237,50 @@ textarea:focus,
 }
 
 /* ────────────────────────────────────────────────────────────
-   15. Leave Conflict / Duplicate Warning Badge
+   15. Leave Conflict / Duplicate Warning Badge & Row Styling
    ──────────────────────────────────────────────────────────── */
 .badge-conflict,
 .conflict-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  font-size: 0.78rem;
-  font-weight: 800;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: #b45309;
   background-color: #fffbeb;
-  border: 1px solid #fde68a;
+  border: 1.5px solid #fde68a;
   border-radius: var(--radius-sm);
   white-space: nowrap;
   margin-inline-start: 6px;
+  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.08);
 }
 
 :root[data-theme="dark"] .badge-conflict,
 :root[data-theme="dark"] .conflict-badge {
   color: #fde68a;
-  background-color: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: none;
+}
+
+/* Subtle row highlighting for conflicting/overlapping records */
+.data-table tbody tr.row-conflict {
+  background-color: #fffbeb !important;
+  border-inline-start: 4px solid #f59e0b;
+}
+
+.data-table tbody tr.row-conflict:hover {
+  background-color: #fef3c7 !important;
+}
+
+:root[data-theme="dark"] .data-table tbody tr.row-conflict {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border-inline-start: 4px solid #fbbf24;
+}
+
+:root[data-theme="dark"] .data-table tbody tr.row-conflict:hover {
+  background-color: rgba(245, 158, 11, 0.18) !important;
 }
 
 /* ────────────────────────────────────────────────────────────
