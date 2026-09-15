@@ -15,6 +15,16 @@ let dashboardSearchInput = null;
 let activeLeavesTable = null;
 let activeLeavestbody = null;
 let btnExportActiveLeaves = null;
+let btnExportExpiredLeaves = null;
+let modalExportExpiredLeaves = null;
+let formExportExpired = null;
+let selectExpiredPeriod = null;
+let containerExpiredCustomDates = null;
+let inputExpiredStartDate = null;
+let inputExpiredEndDate = null;
+let btnSubmitExportExpired = null;
+let btnCancelExportExpired = null;
+let btnCloseModalExpired = null;
 let _pagination = null;
 
 // عناصر شريط تنبيهات المباشرة القريبة
@@ -540,6 +550,16 @@ export function initDashboardTab(options = {}) {
   activeLeavesTable = document.getElementById('active-leaves-table');
   activeLeavestbody = activeLeavesTable ? activeLeavesTable.querySelector('tbody') : null;
   btnExportActiveLeaves = document.getElementById('btn-export-active-leaves');
+  btnExportExpiredLeaves = document.getElementById('btn-export-expired-leaves');
+  modalExportExpiredLeaves = document.getElementById('modal-export-expired-leaves');
+  formExportExpired = document.getElementById('form-export-expired');
+  selectExpiredPeriod = document.getElementById('select-expired-period');
+  containerExpiredCustomDates = document.getElementById('container-expired-custom-dates');
+  inputExpiredStartDate = document.getElementById('input-expired-start-date');
+  inputExpiredEndDate = document.getElementById('input-expired-end-date');
+  btnSubmitExportExpired = document.getElementById('btn-submit-export-expired');
+  btnCancelExportExpired = document.getElementById('btn-cancel-export-expired');
+  btnCloseModalExpired = document.getElementById('btn-close-modal-expired');
 
   resumptionAlertBanner = document.getElementById('resumption-alert-banner');
   alertBannerDesc = document.getElementById('alert-banner-desc');
@@ -713,6 +733,96 @@ export function initDashboardTab(options = {}) {
       } finally {
         btnExportActiveLeaves.disabled = false;
         btnExportActiveLeaves.innerHTML = origHtml;
+      }
+    });
+  }
+
+  // ── تصدير الإجازات المنتهية إلى Excel ─────────────────────────────
+  if (btnExportExpiredLeaves && modalExportExpiredLeaves) {
+    btnExportExpiredLeaves.addEventListener('click', () => {
+      if (selectExpiredPeriod) selectExpiredPeriod.value = 'last3months';
+      if (containerExpiredCustomDates) containerExpiredCustomDates.style.display = 'none';
+      if (inputExpiredStartDate && inputExpiredEndDate) {
+        const today = new Date().toISOString().slice(0, 10);
+        inputExpiredEndDate.value = today;
+        const d = new Date();
+        d.setMonth(d.getMonth() - 3);
+        inputExpiredStartDate.value = d.toISOString().slice(0, 10);
+      }
+      modalExportExpiredLeaves.showModal();
+    });
+  }
+
+  if (selectExpiredPeriod && containerExpiredCustomDates) {
+    selectExpiredPeriod.addEventListener('change', () => {
+      if (selectExpiredPeriod.value === 'custom') {
+        containerExpiredCustomDates.style.display = 'flex';
+      } else {
+        containerExpiredCustomDates.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnCloseModalExpired && modalExportExpiredLeaves) {
+    btnCloseModalExpired.addEventListener('click', () => modalExportExpiredLeaves.close());
+  }
+  if (btnCancelExportExpired && modalExportExpiredLeaves) {
+    btnCancelExportExpired.addEventListener('click', () => modalExportExpiredLeaves.close());
+  }
+
+  if (formExportExpired) {
+    formExportExpired.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const period = selectExpiredPeriod ? selectExpiredPeriod.value : 'last3months';
+      const customStartDate = inputExpiredStartDate ? inputExpiredStartDate.value : null;
+      const customEndDate = inputExpiredEndDate ? inputExpiredEndDate.value : null;
+
+      if (period === 'custom') {
+        if (customStartDate && customEndDate && customStartDate > customEndDate) {
+          showToast('تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.', 'warning');
+          return;
+        }
+      }
+
+      if (btnSubmitExportExpired) {
+        btnSubmitExportExpired.disabled = true;
+        const origHtml = btnSubmitExportExpired.innerHTML;
+        btnSubmitExportExpired.innerHTML = '<span>⏳</span><span>جارٍ التصدير…</span>';
+
+        try {
+          const response = await window.api.report.exportExpiredLeaves({
+            period,
+            customStartDate: period === 'custom' ? customStartDate : null,
+            customEndDate: period === 'custom' ? customEndDate : null,
+          });
+
+          if (!response.success) {
+            showToast(response.error || 'تعذر تصدير تقرير الإجازات المنتهية، يرجى إعادة المحاولة.', 'error');
+            return;
+          }
+
+          if (response.data?.canceled) {
+            return;
+          }
+
+          if (modalExportExpiredLeaves) {
+            modalExportExpiredLeaves.close();
+          }
+
+          if (response.data?.filePath) {
+            showExportSuccessToast({
+              filePath: response.data.filePath,
+              message: 'تم تصدير تقرير الإجازات المنتهية بنجاح.'
+            });
+          } else {
+            showToast('تم تصدير تقرير الإجازات المنتهية بنجاح.', 'success');
+          }
+        } catch (err) {
+          showToast('حدث خطأ غير متوقع أثناء التصدير، يرجى إعادة المحاولة.', 'error');
+        } finally {
+          btnSubmitExportExpired.disabled = false;
+          btnSubmitExportExpired.innerHTML = origHtml;
+        }
       }
     });
   }

@@ -37,6 +37,7 @@ const LeaveService = require('../src/main/services/LeaveService');
 const ReportService = require('../src/main/services/ReportService');
 const EmployeeService = require('../src/main/services/EmployeeService');
 const DepartmentService = require('../src/main/services/DepartmentService');
+const ExcelJS = require('exceljs');
 
 console.log('🧪 [LeaveService Unit Tests] Starting test suite...\n');
 
@@ -931,7 +932,177 @@ migTestDb.close();
   assert(fs.existsSync(testExcelPath2) && fs.statSync(testExcelPath2).size > 0, 'Excel export generates successfully with Leave Status column');
   try { fs.unlinkSync(testExcelPath2); } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 27 TEST SUITES!`);
+  // ── Suite 28: Expired Leaves Scope, Period Filters, Historical Conflict & Excel Export ─
+  console.log('\n--- Suite 28: Expired Leaves Scope, Period Filters, Historical Conflict & Excel Export ---');
+
+  // Insert a dedicated test employee for expired leaves
+  EmployeeService.addEmployee({
+    employeeId: 8888,
+    fullName: 'موظف تجربة الإجازات المنتهية',
+    gender: 'Male',
+    hireDate: '2018-01-01',
+    jobTitle: 'مشرف فني',
+    workLocation: 'موقع الإنتاج',
+    jobNumber: 'J-8888',
+    departmentId: 1
+  }, db);
+
+  // 1. Leave finished 20 days ago (within current year & within last 3 months)
+  const d20Ago = db.prepare(`
+    SELECT date('now', 'localtime', '-25 day') AS s, date('now', 'localtime', '-20 day') AS e
+  `).get();
+  const expLeave1 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+    VALUES (8888, ?, ?, ?, 6, 'إجازة منتهية حديثاً 1')
+  `).run(regType, d20Ago.s, d20Ago.e);
+  const expLeaveId1 = expLeave1.lastInsertRowid;
+
+  // 2. Overlapping Leave finished 20 days ago (same dates as leave 1 to test historical conflict)
+  const expLeave2 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+    VALUES (8888, ?, ?, ?, 6, 'إجازة متداخلة تاريخياً 2')
+  `).run(regType, d20Ago.s, d20Ago.e);
+  const expLeaveId2 = expLeave2.lastInsertRowid;
+
+  // 3. Non-overlapping Leave finished 50 days ago (within last 3 months)
+  const d50Ago = db.prepare(`
+    SELECT date('now', 'localtime', '-55 day') AS s, date('now', 'localtime', '-50 day') AS e
+  `).get();
+  const expLeave3 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+    VALUES (8888, ?, ?, ?, 6, 'إجازة منتهية 3 بدون تعارض')
+  `).run(regType, d50Ago.s, d50Ago.e);
+  const expLeaveId3 = expLeave3.lastInsertRowid;
+
+  // 4. Leave finished 140 days ago (~5 months, within current year, but > 3 months)
+  const d5MonthsAgo = db.prepare(`
+    SELECT date('now', 'localtime', '-150 day') AS s, date('now', 'localtime', '-140 day') AS e
+  `).get();
+  const expLeave4 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+    VALUES (8888, ?, ?, ?, 10, 'إجازة منتهية قبل 5 أشهر')
+  `).run(regType, d5MonthsAgo.s, d5MonthsAgo.e);
+  const expLeaveId4 = expLeave4.lastInsertRowid;
+
+  // 5. Leave finished 2 years ago (historical archive, > 1 year)
+  const d2YearsAgo = db.prepare(`
+    SELECT date('now', 'localtime', '-710 day') AS s, date('now', 'localtime', '-700 day') AS e
+  `).get();
+  const expLeave5 = db.prepare(`
+    INSERT INTO Leaves (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes)
+    VALUES (8888, ?, ?, ?, 15, 'إجازة منتهية قبل سنتين')
+  `).run(regType, d2YearsAgo.s, d2YearsAgo.e);
+  const expLeaveId5 = expLeave5.lastInsertRowid;
+
+  // Assert 1: Active and Upcoming leaves NEVER appear in getExpiredLeaves
+  const expDefault = LeaveService.getExpiredLeaves({ period: 'last3months' }, db);
+  assert(!expDefault.some(l => l.LeaveID === ongoingLeaveId), 'Active ongoing leave is NEVER returned in getExpiredLeaves');
+  assert(!expDefault.some(l => l.LeaveID === upcomingLeaveId1), 'Upcoming future leave is NEVER returned in getExpiredLeaves');
+  assert(!expDefault.some(l => l.LeaveID === upcomingLeaveId2), 'Upcoming overlapping leave is NEVER returned in getExpiredLeaves');
+
+  // Assert 2: Period 'last3months' includes leaves within 90 days, excludes older ones
+  assert(expDefault.some(l => l.LeaveID === expLeaveId1), 'Leave finished 20 days ago is INCLUDED in last3months');
+  assert(expDefault.some(l => l.LeaveID === expLeaveId2), 'Overlapping leave finished 20 days ago is INCLUDED in last3months');
+  assert(expDefault.some(l => l.LeaveID === expLeaveId3), 'Leave finished 50 days ago is INCLUDED in last3months');
+  assert(!expDefault.some(l => l.LeaveID === expLeaveId4), 'Leave finished 140 days ago is EXCLUDED from last3months');
+  assert(!expDefault.some(l => l.LeaveID === expLeaveId5), 'Leave finished 2 years ago is EXCLUDED from last3months');
+
+  // Assert 3: Period 'currentYear' includes leaves within current calendar year
+  const expYear = LeaveService.getExpiredLeaves({ period: 'currentYear' }, db);
+  assert(expYear.some(l => l.LeaveID === expLeaveId1), 'Leave 1 is INCLUDED in currentYear');
+  assert(expYear.some(l => l.LeaveID === expLeaveId4), 'Leave 4 (140 days ago) is INCLUDED in currentYear');
+  assert(!expYear.some(l => l.LeaveID === expLeaveId5), 'Leave 5 (2 years ago) is EXCLUDED from currentYear');
+  assert(!expYear.some(l => l.LeaveID === ongoingLeaveId), 'Active ongoing leave is NEVER in currentYear expired leaves');
+
+  // Assert 4: Period 'all' (comprehensive archive) includes all past leaves without exception
+  const expAll = LeaveService.getExpiredLeaves({ period: 'all' }, db);
+  assert(expAll.some(l => l.LeaveID === expLeaveId1), 'Leave 1 is INCLUDED in archive all');
+  assert(expAll.some(l => l.LeaveID === expLeaveId4), 'Leave 4 is INCLUDED in archive all');
+  assert(expAll.some(l => l.LeaveID === expLeaveId5), 'Leave 5 (2 years ago) is INCLUDED in archive all');
+  assert(!expAll.some(l => l.LeaveID === ongoingLeaveId), 'Active ongoing leave is NEVER in archive all expired leaves');
+  assert(!expAll.some(l => l.LeaveID === upcomingLeaveId1), 'Upcoming leave is NEVER in archive all expired leaves');
+
+  // Assert 5: Period 'custom' filters precisely by date range
+  const expCustom = LeaveService.getExpiredLeaves({
+    period: 'custom',
+    customStartDate: d50Ago.s,
+    customEndDate: d50Ago.e
+  }, db);
+  assert(expCustom.some(l => l.LeaveID === expLeaveId3), 'Leave 3 within exact custom range is INCLUDED');
+  assert(!expCustom.some(l => l.LeaveID === expLeaveId1), 'Leave 1 outside custom range is EXCLUDED');
+  assert(!expCustom.some(l => l.LeaveID === expLeaveId4), 'Leave 4 outside custom range is EXCLUDED');
+
+  // Assert 6: Period 'custom' boundary edge cases (empty result set & future range)
+  const expCustomEmpty = LeaveService.getExpiredLeaves({
+    period: 'custom',
+    customStartDate: '1990-01-01',
+    customEndDate: '1990-12-31'
+  }, db);
+  assert(Array.isArray(expCustomEmpty) && expCustomEmpty.length === 0, 'Custom range with no matching dates returns empty array gracefully');
+
+  const expCustomFuture = LeaveService.getExpiredLeaves({
+    period: 'custom',
+    customStartDate: d20Ago.s,
+    customEndDate: '2099-12-31' // Far future date
+  }, db);
+  assert(!expCustomFuture.some(l => l.LeaveID === ongoingLeaveId), 'Custom range extending into future strictly stops at EndDate < today');
+  assert(!expCustomFuture.some(l => l.LeaveID === upcomingLeaveId1), 'Custom range extending into future strictly excludes upcoming leaves');
+
+  // Assert 7: Historical Overlap Conflict Detection (HasConflict)
+  const foundExp1 = expAll.find(l => l.LeaveID === expLeaveId1);
+  const foundExp2 = expAll.find(l => l.LeaveID === expLeaveId2);
+  const foundExp3 = expAll.find(l => l.LeaveID === expLeaveId3);
+  assert(foundExp1.HasConflict === 1, 'Overlapping past leave 1 reports HasConflict = 1 (⚠️ تداخل تاريخي)');
+  assert(foundExp2.HasConflict === 1, 'Overlapping past leave 2 reports HasConflict = 1 (⚠️ تداخل تاريخي)');
+  assert(foundExp3.HasConflict === 0, 'Non-overlapping past leave 3 reports HasConflict = 0 (سليمة)');
+
+  // Assert 8: Transferred employees are strictly excluded from expired leaves
+  const transferredEmpLeave = db.prepare(`
+    SELECT l.LeaveID FROM Leaves l
+    JOIN Employees e ON e.EmployeeID = l.EmployeeID
+    WHERE e.IsTransferred = 1
+    LIMIT 1
+  `).get();
+  if (transferredEmpLeave) {
+    assert(!expAll.some(l => l.LeaveID === transferredEmpLeave.LeaveID), 'Transferred employee past leaves are strictly excluded from expired report');
+  }
+
+  // Assert 9: Excel export for expired leaves generates valid file with 16 columns & styles
+  const testExpiredExcelPath = path.join(__dirname, 'test_expired_leaves.xlsx');
+  await ReportService.exportExpiredLeavesToExcel(testExpiredExcelPath, { period: 'last3months' }, db);
+  assert(fs.existsSync(testExpiredExcelPath) && fs.statSync(testExpiredExcelPath).size > 0, 'Excel export for last3months generates successfully');
+
+  // Read the workbook back to inspect structure
+  const verifyWb = new ExcelJS.Workbook();
+  await verifyWb.xlsx.readFile(testExpiredExcelPath);
+  const verifyWs = verifyWb.getWorksheet('الإجازات المنتهية');
+  assert(verifyWs != null, 'Worksheet "الإجازات المنتهية" exists in Excel file');
+  assert(verifyWs.columns.length === 16, 'Worksheet has exactly 16 columns matching specification');
+
+  // Inspect that conflict row in Excel has proper styling
+  let conflictRowFound = false;
+  verifyWs.eachRow((row, rowNumber) => {
+    const col15Val = row.getCell(15).value;
+    if (col15Val === '⚠️ تداخل تاريخي') {
+      conflictRowFound = true;
+      const fill = row.getCell(15).fill;
+      assert(fill && fill.fgColor && fill.fgColor.argb === 'FFFFFBEB', 'Conflict badge cell has soft amber background #FFFFFBEB');
+    }
+  });
+  assert(conflictRowFound, 'Excel file contains at least one row with "⚠️ تداخل تاريخي" badge and proper styling');
+  try { fs.unlinkSync(testExpiredExcelPath); } catch (_) {}
+
+  // Assert 10: Excel export for empty custom range generates cleanly without error
+  const testEmptyExcelPath = path.join(__dirname, 'test_empty_expired_leaves.xlsx');
+  await ReportService.exportExpiredLeavesToExcel(testEmptyExcelPath, {
+    period: 'custom',
+    customStartDate: '1990-01-01',
+    customEndDate: '1990-12-31'
+  }, db);
+  assert(fs.existsSync(testEmptyExcelPath) && fs.statSync(testEmptyExcelPath).size > 0, 'Excel export for empty date range generates successfully with empty placeholder');
+  try { fs.unlinkSync(testEmptyExcelPath); } catch (_) {}
+
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 28 TEST SUITES!`);
 })();
 
 

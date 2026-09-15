@@ -393,12 +393,18 @@
                     <option value="name_asc">أبجدياً باسم الموظف</option>
                   </select>
                 </div>
+              <div class="dashboard-export-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" id="btn-export-active-leaves" class="btn-export-excel"
+                  title="تصدير تقرير الإجازات حالياً إلى Excel">
+                  <span class="excel-icon">XLS</span>
+                  <span>تصدير الإجازات حالياً إلى Excel</span>
+                </button>
+                <button type="button" id="btn-export-expired-leaves" class="btn-export-excel btn-export-secondary"
+                  title="تصدير كشف الإجازات المنتهية إلى Excel حسب الفترة">
+                  <span class="excel-icon">XLS</span>
+                  <span>تصدير الإجازات المنتهية…</span>
+                </button>
               </div>
-              <button type="button" id="btn-export-active-leaves" class="btn-export-excel"
-                title="تصدير تقرير الإجازات حالياً إلى Excel">
-                <span class="excel-icon">XLS</span>
-                <span>تصدير الإجازات حالياً إلى Excel</span>
-              </button>
             </div>
 
             <div id="dashboard-status" class="balance-display hidden" role="status" aria-live="polite"></div>
@@ -1156,6 +1162,59 @@
             💾 إضافة وتحديد القسم
           </button>
           <button type="button" id="btn-cancel-quick-add-dept" class="btn-action-secondary flex-1">
+            إلغاء
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- ════════════════════════════════════════════════════════
+       Export Expired Leaves Modal Dialog
+       ════════════════════════════════════════════════════════ -->
+  <dialog id="modal-export-expired-leaves" class="custom-dialog" aria-modal="true" aria-labelledby="export-expired-title">
+    <div class="dialog-content" style="max-width: 500px;">
+      <div class="dialog-header">
+        <h3 id="export-expired-title" class="dialog-title">📊 تصدير كشف الإجازات المنتهية إلى Excel</h3>
+        <button type="button" id="btn-close-modal-expired" class="dialog-close-btn" aria-label="إغلاق نافذة التصدير">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form id="form-export-expired" class="dialog-form" style="padding: 20px 24px;">
+        <div class="form-group full-width">
+          <label for="select-expired-period" style="font-weight: 700; margin-bottom: 8px; display: block;">اختر الفترة الزمنية للتقرير:</label>
+          <select id="select-expired-period" class="form-select" style="width: 100%;">
+            <option value="last3months" selected>آخر 3 أشهر (افتراضي - ربع سنوي)</option>
+            <option value="currentMonth">الشهر الحالي</option>
+            <option value="currentYear">السنة الحالية</option>
+            <option value="custom">نطاق مخصص (من تاريخ إلى تاريخ)</option>
+            <option value="all">كافة الإجازات المنتهية (أرشيف شامل)</option>
+          </select>
+        </div>
+
+        <div id="container-expired-custom-dates" class="form-row" style="margin-top: 14px; display: none; gap: 12px;">
+          <div class="form-group flex-1">
+            <label for="input-expired-start-date">من تاريخ:</label>
+            <input type="date" id="input-expired-start-date" class="form-input" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="input-expired-end-date">إلى تاريخ:</label>
+            <input type="date" id="input-expired-end-date" class="form-input" />
+          </div>
+        </div>
+
+        <div class="helper-text" style="margin-top: 14px; font-size: 0.88rem; color: var(--color-text-muted, #64748b);">
+          ℹ️ يقتصر التقرير حصراً على الإجازات المنتهية في الماضي ولا يشمل أي إجازات سارية أو قادمة.
+        </div>
+
+        <div class="form-actions" style="margin-top: 20px; display: flex; gap: 10px;">
+          <button type="submit" id="btn-submit-export-expired" class="btn-primary-large flex-1">
+            <span>📥 بدء التصدير إلى Excel</span>
+          </button>
+          <button type="button" id="btn-cancel-export-expired" class="btn-action-secondary flex-1">
             إلغاء
           </button>
         </div>

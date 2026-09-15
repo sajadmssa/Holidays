@@ -1014,6 +1014,85 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
 }
 
 // ──────────────────────────────────────────────────────────────
+//  getExpiredLeaves
+//
+//  استرجاع قائمة الإجازات المنتهية حصراً في الماضي (EndDate < اليوم):
+//  - يستبعد قطعياً أي إجازة سارية أو قادمة مستقبلاً (EndDate >= date('now', 'localtime')).
+//  - يستبعد الموظفين المنقولين (IsTransferred = 0).
+//  - يدعم فلترة الفترة: 'last3months' (افتراضي)، 'currentMonth'، 'currentYear'، 'custom' (من/إلى)، 'all' (شامل).
+//  - يرصد أي تداخل تاريخي مع إجازات أخرى لنفس الموظف عبر HasConflict.
+// ──────────────────────────────────────────────────────────────
+function getExpiredLeaves({ period = 'last3months', customStartDate = null, customEndDate = null } = {}, db) {
+  let periodClause = '';
+  const params = [];
+
+  if (period === 'currentMonth') {
+    periodClause = `AND l.EndDate >= date('now', 'localtime', 'start of month')`;
+  } else if (period === 'currentYear') {
+    periodClause = `AND l.EndDate >= date('now', 'localtime', 'start of year')`;
+  } else if (period === 'custom') {
+    if (customStartDate && typeof customStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(customStartDate.trim())) {
+      periodClause += ` AND l.EndDate >= ?`;
+      params.push(customStartDate.trim());
+    }
+    if (customEndDate && typeof customEndDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(customEndDate.trim())) {
+      periodClause += ` AND l.EndDate <= ?`;
+      params.push(customEndDate.trim());
+    }
+  } else if (period === 'all') {
+    periodClause = ''; // لا يوجد قيد زمني أدنى، كل الإجازات المنتهية تاريخياً
+  } else {
+    // الافتراضي: آخر 3 أشهر (Quarterly / ربع سنوي)
+    periodClause = `AND l.EndDate >= date('now', 'localtime', '-3 months')`;
+  }
+
+  const query = `
+    SELECT
+      l.LeaveID                   AS LeaveID,
+      l.LeaveTypeID               AS LeaveTypeID,
+      e.EmployeeID                AS EmployeeID,
+      e.FullName                  AS FullName,
+      e.JobTitle                  AS JobTitle,
+      e.LeaveCardNumber           AS LeaveCardNumber,
+      e.WorkLocation              AS WorkLocation,
+      e.DepartmentID              AS DepartmentID,
+      e.SequenceNumber            AS SequenceNumber,
+      e.JobNumber                 AS JobNumber,
+      d.Name                      AS DepartmentName,
+      lt.Name                     AS LeaveName,
+      l.LeaveApprover             AS LeaveApprover,
+      l.StartDate                 AS StartDate,
+      l.EndDate                   AS EndDate,
+      l.DaysCount                 AS DaysCount,
+      l.OrderRef                  AS OrderRef,
+      l.Notes                     AS Notes,
+      l.RequestDate               AS RequestDate,
+      l.MemoNumber                AS MemoNumber,
+      l.MemoDate                  AS MemoDate,
+      l.OrderNumber               AS OrderNumber,
+      l.OrderDate                 AS OrderDate,
+      DATE(l.EndDate, '+1 day')   AS ResumptionDate,
+      (
+        SELECT COUNT(*)
+        FROM Leaves l2
+        WHERE l2.EmployeeID = l.EmployeeID
+          AND l2.LeaveID != l.LeaveID
+          AND (l2.StartDate <= l.EndDate AND l2.EndDate >= l.StartDate)
+      ) > 0 AS HasConflict
+    FROM   Leaves     l
+    JOIN   Employees  e  ON e.EmployeeID  = l.EmployeeID
+    LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
+    JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
+    WHERE  l.EndDate < date('now', 'localtime')
+      AND  e.IsTransferred = 0
+      ${periodClause}
+    ORDER  BY l.EndDate DESC, l.LeaveID DESC
+  `;
+
+  return db.prepare(query).all(...params);
+}
+
+// ──────────────────────────────────────────────────────────────
 //  getApproachingResumptions
 //
 //  رصد الإجازات التي أوشكت على الانتهاء لتوليد الإشعارات والتنبيهات:
@@ -1510,6 +1589,7 @@ module.exports = {
   getActiveAndUpcomingLeaves: getActiveLeavesForToday,
   getActiveAndUpcomingLeavesPaginated: getActiveLeavesTodayPaginated,
   getApproachingResumptions,
+  getExpiredLeaves,
   getEmployeeLeaves,
   deleteLeave,
   updateLeave,

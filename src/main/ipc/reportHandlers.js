@@ -19,6 +19,7 @@ const { BrowserWindow, dialog } = require('electron');
 const {
   exportEmployeeHistory,
   exportActiveLeavesToExcel,
+  exportExpiredLeavesToExcel,
 } = require('../services/ReportService');
 const LoggerService = require('../services/LoggerService');
 const { createSafeHandler } = require('../utils/ipcHandlerHelper');
@@ -121,6 +122,60 @@ function registerReportHandlers(ipcMain, db) {
     })
   );
 
+  // ── report:exportExpiredLeaves ────────────────────────────────
+  //
+  //  تصدير تقرير الإجازات المنتهية فقط إلى Excel بحسب الفترة المحددة:
+  //  - 'last3months' (افتراضي)
+  //  - 'currentMonth'
+  //  - 'currentYear'
+  //  - 'custom' (customStartDate / customEndDate)
+  //  - 'all' (أرشيف شامل)
+  //
+  //  Renderer payload: { period?: string, customStartDate?: string, customEndDate?: string }
+  //  Response data:    { canceled: boolean, filePath?: string }
+  // ─────────────────────────────────────────────────────────────
+  ipcMain.handle(
+    'report:exportExpiredLeaves',
+    safeHandleAsync(async (options = {}) => {
+      const { period = 'last3months', customStartDate = null, customEndDate = null } = options || {};
+      const now = new Date();
+      const localDateStr = now.toISOString().slice(0, 10);
+
+      let periodLabel = 'آخر_3_أشهر';
+      if (period === 'currentMonth') {
+        periodLabel = 'الشهر_الحالي';
+      } else if (period === 'currentYear') {
+        periodLabel = 'السنة_الحالية';
+      } else if (period === 'custom') {
+        const fromPart = customStartDate ? customStartDate.trim() : 'البداية';
+        const toPart = customEndDate ? customEndDate.trim() : 'اليوم';
+        periodLabel = `مخصص_${fromPart}_إلى_${toPart}`;
+      } else if (period === 'all') {
+        periodLabel = 'أرشيف_شامل';
+      }
+
+      const defaultFilename = `الإجازات_المنتهية_${periodLabel}_${localDateStr}.xlsx`;
+
+      const win = BrowserWindow.getFocusedWindow();
+      const result = await dialog.showSaveDialog(win, {
+        title: 'تصدير تقرير الإجازات المنتهية إلى Excel',
+        defaultPath: defaultFilename,
+        filters: [
+          { name: 'Excel Workbook (*.xlsx)', extensions: ['xlsx'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['createDirectory', 'showOverwriteConfirmation'],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      await exportExpiredLeavesToExcel(result.filePath, { period, customStartDate, customEndDate }, db);
+      return { canceled: false, filePath: result.filePath };
+    })
+  );
+
 
   // ── report:exportCriticalReport ───────────────────────────────
   //
@@ -217,7 +272,7 @@ function registerReportHandlers(ipcMain, db) {
     })
   );
 
-  LoggerService.info('ReportHandlers', 'Registered: report:exportHistory, report:exportActiveLeaves, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
+  LoggerService.info('ReportHandlers', 'Registered: report:exportHistory, report:exportActiveLeaves, report:exportExpiredLeaves, report:exportCriticalReport, report:getCriticalBalancesPaginated, report:getAccumulatedPaginated, report:exportTransferredEmployees');
 }
 
 module.exports = { registerReportHandlers };

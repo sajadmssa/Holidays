@@ -13,7 +13,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
-const { getActiveLeavesForToday, REGULAR_LEAVE_CONSTANTS } = require('./LeaveService');
+const { getActiveLeavesForToday, getExpiredLeaves, REGULAR_LEAVE_CONSTANTS } = require('./LeaveService');
 
 // ──────────────────────────────────────────────────────────────
 //  Style Constants
@@ -846,6 +846,204 @@ async function exportActiveLeavesToExcel(filePath, db) {
   await workbook.xlsx.writeFile(filePath);
 }
 
+// ══════════════════════════════════════════════════════════════
+//  exportExpiredLeavesToExcel
+//
+//  تصدير كشف الإجازات المنتهية فقط إلى مصنف Excel رسمي:
+//  - يسترجع الإجازات المنتهية حصراً (EndDate < اليوم) مع استبعاد تام للإجازات السارية والقادمة.
+//  - يدعم خيارات الفلترة الخمسة (آخر 3 أشهر، الشهر الحالي، السنة الحالية، نطاق مخصص، أرشيف شامل).
+//  - يتضمن 16 عموداً شاملاً لكافة التفاصيل الإدارية وتاريخ المباشرة المفترض.
+//  - يبرز شارة "⚠️ تداخل تاريخي" عند وجود تداخل بين إجازات الموظف السابقة.
+//  - يطبق الترويسة الحكومية الرسمية، إعدادات الطباعة A4 landscape، وتذييل المصادقات الثلاثي المعتمد.
+// ══════════════════════════════════════════════════════════════
+async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
+  const expiredLeaves = getExpiredLeaves(options, db);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'نظام إدارة الإجازات';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+
+  const ws = workbook.addWorksheet('الإجازات المنتهية', {
+    views: [{ rightToLeft: true }],
+    pageSetup: {
+      paperSize: 9, // A4
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+    },
+  });
+
+  const COLUMNS = [
+    { key: 'seq',            width: 8  }, // 1. ت (التسلسل)
+    { key: 'jobNumber',      width: 14 }, // 2. الرقم الوظيفي
+    { key: 'fullName',       width: 26 }, // 3. اسم الموظف الرباعي واللقب
+    { key: 'department',     width: 22 }, // 4. القسم / الشعبة
+    { key: 'jobTitle',       width: 20 }, // 5. المسمى الوظيفي
+    { key: 'workLocation',   width: 18 }, // 6. موقع العمل
+    { key: 'cardNum',        width: 16 }, // 7. رقم كرت الإجازة
+    { key: 'leaveType',      width: 20 }, // 8. نوع الإجازة
+    { key: 'startDate',      width: 15 }, // 9. تاريخ البداية
+    { key: 'endDate',        width: 15 }, // 10. تاريخ النهاية
+    { key: 'daysCount',      width: 12 }, // 11. عدد الأيام
+    { key: 'resumptionDate', width: 22 }, // 12. تاريخ المباشرة المفترض
+    { key: 'orderInfo',      width: 24 }, // 13. رقم وتاريخ الأمر الإداري
+    { key: 'leaveApprover',  width: 22 }, // 14. مسؤول الإجازة
+    { key: 'statusAlert',    width: 20 }, // 15. تنبيهات وتعارضات
+    { key: 'notes',          width: 25 }, // 16. الملاحظات
+  ];
+  const COL_COUNT = COLUMNS.length;
+  ws.columns = COLUMNS;
+
+  let periodTitle = 'كشف الإجازات المنتهية (آخر 3 أشهر)';
+  if (options.period === 'currentMonth') {
+    periodTitle = 'كشف الإجازات المنتهية (الشهر الحالي)';
+  } else if (options.period === 'currentYear') {
+    periodTitle = `كشف الإجازات المنتهية (السنة الحالية ${new Date().getFullYear()})`;
+  } else if (options.period === 'custom') {
+    const fromStr = options.customStartDate || 'البداية';
+    const toStr = options.customEndDate || 'اليوم';
+    periodTitle = `كشف الإجازات المنتهية (من ${fromStr} إلى ${toStr})`;
+  } else if (options.period === 'all') {
+    periodTitle = 'كشف الإجازات المنتهية (أرشيف شامل)';
+  }
+
+  // Apply Official Top Header
+  const headerStartRow = applyOfficialHeader(ws, {
+    title: periodTitle,
+    db,
+    colCount: COL_COUNT,
+  });
+
+  // Table Header Row
+  const headerRow = ws.addRow([
+    'ت',
+    'الرقم الوظيفي',
+    'اسم الموظف الرباعي واللقب',
+    'القسم / الشعبة',
+    'المسمى الوظيفي',
+    'موقع العمل',
+    'رقم كرت الإجازة',
+    'نوع الإجازة',
+    'تاريخ البداية',
+    'تاريخ النهاية',
+    'عدد الأيام',
+    'تاريخ المباشرة المفترض',
+    'رقم وتاريخ الأمر الإداري',
+    'مسؤول الإجازة',
+    'تنبيهات وتعارضات',
+    'الملاحظات'
+  ]);
+  applyRowStyle(headerRow, STYLE.header, COL_COUNT);
+  headerRow.height = 24;
+
+  // Data Rows
+  if (expiredLeaves.length === 0) {
+    const emptyRowNum = headerStartRow + 1;
+    ws.mergeCells(emptyRowNum, 1, emptyRowNum, COL_COUNT);
+    const emptyCell = ws.getCell(`A${emptyRowNum}`);
+    emptyCell.value = 'لا توجد إجازات منتهية مسجلة في النظام لهذه الفترة';
+    emptyCell.font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF888888' } };
+    emptyCell.alignment = { horizontal: 'center', vertical: 'middle', readingOrder: 'rtl' };
+    emptyCell.border = borderThin();
+    ws.getRow(emptyRowNum).height = 24;
+  } else {
+    expiredLeaves.forEach((item, index) => {
+      const cardVal = (item.LeaveCardNumber !== null && item.LeaveCardNumber !== undefined && item.LeaveCardNumber !== '' && !isNaN(Number(item.LeaveCardNumber)))
+        ? Number(item.LeaveCardNumber)
+        : (item.LeaveCardNumber || '-');
+
+      let orderInfo = '-';
+      if (item.OrderNumber) {
+        orderInfo = item.OrderDate ? `${item.OrderNumber} (${item.OrderDate})` : item.OrderNumber;
+      } else if (item.OrderRef) {
+        orderInfo = item.OrderRef;
+      }
+
+      const alertText = item.HasConflict ? '⚠️ تداخل تاريخي' : 'سليمة';
+
+      const row = ws.addRow([
+        item.SequenceNumber || (index + 1),
+        item.JobNumber || item.EmployeeID,
+        item.FullName,
+        item.DepartmentName || '-',
+        item.JobTitle || '-',
+        item.WorkLocation || '-',
+        cardVal,
+        item.LeaveName || '-',
+        item.StartDate,
+        item.EndDate,
+        Number(item.DaysCount) || item.DaysCount,
+        item.ResumptionDate || '-',
+        orderInfo,
+        item.LeaveApprover || '-',
+        alertText,
+        item.Notes || '-'
+      ]);
+
+      const baseStyle = index % 2 === 0 ? STYLE.rowEven : STYLE.rowOdd;
+      applyRowStyle(row, baseStyle, COL_COUNT);
+      row.height = 20;
+
+      // Numeric formatting for Sequence, ID, Card, and DaysCount
+      row.getCell(1).numFmt = '0';
+      if (!isNaN(Number(item.JobNumber || item.EmployeeID))) {
+        row.getCell(2).numFmt = '0';
+      }
+      if (typeof cardVal === 'number') {
+        row.getCell(7).numFmt = '0';
+      }
+      row.getCell(11).numFmt = '0';
+
+      // Highlight historical conflict badges in Column 15 and Employee Name
+      if (item.HasConflict) {
+        const cellAlert = row.getCell(15);
+        cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } }; // Soft amber
+        cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
+        const cellName = row.getCell(3);
+        cellName.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFB45309' } };
+      }
+    });
+
+    const totalDays = expiredLeaves.reduce((sum, l) => sum + Number(l.DaysCount || 0), 0);
+    const summaryRow = ws.addRow([
+      '',
+      '',
+      `إجمالي عدد الإجازات المنتهية: ${expiredLeaves.length}`,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'مجموع الأيام المستهلكة:',
+      totalDays,
+      '',
+      '',
+      '',
+      '',
+      ''
+    ]);
+    summaryRow.height = 22;
+    applyRowStyle(summaryRow, {
+      font: { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF142E4D' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } },
+      alignment: { horizontal: 'center', vertical: 'middle', readingOrder: 'rtl' },
+      border: borderThin(),
+    }, COL_COUNT);
+    ws.mergeCells(summaryRow.number, 1, summaryRow.number, 2);
+    ws.mergeCells(summaryRow.number, 3, summaryRow.number, 5);
+    ws.mergeCells(summaryRow.number, 9, summaryRow.number, 10);
+    summaryRow.getCell(11).numFmt = '0';
+  }
+
+  // Apply 3-Box Official Approvals Footer
+  applyOfficialFooterApprovals(ws, COL_COUNT);
+
+  await workbook.xlsx.writeFile(filePath);
+}
+
 // ──────────────────────────────────────────────────────────────
 //  CRITICAL_BALANCE_CTE: Vectorized SQL query for regular leave balances
 //  Replaces 30,000+ N+1 sequential loops with a single instant query.
@@ -1602,6 +1800,7 @@ module.exports = {
   exportEmployeeHistory,
   exportAllEmployees,
   exportActiveLeavesToExcel,
+  exportExpiredLeavesToExcel,
   getCriticalAndAccumulatedLeaves,
   getCriticalBalancesPaginated,
   getAccumulatedLeavesPaginated,

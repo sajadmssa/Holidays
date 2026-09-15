@@ -44,6 +44,7 @@ const VALID_CHANNELS = new Set([
   // ── Reporting Engine (Phase 7 & Phase 4) ──────────────────
   'report:exportHistory',
   'report:exportActiveLeaves',
+  'report:exportExpiredLeaves',
   'report:exportCriticalReport',
   'report:getCriticalBalancesPaginated',
   'report:getAccumulatedPaginated',
@@ -269,6 +270,14 @@ contextBridge.exposeInMainWorld('api', {
      * @returns {Promise<{success:boolean, data?: {filePath?:string, canceled?:boolean}, error?:string}>}
      */
     exportActiveLeaves: () => invoke('report:exportActiveLeaves'),
+
+    /**
+     * Opens a native Save dialog, then writes a styled .xlsx
+     * report of expired leaves based on selected period filters.
+     * @param {{ period?: string, customStartDate?: string, customEndDate?: string }} [options]
+     * @returns {Promise<{success:boolean, data?: {filePath?:string, canceled?:boolean}, error?:string}>}
+     */
+    exportExpiredLeaves: (options) => invoke('report:exportExpiredLeaves', options),
 
     /**
      * Exports critical balance alerts and accumulated leaves to Excel.
