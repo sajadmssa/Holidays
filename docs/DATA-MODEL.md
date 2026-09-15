@@ -23,7 +23,7 @@ erDiagram
     }
 
     Employees {
-        INTEGER EmployeeID PK "معرّف داخلي للموظف"
+        INTEGER EmployeeID PK "معرّف داخلي للموظف (يُولَّد تلقائياً برمجياً منذ ADR-025)"
         INTEGER SequenceNumber UK "رقم تسلسلي داخلي تراكمي لا يتراجع"
         TEXT JobNumber "رقم وظيفي رسمي يدوي خارجي"
         INTEGER DepartmentID FK "معرّف القسم التابع له"
@@ -34,6 +34,7 @@ erDiagram
         TEXT WorkLocation
         TEXT LeaveCardNumber UK "فريد جزئياً — يتجاهل NULL/فارغ"
         TEXT LeaveApprover
+        TEXT WorkShiftType "دوام صباحي / مناوب / مناوب بنظام 400kv (migration 020)"
         INTEGER IsActive "0/1"
         INTEGER AdjustmentDays
         INTEGER IsTransferred "0/1 — لا يُعطّل الموظف"
@@ -113,7 +114,7 @@ erDiagram
 
 | العمود | النوع | القيد | الغرض |
 |---|---|---|---|
-| `EmployeeID` | INTEGER | **PRIMARY KEY يدوي** | ⚠️ معرّف داخلي للموظف في قاعدة البيانات ترتبط به الإجازات والمستندات. |
+| `EmployeeID` | INTEGER | **PRIMARY KEY** | معرّف داخلي للموظف، **يُولَّد تلقائياً برمجياً منذ ADR-025** (`MAX(EmployeeID)+1` داخل معاملة ذرية في `EmployeeService.js`) — لم يعد قابلاً للإدخال اليدوي من الواجهة. لا تعديل في تعريف العمود نفسه (بلا `AUTOINCREMENT`، بلا Migration). |
 | `SequenceNumber` | INTEGER | **UNIQUE NOT NULL** | **رقم تسلسلي داخلي تصاعدي تراكمي مستمر** (1, 2, 3...) يُدار عبر جدول `AppCounters` ويستحيل تكراره أو تراجعه حتى عند حذف آخر موظف (أُضيف في `017` ومحمي بـ `AppCounters`). |
 | `JobNumber` | TEXT | اختياري | **الرقم الوظيفي الرسمي الخارجي** الصادر من الوزارة/الدائرة، يقبل نصوصاً وأرقاماً وأصفاراً بادئة (أُضيف في `017` لفصل الرقم الوظيفي عن التسلسل الداخلي). |
 | `DepartmentID` | INTEGER | `FOREIGN KEY REFERENCES Departments(DepartmentID)` | معرّف القسم الذي ينتمي له الموظف (أُضيف في `017`). يُستعلم عنه باسمه المستعار `DepartmentName` في كافة التقارير. |
@@ -124,6 +125,7 @@ erDiagram
 | `WorkLocation` | TEXT | اختياري | أُضيف في `002` |
 | `LeaveCardNumber` | TEXT | **فريد جزئياً** (`idx_employees_leave_card_number`) — يتجاهل `NULL`/فارغ | أُضيف في `002` |
 | `LeaveApprover` | TEXT | اختياري | أُضيف في `002` — قيمة افتراضية للموافق، تُستنسَخ لاحقاً إلى كل إجازة عبر `006` |
+| `WorkShiftType` | TEXT | `NOT NULL DEFAULT 'دوام صباحي'`, `CHECK IN ('دوام صباحي','مناوب','مناوب بنظام 400kv')` | أُضيف في `020` — نوع دوام الموظف، قائمة مغلقة بثلاث قيم ثابتة (ADR-026) |
 | `IsActive` | INTEGER | `CHECK IN (0,1)`, افتراضي `1` | يمنع تسجيل إجازة جديدة عند `0` عبر `trg_prevent_inactive_employee_leave` |
 | `AdjustmentDays` | INTEGER | افتراضي `0` | أُضيف في `003` — تعديل يدوي على الرصيد (مثال: ترحيل من نظام سابق) |
 | `IsTransferred` | INTEGER | `CHECK IN (0,1)`, افتراضي `0` | أُضيف في `015` — **لا يُعطّل الموظف** (`IsActive` يبقى `1`)؛ الموظف المنقول خارجياً يُستثنى من قوائم الإجازات النشطة، والتنبيهات المباشرة، وتقارير الأرصدة الحرجة، وإحصائيات التراكم السنوي، مع بقائه "نشطاً" رسمياً في دليل الموظفين |
@@ -281,10 +283,11 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | 017 | `add_departments_and_split_job_number` | إنشاء جدول `Departments`، وإعادة بناء جدول `Employees` بأمان لفصل `JobNumber` عن `SequenceNumber` وإضافة الربط بالقسم `DepartmentID`، وإضافة عمود `IsSystem` ونوعي إجازة جديدين (`إجازة زواج` و `إجازة مصاحبة زوج/زوجة`) |
 | 018 | `add_leave_conflict_confirmation` | إضافة عمود `IsConfirmedOverlap` إلى جدول `Leaves` لدعم توثيق الإجازات المتداخلة المؤكدة يدوياً من المستخدم |
 | 019 | `seed_default_departments` | زرع 8 أقسام رسمية افتراضية معتمدة في جدول `Departments` لضمان توفرها فور الإقلاع |
+| 020 | `add_work_shift_type_to_employees` | إضافة عمود `WorkShiftType` إلى `Employees` بقيد `CHECK` لثلاث قيم ثابتة (ADR-026) |
 
 **قاعدة ذهبية عند إضافة أي ترحيل جديد مستقبلاً:** أضف سطراً هنا في نفس الالتزام (Commit)، وحدِّث القسم المقابل من هذه الوثيقة (الجدول المتأثر) — لضمان بقاء نموذج البيانات مطابقاً بنسبة 100% للواقع الفعلي.
 
 ---
 
-*آخر تحديث: 15 أيلول 2026، مطابق لآخر ترحيل مطبَّق فعلياً (`019_seed_default_departments.sql`) وجدول `AppCounters`. مرجع تكميلي: `ARCHITECTURE.md`.*
+*آخر تحديث: 16 أيلول 2026، يشمل الترحيل `020_add_work_shift_type_to_employees.sql` وتوليد `EmployeeID` التلقائي وفق ADR-025 و ADR-026.*
 
