@@ -36,6 +36,7 @@ const { isValidIsoDate } = require('../utils/dateValidator');
 //  متطابقة تماماً مع قيود CHECK في مخطط قاعدة البيانات لضمان عدم حدوث تعارض.
 // ──────────────────────────────────────────────────────────────
 const VALID_GENDERS   = new Set(['Male', 'Female']);
+const VALID_WORK_SHIFT_TYPES = new Set(['دوام صباحي', 'مناوب', 'مناوب بنظام 400kv']);
 const MAX_NAME_LENGTH = 200;
 const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 200;
@@ -87,6 +88,7 @@ function addEmployee(employeeData, db) {
     leaveApprover,
     departmentId,
     jobNumber,
+    workShiftType,
   } = employeeData;
 
   // ── Step 1b: EmployeeID Validation & Auto-generation (ADR-025) ──
@@ -195,6 +197,14 @@ function addEmployee(employeeData, db) {
     ? jobNumber.trim()
     : null;
 
+  // WorkShiftType Validation / التحقق من نوع الدوام (ADR-026)
+  const cleanWorkShiftType = typeof workShiftType === 'string' && workShiftType.trim().length > 0
+    ? workShiftType.trim()
+    : 'دوام صباحي';
+  if (!VALID_WORK_SHIFT_TYPES.has(cleanWorkShiftType)) {
+    throw new Error('نوع الدوام غير صالح. الخيارات المتاحة: دوام صباحي، مناوب، مناوب بنظام 400kv.');
+  }
+
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
   // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
@@ -275,9 +285,9 @@ function addEmployee(employeeData, db) {
       .prepare(`
         INSERT INTO Employees (
           EmployeeID, FullName, Gender, HireDate, JobTitle, WorkLocation, 
-          LeaveCardNumber, LeaveApprover, DepartmentID, SequenceNumber, JobNumber, IsActive
+          LeaveCardNumber, LeaveApprover, DepartmentID, SequenceNumber, JobNumber, WorkShiftType, IsActive
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `)
       .run(
         targetEmployeeId,
@@ -290,7 +300,8 @@ function addEmployee(employeeData, db) {
         cleanApprover,
         cleanDepartmentId,
         sequenceNumber,
-        finalJobNumber
+        finalJobNumber,
+        cleanWorkShiftType
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
@@ -327,6 +338,7 @@ function addEmployee(employeeData, db) {
         DepartmentID: cleanDepartmentId,
         SequenceNumber: sequenceNumber,
         JobNumber: finalJobNumber,
+        WorkShiftType: cleanWorkShiftType,
       },
       details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${finalJobNumber}، التسلسل: ${sequenceNumber})`,
     });
@@ -514,6 +526,7 @@ function updateEmployee(employeeId, updateData, db) {
     adjustmentDays,
     departmentId,
     jobNumber,
+    workShiftType,
   } = updateData;
 
   if (typeof fullName !== 'string' || fullName.trim().length === 0) {
@@ -590,6 +603,16 @@ function updateEmployee(employeeId, updateData, db) {
       : (jobNumber != null && String(jobNumber).trim().length > 0 ? String(jobNumber).trim() : null);
   }
 
+  // WorkShiftType Validation for Update / التحقق من نوع الدوام عند التعديل (ADR-026)
+  let cleanWorkShiftType = undefined;
+  if (workShiftType !== undefined) {
+    const rawShift = typeof workShiftType === 'string' ? workShiftType.trim() : '';
+    if (!VALID_WORK_SHIFT_TYPES.has(rawShift)) {
+      throw new Error('نوع الدوام غير صالح. الخيارات المتاحة: دوام صباحي، مناوب، مناوب بنظام 400kv.');
+    }
+    cleanWorkShiftType = rawShift;
+  }
+
   return db.transaction(() => {
     const oldEmployee = db
       .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
@@ -605,7 +628,8 @@ function updateEmployee(employeeId, updateData, db) {
             LeaveApprover   = ?,
             AdjustmentDays  = COALESCE(?, AdjustmentDays),
             DepartmentID    = CASE WHEN ? = 1 THEN ? ELSE DepartmentID END,
-            JobNumber       = CASE WHEN ? = 1 THEN ? ELSE JobNumber END
+            JobNumber       = CASE WHEN ? = 1 THEN ? ELSE JobNumber END,
+            WorkShiftType   = CASE WHEN ? = 1 THEN ? ELSE WorkShiftType END
         WHERE EmployeeID = ?
       `)
       .run(
@@ -619,6 +643,8 @@ function updateEmployee(employeeId, updateData, db) {
         cleanDepartmentId !== undefined ? cleanDepartmentId : null,
         cleanJobNumber !== undefined ? 1 : 0,
         cleanJobNumber !== undefined ? cleanJobNumber : null,
+        cleanWorkShiftType !== undefined ? 1 : 0,
+        cleanWorkShiftType !== undefined ? cleanWorkShiftType : null,
         employeeId
       );
 
@@ -980,7 +1006,8 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         TransferNotes,
         DepartmentID,
         SequenceNumber,
-        JobNumber
+        JobNumber,
+        WorkShiftType
       FROM Employees
       ${whereClause}
       ORDER BY IsActive DESC, FullName ASC

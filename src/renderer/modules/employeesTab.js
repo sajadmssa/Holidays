@@ -56,7 +56,7 @@ export function renderAllEmployeesTable(employees) {
     const isSearching = _allEmpsSearchQuery.trim().length > 0;
     allEmployeesTbody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="12" class="text-center">
+        <td colspan="13" class="text-center">
           ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث' : 'لا يوجد موظفون مسجلون في النظام'}
         </td>
       </tr>
@@ -76,6 +76,7 @@ export function renderAllEmployeesTable(employees) {
     const tdDept = document.createElement('td');
     const tdJobTitle = document.createElement('td');
     const tdLocation = document.createElement('td');
+    const tdWorkShift = document.createElement('td');
     const tdCard = document.createElement('td');
     const tdLastDate = document.createElement('td');
     const tdLastType = document.createElement('td');
@@ -95,6 +96,7 @@ export function renderAllEmployeesTable(employees) {
     tdDept.textContent = emp.DepartmentName || '-';
     tdJobTitle.textContent = emp.JobTitle || '-';
     tdLocation.textContent = emp.WorkLocation || '-';
+    tdWorkShift.textContent = emp.WorkShiftType || 'دوام صباحي';
 
     tdCard.className = 'text-center';
     tdCard.textContent = emp.LeaveCardNumber || '-';
@@ -175,7 +177,7 @@ export function renderAllEmployeesTable(employees) {
 
     tdActions.append(btnTimeCard, btnLeaveCard, btnEdit);
 
-    tr.append(tdSeq, tdId, tdJobNumber, tdName, tdDept, tdJobTitle, tdLocation, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
+    tr.append(tdSeq, tdId, tdJobNumber, tdName, tdDept, tdJobTitle, tdLocation, tdWorkShift, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
     fragment.appendChild(tr);
   });
 

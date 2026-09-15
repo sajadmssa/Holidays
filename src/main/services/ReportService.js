@@ -509,6 +509,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         FullName,
         JobTitle,
         WorkLocation,
+        WorkShiftType,
         LeaveCardNumber,
         LeaveApprover,
         IsActive,
@@ -571,6 +572,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
     { key: 'department', width: 22 },
     { key: 'jobTitle',   width: 22 },
     { key: 'location',   width: 20 },
+    { key: 'workShift',  width: 18 },
     { key: 'card',       width: 16 },
     { key: 'approver',   width: 22 },
     { key: 'status',     width: 12 },
@@ -595,6 +597,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
     'القسم',
     'المسمى الوظيفي',
     'موقع العمل',
+    'نوع الدوام',
     'رقم كرت الإجازة',
     'المسؤول الافتراضي',
     'الحالة',
@@ -634,6 +637,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         emp.DepartmentName || '-',
         emp.JobTitle || '-',
         emp.WorkLocation || '-',
+        emp.WorkShiftType || 'دوام صباحي',
         cardVal,
         emp.LeaveApprover || '-',
         emp.IsActive === 1 ? 'نشط' : 'مجمّد',
@@ -650,7 +654,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         dataRow.getCell(2).numFmt = '0';
       }
       if (typeof cardVal === 'number') {
-        dataRow.getCell(7).numFmt = '0';
+        dataRow.getCell(8).numFmt = '0';
       }
     });
   }

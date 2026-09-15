@@ -542,7 +542,17 @@
                   <input id="emp-leave-card-number" type="text" maxlength="100" placeholder="أدخل رقم كرت الإجازة" />
                 </div>
 
-
+                <!-- Work Shift Type -->
+                <div class="form-group">
+                  <label for="emp-work-shift-type">
+                    نوع الدوام <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <select id="emp-work-shift-type" required aria-required="true">
+                    <option value="دوام صباحي" selected>دوام صباحي</option>
+                    <option value="مناوب">مناوب</option>
+                    <option value="مناوب بنظام 400kv">مناوب بنظام 400kv</option>
+                  </select>
+                </div>
               </div>
 
               <div class="form-actions">
@@ -707,7 +717,14 @@
                   <input id="manage-leave-card-number" type="text" maxlength="100" placeholder="رقم كرت الإجازة" />
                 </div>
 
-
+                <div class="form-group">
+                  <label for="manage-work-shift-type">نوع الدوام</label>
+                  <select id="manage-work-shift-type">
+                    <option value="دوام صباحي">دوام صباحي</option>
+                    <option value="مناوب">مناوب</option>
+                    <option value="مناوب بنظام 400kv">مناوب بنظام 400kv</option>
+                  </select>
+                </div>
 
                 <div class="form-group">
                   <label for="manage-gender">الجنس (غير قابل للتعديل)</label>
@@ -777,6 +794,7 @@
                     <th scope="col">القسم / الشعبة</th>
                     <th scope="col">المسمى الوظيفي</th>
                     <th scope="col">موقع العمل</th>
+                    <th scope="col">نوع الدوام</th>
                     <th scope="col" class="text-center">رقم كرت الإجازة</th>
                     <th scope="col" class="text-center">تاريخ آخر إجازة</th>
                     <th scope="col">نوع آخر إجازة</th>

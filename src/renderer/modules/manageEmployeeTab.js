@@ -43,6 +43,7 @@ let manageBadgeLeavecardCount = null;
 let manageSequenceNumberInput = null;
 let manageJobNumberInput = null;
 let manageDepartmentSelect = null;
+let manageWorkShiftTypeSelect = null;
 let btnAddDeptFromManageEmp = null;
 
 // حالة الموظف المفتوح حالياً في الذاكرة
@@ -129,6 +130,7 @@ export async function loadEmployeeForManagement(id) {
     if (manageJobTitleInput) manageJobTitleInput.value = emp.JobTitle || '';
     if (manageWorkLocationInput) manageWorkLocationInput.value = emp.WorkLocation || '';
     if (manageLeaveCardNumberInput) manageLeaveCardNumberInput.value = emp.LeaveCardNumber || '';
+    if (manageWorkShiftTypeSelect) manageWorkShiftTypeSelect.value = emp.WorkShiftType || 'دوام صباحي';
     if (manageGenderInput) {
       manageGenderInput.value = emp.Gender === 'Male' ? 'ذكر' : (emp.Gender === 'Female' ? 'أنثى' : (emp.Gender || ''));
     }
@@ -283,6 +285,7 @@ export function initManageEmployeeTab(options = {}) {
   manageSequenceNumberInput = document.getElementById('manage-sequence-number');
   manageJobNumberInput = document.getElementById('manage-job-number');
   manageDepartmentSelect = document.getElementById('manage-department');
+  manageWorkShiftTypeSelect = document.getElementById('manage-work-shift-type');
   btnAddDeptFromManageEmp = document.getElementById('btn-add-dept-from-manage-emp');
 
   // تحميل قائمة الأقسام
@@ -375,6 +378,7 @@ export function initManageEmployeeTab(options = {}) {
         const adjustmentDays = newRegularVal - baseline;
         const jobNumber = manageJobNumberInput ? manageJobNumberInput.value.trim() : null;
         const departmentId = manageDepartmentSelect && manageDepartmentSelect.value ? parseInt(manageDepartmentSelect.value, 10) : null;
+        const workShiftType = manageWorkShiftTypeSelect && manageWorkShiftTypeSelect.value ? manageWorkShiftTypeSelect.value : undefined;
 
         // 2. تحديث جدول الموظفين (EmployeeService.updateEmployee)
         const response = await window.api.employee.update(currentManagingEmpId, {
@@ -384,7 +388,8 @@ export function initManageEmployeeTab(options = {}) {
           leaveCardNumber: leaveCardNumber || null,
           adjustmentDays,
           jobNumber: jobNumber || null,
-          departmentId: departmentId || null
+          departmentId: departmentId || null,
+          workShiftType
         });
 
         if (!response.success) {

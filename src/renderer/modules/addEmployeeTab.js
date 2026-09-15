@@ -25,6 +25,7 @@ let empHireDateEl = null;
 let empJobTitleEl = null;
 let empWorkLocationEl = null;
 let empLeaveCardNumberEl = null;
+let empWorkShiftTypeEl = null;
 let addEmployeeBtn = null;
 
 /**
@@ -59,6 +60,7 @@ export function collectAndValidateEmployee() {
   const jobTitle = empJobTitleEl ? empJobTitleEl.value.trim() : '';
   const workLocation = empWorkLocationEl ? empWorkLocationEl.value.trim() : '';
   const leaveCardNumber = empLeaveCardNumberEl ? empLeaveCardNumberEl.value.trim() : '';
+  const workShiftType = empWorkShiftTypeEl && empWorkShiftTypeEl.value ? empWorkShiftTypeEl.value : 'دوام صباحي';
 
   // التحقق من الاسم الكامل
   if (!fullName) {
@@ -93,7 +95,8 @@ export function collectAndValidateEmployee() {
     workLocation: workLocation || null,
     leaveCardNumber: leaveCardNumber || null,
     jobNumber: jobNumber || null,
-    departmentId: departmentId || null
+    departmentId: departmentId || null,
+    workShiftType
   };
 }
 
@@ -113,6 +116,7 @@ export function initAddEmployeeTab(options = {}) {
   empJobTitleEl = document.getElementById('emp-job-title');
   empWorkLocationEl = document.getElementById('emp-work-location');
   empLeaveCardNumberEl = document.getElementById('emp-leave-card-number');
+  empWorkShiftTypeEl = document.getElementById('emp-work-shift-type');
   addEmployeeBtn = document.getElementById('add-employee-btn');
 
   // تحميل قائمة الأقسام
