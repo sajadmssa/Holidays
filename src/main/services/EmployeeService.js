@@ -25,6 +25,7 @@
 'use strict';
 
 const AuditService = require('./AuditService');
+const LoggerService = require('./LoggerService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
 const { isValidIsoDate } = require('../utils/dateValidator');
 
@@ -88,17 +89,19 @@ function addEmployee(employeeData, db) {
     jobNumber,
   } = employeeData;
 
-  // ── Step 1b: EmployeeID Validation / التحقق من الرقم الوظيفي ───
-  if (!Number.isInteger(employeeId) || employeeId <= 0) {
-    throw new Error('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.');
-  }
-
-  // Check for duplicate EmployeeID / التحقق من عدم تكرار الرقم الوظيفي في النظام
-  const existing = db
-    .prepare('SELECT EmployeeID FROM Employees WHERE EmployeeID = ?')
-    .get(employeeId);
-  if (existing) {
-    throw new Error(`الرقم الوظيفي (${employeeId}) مسجل مسبقاً لموظف آخر في النظام.`);
+  // ── Step 1b: EmployeeID Validation & Auto-generation (ADR-025) ──
+  // إذا تم تمرير employeeId (مثل الاختبارات السابقة)، نتحقق من صحته.
+  // وإذا لم يُمرَّر (السلوك الافتراضي الجديد من الواجهة)، سيتم توليده تلقائياً كـ MAX(EmployeeID) + 1.
+  if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+    if (!Number.isInteger(employeeId) || employeeId <= 0) {
+      throw new Error('الرقم الوظيفي مطلوب ويجب أن يكون رقماً صحيحاً موجباً.');
+    }
+    const existing = db
+      .prepare('SELECT EmployeeID FROM Employees WHERE EmployeeID = ?')
+      .get(employeeId);
+    if (existing) {
+      throw new Error(`الرقم الوظيفي (${employeeId}) مسجل مسبقاً لموظف آخر في النظام.`);
+    }
   }
 
   // ── Step 2: FullName / التحقق من الاسم الكامل ─────────────────
@@ -190,11 +193,70 @@ function addEmployee(employeeData, db) {
   // JobNumber Validation / التحقق من الرقم الوظيفي
   const cleanJobNumber = typeof jobNumber === 'string' && jobNumber.trim().length > 0
     ? jobNumber.trim()
-    : (employeeId ? String(employeeId) : null);
+    : null;
 
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
   // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
+    // Generate EmployeeID atomically within transaction via monotonic AppCounters (ADR-025)
+    // الهيكلية الهرمية للعداد:
+    // 1. AppCounters هو المصدر الأساسي المعتمد أولاً (Primary Authority).
+    // 2. _AppSettings هو مخزن احتياطي (Fallback) يُلجأ إليه فقط في حال غياب صف العداد من AppCounters.
+    // 3. الحماية ضد التكرار والتصادم مؤمنة عبر Math.max(savedId, maxEmpId + 1) لمنع إعادة استخدام أي أرقام حالية.
+    let targetEmployeeId = employeeId;
+    if (!targetEmployeeId) {
+      let savedId = null;
+
+      // 1. Read from primary counter: AppCounters
+      try {
+        const counterRow = db.prepare("SELECT CounterValue FROM AppCounters WHERE CounterKey = 'next_employee_id'").get();
+        if (counterRow && counterRow.CounterValue) {
+          savedId = Number(counterRow.CounterValue);
+        }
+      } catch (err) {
+        LoggerService.error('EmployeeService', `Failed to read from AppCounters: ${err.message}`, err);
+        throw new Error(`تعذر قراءة عداد الموظفين من AppCounters: ${err.message}`);
+      }
+
+      // 2. Read from secondary fallback counter: _AppSettings if AppCounters has no row
+      if (!savedId) {
+        try {
+          const settingRow = db.prepare("SELECT Value FROM _AppSettings WHERE Key = 'next_employee_id'").get();
+          if (settingRow && settingRow.Value) {
+            savedId = parseInt(settingRow.Value, 10);
+          }
+        } catch (err) {
+          LoggerService.error('EmployeeService', `Failed to read from _AppSettings: ${err.message}`, err);
+          throw new Error(`تعذر قراءة عداد الموظفين من _AppSettings: ${err.message}`);
+        }
+      }
+
+      const maxEmpId = db.prepare('SELECT COALESCE(MAX(EmployeeID), 0) AS maxId FROM Employees').get()?.maxId || 0;
+      targetEmployeeId = Math.max(savedId || 0, maxEmpId + 1);
+
+      // 3. Increment next_employee_id monotonically in both tables so it never decrements or reuses IDs upon deletion
+      const nextIdValue = targetEmployeeId + 1;
+      try {
+        db.prepare(`
+          INSERT INTO AppCounters (CounterKey, CounterValue) VALUES ('next_employee_id', ?)
+          ON CONFLICT(CounterKey) DO UPDATE SET CounterValue = excluded.CounterValue
+        `).run(nextIdValue);
+      } catch (err) {
+        LoggerService.error('EmployeeService', `Failed to update AppCounters for next_employee_id: ${err.message}`, err);
+        throw new Error(`فشل تحديث عداد AppCounters للرقم الوظيفي: ${err.message}`);
+      }
+
+      try {
+        db.prepare(`
+          INSERT INTO _AppSettings (Key, Value, UpdatedAt) VALUES ('next_employee_id', ?, datetime('now', 'localtime'))
+          ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = excluded.UpdatedAt
+        `).run(String(nextIdValue));
+      } catch (err) {
+        LoggerService.error('EmployeeService', `Failed to update _AppSettings for next_employee_id: ${err.message}`, err);
+        throw new Error(`فشل تحديث _AppSettings للرقم الوظيفي: ${err.message}`);
+      }
+    }
+
     // Generate SequenceNumber atomically within transaction (التسلسل الداخلي التلقائي غير المتكرر مع صمام حفظ القمة التراكمية)
     const savedSeqRow = db.prepare("SELECT Value FROM _AppSettings WHERE Key = 'last_employee_sequence'").get();
     const maxInTable = db.prepare('SELECT COALESCE(MAX(SequenceNumber), 0) AS maxSeq FROM Employees').get()?.maxSeq || 0;
@@ -207,6 +269,8 @@ function addEmployee(employeeData, db) {
       ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = excluded.UpdatedAt
     `).run(String(sequenceNumber));
 
+    const finalJobNumber = cleanJobNumber || null;
+
     const info = db
       .prepare(`
         INSERT INTO Employees (
@@ -216,7 +280,7 @@ function addEmployee(employeeData, db) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `)
       .run(
-        employeeId,
+        targetEmployeeId,
         fullName.trim(),
         gender,
         hireDate,
@@ -226,7 +290,7 @@ function addEmployee(employeeData, db) {
         cleanApprover,
         cleanDepartmentId,
         sequenceNumber,
-        cleanJobNumber
+        finalJobNumber
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
@@ -240,19 +304,19 @@ function addEmployee(employeeData, db) {
         INSERT OR IGNORE INTO LeaveBalances (EmployeeID, LeaveTypeID, TotalBalance, PayPercentage)
         VALUES (?, ?, ?, ?)
       `);
-      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 30, 100);
-      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 45, 50);
-      initBalance.run(employeeId, sickLeaveType.LeaveTypeID, 45, 25);
+      initBalance.run(targetEmployeeId, sickLeaveType.LeaveTypeID, 30, 100);
+      initBalance.run(targetEmployeeId, sickLeaveType.LeaveTypeID, 45, 50);
+      initBalance.run(targetEmployeeId, sickLeaveType.LeaveTypeID, 45, 25);
     }
 
     // Record Audit Log / توثيق إضافة الموظف الجديد في سجل الأمان والتدقيق
     AuditService.logAction(db, {
       actionType: 'INSERT',
       entityType: 'Employee',
-      entityID: employeeId,
+      entityID: targetEmployeeId,
       oldValue: null,
       newValue: {
-        EmployeeID: employeeId,
+        EmployeeID: targetEmployeeId,
         FullName: fullName.trim(),
         Gender: gender,
         HireDate: hireDate,
@@ -262,9 +326,9 @@ function addEmployee(employeeData, db) {
         LeaveApprover: cleanApprover,
         DepartmentID: cleanDepartmentId,
         SequenceNumber: sequenceNumber,
-        JobNumber: cleanJobNumber,
+        JobNumber: finalJobNumber,
       },
-      details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${cleanJobNumber || employeeId}، التسلسل: ${sequenceNumber})`,
+      details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${finalJobNumber}، التسلسل: ${sequenceNumber})`,
     });
 
     return Number(info.lastInsertRowid);

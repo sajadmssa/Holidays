@@ -623,9 +623,13 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         ? Number(emp.LeaveCardNumber)
         : (emp.LeaveCardNumber || '-');
 
+      const jobNumberDisplay = (emp.JobNumber !== null && emp.JobNumber !== undefined && emp.JobNumber !== '')
+        ? emp.JobNumber
+        : '-';
+
       const dataRow = ws.addRow([
         emp.SequenceNumber || (index + 1),
-        emp.JobNumber || emp.EmployeeID,
+        jobNumberDisplay,
         emp.FullName,
         emp.DepartmentName || '-',
         emp.JobTitle || '-',
@@ -642,7 +646,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
 
       // Numeric formatting for Sequence, ID and Card columns
       dataRow.getCell(1).numFmt = '0';
-      if (!isNaN(Number(emp.JobNumber || emp.EmployeeID))) {
+      if (jobNumberDisplay !== '-' && !isNaN(Number(jobNumberDisplay))) {
         dataRow.getCell(2).numFmt = '0';
       }
       if (typeof cardVal === 'number') {

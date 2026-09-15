@@ -16,7 +16,6 @@ import { openQuickAddDepartmentModal } from './systemSettings.js';
 
 // مراجع عناصر الاستمارة في واجهة المستخدم
 let addEmployeeForm = null;
-let empEmployeeIdEl = null;
 let empJobNumberEl = null;
 let empDepartmentEl = null;
 let btnAddDeptFromAddEmp = null;
@@ -52,8 +51,6 @@ export async function populateAddEmployeeDepartments(selectIdToSet = null) {
  * @returns {object|null} كائن بيانات الموظف أو null في حال وجود خطأ في الإدخال
  */
 export function collectAndValidateEmployee() {
-  const rawId = empEmployeeIdEl ? empEmployeeIdEl.value.trim() : '';
-  const employeeId = parseInt(rawId, 10);
   const jobNumber = empJobNumberEl ? empJobNumberEl.value.trim() : '';
   const departmentId = empDepartmentEl && empDepartmentEl.value ? parseInt(empDepartmentEl.value, 10) : null;
   const fullName = empFullNameEl ? empFullNameEl.value.trim() : '';
@@ -63,12 +60,6 @@ export function collectAndValidateEmployee() {
   const workLocation = empWorkLocationEl ? empWorkLocationEl.value.trim() : '';
   const leaveCardNumber = empLeaveCardNumberEl ? empLeaveCardNumberEl.value.trim() : '';
 
-  // التحقق من صحة رقم الموظف الأساسي
-  if (!rawId || !Number.isInteger(employeeId) || employeeId <= 0) {
-    showToast('رقم الموظف مطلوب ويجب أن يكون رقماً صحيحاً موجباً.', 'warning');
-    empEmployeeIdEl?.focus();
-    return null;
-  }
   // التحقق من الاسم الكامل
   if (!fullName) {
     showToast('يرجى إدخال الاسم الكامل للموظف.', 'warning');
@@ -95,7 +86,6 @@ export function collectAndValidateEmployee() {
   }
 
   return {
-    employeeId,
     fullName,
     gender,
     hireDate,
@@ -114,7 +104,6 @@ export function collectAndValidateEmployee() {
 export function initAddEmployeeTab(options = {}) {
   const onEmployeeAdded = options.onEmployeeAdded || null;
   addEmployeeForm = document.getElementById('add-employee-form');
-  empEmployeeIdEl = document.getElementById('emp-employee-id');
   empJobNumberEl = document.getElementById('emp-job-number');
   empDepartmentEl = document.getElementById('emp-department');
   btnAddDeptFromAddEmp = document.getElementById('btn-add-dept-from-add-emp');
@@ -154,10 +143,11 @@ export function initAddEmployeeTab(options = {}) {
         const response = await window.api.employee.add(payload);
 
         if (response.success) {
-          showToast(`تم إضافة الموظف بنجاح برقم: ${payload.employeeId}`, 'success');
+          const createdId = response.data?.employeeId || response.data;
+          showToast(`تم إضافة الموظف بنجاح برقم: ${createdId || 'تلقائي'}`, 'success');
           addEmployeeForm.reset();
           if (typeof onEmployeeAdded === 'function') {
-            onEmployeeAdded(payload.employeeId);
+            onEmployeeAdded(createdId);
           }
         } else {
           showToast(response.error || 'تعذر إضافة الموظف. يرجى مراجعة البيانات.', 'error');
