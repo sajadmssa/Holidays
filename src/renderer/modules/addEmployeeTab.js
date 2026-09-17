@@ -17,6 +17,7 @@ import { openQuickAddDepartmentModal } from './systemSettings.js';
 // مراجع عناصر الاستمارة في واجهة المستخدم
 let addEmployeeForm = null;
 let empJobNumberEl = null;
+let empDossierNumberEl = null;
 let empDepartmentEl = null;
 let btnAddDeptFromAddEmp = null;
 let empFullNameEl = null;
@@ -53,6 +54,7 @@ export async function populateAddEmployeeDepartments(selectIdToSet = null) {
  */
 export function collectAndValidateEmployee() {
   const jobNumber = empJobNumberEl ? empJobNumberEl.value.trim() : '';
+  const dossierNumber = empDossierNumberEl ? empDossierNumberEl.value.trim() : '';
   const departmentId = empDepartmentEl && empDepartmentEl.value ? parseInt(empDepartmentEl.value, 10) : null;
   const fullName = empFullNameEl ? empFullNameEl.value.trim() : '';
   const gender = empGenderEl ? empGenderEl.value : '';
@@ -66,6 +68,12 @@ export function collectAndValidateEmployee() {
   if (!fullName) {
     showToast('يرجى إدخال الاسم الكامل للموظف.', 'warning');
     empFullNameEl?.focus();
+    return null;
+  }
+  // التحقق من طول رقم الإضبارة إن وجد
+  if (dossierNumber && dossierNumber.length > 100) {
+    showToast('رقم الإضبارة طويل جداً (الحد الأقصى 100 حرف).', 'warning');
+    empDossierNumberEl?.focus();
     return null;
   }
   // التحقق من الجنس (مهم لحساب قيود إجازات الأمومة لاحقاً)
@@ -95,6 +103,7 @@ export function collectAndValidateEmployee() {
     workLocation: workLocation || null,
     leaveCardNumber: leaveCardNumber || null,
     jobNumber: jobNumber || null,
+    dossierNumber: dossierNumber || null,
     departmentId: departmentId || null,
     workShiftType
   };
@@ -108,6 +117,7 @@ export function initAddEmployeeTab(options = {}) {
   const onEmployeeAdded = options.onEmployeeAdded || null;
   addEmployeeForm = document.getElementById('add-employee-form');
   empJobNumberEl = document.getElementById('emp-job-number');
+  empDossierNumberEl = document.getElementById('emp-dossier-number');
   empDepartmentEl = document.getElementById('emp-department');
   btnAddDeptFromAddEmp = document.getElementById('btn-add-dept-from-add-emp');
   empFullNameEl = document.getElementById('emp-full-name');

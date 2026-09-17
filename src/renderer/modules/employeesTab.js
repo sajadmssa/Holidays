@@ -56,7 +56,7 @@ export function renderAllEmployeesTable(employees) {
     const isSearching = _allEmpsSearchQuery.trim().length > 0;
     allEmployeesTbody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="13" class="text-center">
+        <td colspan="14" class="text-center">
           ${isSearching ? '🔍 لا توجد نتائج مطابقة للبحث' : 'لا يوجد موظفون مسجلون في النظام'}
         </td>
       </tr>
@@ -72,6 +72,7 @@ export function renderAllEmployeesTable(employees) {
     const tdSeq = document.createElement('td');
     const tdId = document.createElement('td');
     const tdJobNumber = document.createElement('td');
+    const tdDossierNumber = document.createElement('td');
     const tdName = document.createElement('td');
     const tdDept = document.createElement('td');
     const tdJobTitle = document.createElement('td');
@@ -91,6 +92,9 @@ export function renderAllEmployeesTable(employees) {
 
     tdJobNumber.className = 'text-center';
     tdJobNumber.textContent = emp.JobNumber || '-';
+
+    tdDossierNumber.className = 'text-center';
+    tdDossierNumber.textContent = emp.DossierNumber || '-';
 
     tdName.textContent = emp.FullName || '-';
     tdDept.textContent = emp.DepartmentName || '-';
@@ -127,6 +131,7 @@ export function renderAllEmployeesTable(employees) {
       let title = 'موظف منقول خارجياً';
       if (emp.TransferOrderNumber) title += ` - أمر رقم: ${emp.TransferOrderNumber}`;
       if (emp.TransferOrderDate) title += ` بتاريخ ${emp.TransferOrderDate}`;
+      if (emp.TransferNotes) title += ` (${emp.TransferNotes})`;
       transferSpan.title = title;
       tdStatus.appendChild(transferSpan);
     }
@@ -177,7 +182,7 @@ export function renderAllEmployeesTable(employees) {
 
     tdActions.append(btnTimeCard, btnLeaveCard, btnEdit);
 
-    tr.append(tdSeq, tdId, tdJobNumber, tdName, tdDept, tdJobTitle, tdLocation, tdWorkShift, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
+    tr.append(tdSeq, tdId, tdJobNumber, tdDossierNumber, tdName, tdDept, tdJobTitle, tdLocation, tdWorkShift, tdCard, tdLastDate, tdLastType, tdStatus, tdActions);
     fragment.appendChild(tr);
   });
 

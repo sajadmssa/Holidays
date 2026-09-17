@@ -55,6 +55,7 @@ let summaryEmpTransferWrap = null;
 let summaryEmpTransfer = null;
 let summaryEmpSequence = null;
 let summaryEmpJobNumber = null;
+let summaryEmpDossierNumber = null;
 let summaryEmpDepartment = null;
 
 // قفل منع الحلقات التكرارية أثناء التحديث التفاعلي التلقائي للتواريخ
@@ -137,6 +138,7 @@ export function hideEmployeeSummary() {
     if (summaryEmpName) summaryEmpName.textContent = '-';
     if (summaryEmpSequence) summaryEmpSequence.textContent = '-';
     if (summaryEmpJobNumber) summaryEmpJobNumber.textContent = '-';
+    if (summaryEmpDossierNumber) summaryEmpDossierNumber.textContent = '-';
     if (summaryEmpDepartment) summaryEmpDepartment.textContent = '-';
     if (summaryEmpTitle) summaryEmpTitle.textContent = '-';
     if (summaryEmpLocation) summaryEmpLocation.textContent = '-';
@@ -159,6 +161,7 @@ export async function loadEmployeeSummary(id) {
       if (summaryEmpName) summaryEmpName.textContent = emp.FullName || '-';
       if (summaryEmpSequence) summaryEmpSequence.textContent = emp.SequenceNumber != null ? String(emp.SequenceNumber) : '-';
       if (summaryEmpJobNumber) summaryEmpJobNumber.textContent = emp.JobNumber || '-';
+      if (summaryEmpDossierNumber) summaryEmpDossierNumber.textContent = emp.DossierNumber || '-';
       if (summaryEmpDepartment) summaryEmpDepartment.textContent = emp.DepartmentName || 'غير محدد';
       if (summaryEmpTitle) summaryEmpTitle.textContent = emp.JobTitle || '-';
       if (summaryEmpLocation) summaryEmpLocation.textContent = emp.WorkLocation || 'غير محدد';
@@ -575,6 +578,7 @@ export function initLeaveRegistration() {
   summaryEmpName = document.getElementById('summary-emp-name');
   summaryEmpSequence = document.getElementById('summary-emp-sequence');
   summaryEmpJobNumber = document.getElementById('summary-emp-job-number');
+  summaryEmpDossierNumber = document.getElementById('summary-emp-dossier-number');
   summaryEmpDepartment = document.getElementById('summary-emp-department');
   summaryEmpTitle = document.getElementById('summary-emp-title');
   summaryEmpLocation = document.getElementById('summary-emp-location');

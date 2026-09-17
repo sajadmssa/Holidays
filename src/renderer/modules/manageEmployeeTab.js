@@ -42,6 +42,7 @@ let manageBadgeTimecardCount = null;
 let manageBadgeLeavecardCount = null;
 let manageSequenceNumberInput = null;
 let manageJobNumberInput = null;
+let manageDossierNumberInput = null;
 let manageDepartmentSelect = null;
 let manageWorkShiftTypeSelect = null;
 let btnAddDeptFromManageEmp = null;
@@ -125,6 +126,7 @@ export async function loadEmployeeForManagement(id) {
     // تعبئة حقول البيانات الأساسية
     if (manageSequenceNumberInput) manageSequenceNumberInput.value = emp.SequenceNumber != null ? String(emp.SequenceNumber) : '-';
     if (manageJobNumberInput) manageJobNumberInput.value = emp.JobNumber || '';
+    if (manageDossierNumberInput) manageDossierNumberInput.value = emp.DossierNumber || '';
     if (manageDepartmentSelect) manageDepartmentSelect.value = emp.DepartmentID != null ? String(emp.DepartmentID) : '';
     if (manageFullNameInput) manageFullNameInput.value = emp.FullName || '';
     if (manageJobTitleInput) manageJobTitleInput.value = emp.JobTitle || '';
@@ -284,6 +286,7 @@ export function initManageEmployeeTab(options = {}) {
 
   manageSequenceNumberInput = document.getElementById('manage-sequence-number');
   manageJobNumberInput = document.getElementById('manage-job-number');
+  manageDossierNumberInput = document.getElementById('manage-dossier-number');
   manageDepartmentSelect = document.getElementById('manage-department');
   manageWorkShiftTypeSelect = document.getElementById('manage-work-shift-type');
   btnAddDeptFromManageEmp = document.getElementById('btn-add-dept-from-manage-emp');
@@ -377,8 +380,15 @@ export function initManageEmployeeTab(options = {}) {
         const baseline = parseInt(manageRegularBalanceInput?.dataset.baseline || '0', 10);
         const adjustmentDays = newRegularVal - baseline;
         const jobNumber = manageJobNumberInput ? manageJobNumberInput.value.trim() : null;
+        const dossierNumber = manageDossierNumberInput ? manageDossierNumberInput.value.trim() : null;
         const departmentId = manageDepartmentSelect && manageDepartmentSelect.value ? parseInt(manageDepartmentSelect.value, 10) : null;
         const workShiftType = manageWorkShiftTypeSelect && manageWorkShiftTypeSelect.value ? manageWorkShiftTypeSelect.value : undefined;
+
+        if (dossierNumber && dossierNumber.length > 100) {
+          showToast('رقم الإضبارة طويل جداً (الحد الأقصى 100 حرف).', 'warning');
+          manageDossierNumberInput?.focus();
+          return;
+        }
 
         // 2. تحديث جدول الموظفين (EmployeeService.updateEmployee)
         const response = await window.api.employee.update(currentManagingEmpId, {
@@ -388,6 +398,7 @@ export function initManageEmployeeTab(options = {}) {
           leaveCardNumber: leaveCardNumber || null,
           adjustmentDays,
           jobNumber: jobNumber || null,
+          dossierNumber: dossierNumber || null,
           departmentId: departmentId || null,
           workShiftType
         });

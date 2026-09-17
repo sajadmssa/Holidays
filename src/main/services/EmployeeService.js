@@ -42,6 +42,7 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 200;
 const MAX_CARD_LENGTH = 100;
 const MAX_APPROVER_LENGTH = 200;
+const MAX_DOSSIER_LENGTH = 100;  // ADR-027: رقم الإضبارة
 
 // ══════════════════════════════════════════════════════════════
 //  addEmployee
@@ -89,6 +90,7 @@ function addEmployee(employeeData, db) {
     departmentId,
     jobNumber,
     workShiftType,
+    dossierNumber,    // ADR-027: رقم الإضبارة
   } = employeeData;
 
   // ── Step 1b: EmployeeID Validation & Auto-generation (ADR-025) ──
@@ -205,6 +207,14 @@ function addEmployee(employeeData, db) {
     throw new Error('نوع الدوام غير صالح. الخيارات المتاحة: دوام صباحي، مناوب، مناوب بنظام 400kv.');
   }
 
+  // DossierNumber Validation / التحقق من رقم الإضبارة (ADR-027)
+  const cleanDossierNumber = typeof dossierNumber === 'string' && dossierNumber.trim().length > 0
+    ? dossierNumber.trim()
+    : null;
+  if (cleanDossierNumber && cleanDossierNumber.length > MAX_DOSSIER_LENGTH) {
+    throw new Error(`رقم الإضبارة طويل جداً (الحد الأقصى المسموح به ${MAX_DOSSIER_LENGTH} حرف).`);
+  }
+
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
   // المعاملة الذرية المركبة: تضمن أن إدراج الموظف وتهيئة أرصدته وتوثيق التدقيق تتم كوحدة واحدة غير قابلة للتجزئة
   return db.transaction(() => {
@@ -285,9 +295,9 @@ function addEmployee(employeeData, db) {
       .prepare(`
         INSERT INTO Employees (
           EmployeeID, FullName, Gender, HireDate, JobTitle, WorkLocation, 
-          LeaveCardNumber, LeaveApprover, DepartmentID, SequenceNumber, JobNumber, WorkShiftType, IsActive
+          LeaveCardNumber, LeaveApprover, DepartmentID, SequenceNumber, JobNumber, WorkShiftType, DossierNumber, IsActive
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `)
       .run(
         targetEmployeeId,
@@ -301,7 +311,8 @@ function addEmployee(employeeData, db) {
         cleanDepartmentId,
         sequenceNumber,
         finalJobNumber,
-        cleanWorkShiftType
+        cleanWorkShiftType,
+        cleanDossierNumber
       );
 
     // Automatically initialize default Sick Leave balance buckets for new employee
@@ -339,6 +350,7 @@ function addEmployee(employeeData, db) {
         SequenceNumber: sequenceNumber,
         JobNumber: finalJobNumber,
         WorkShiftType: cleanWorkShiftType,
+        DossierNumber: cleanDossierNumber,
       },
       details: `إضافة موظف جديد: ${fullName.trim()} (الرقم الوظيفي: ${finalJobNumber}، التسلسل: ${sequenceNumber})`,
     });
@@ -376,6 +388,7 @@ function searchEmployees(keyword, db) {
     .prepare(`
       SELECT e.EmployeeID, e.FullName, e.JobTitle, e.WorkLocation, e.LeaveCardNumber, e.LeaveApprover, 
              e.IsTransferred, e.TransferOrderNumber, e.DepartmentID, e.SequenceNumber, e.JobNumber,
+             e.DossierNumber,
              d.Name AS DepartmentName
       FROM   Employees e
       LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
@@ -385,12 +398,13 @@ function searchEmployees(keyword, db) {
                OR CAST(e.EmployeeID AS TEXT) LIKE ?
                OR (e.JobNumber IS NOT NULL AND e.JobNumber LIKE ?)
                OR (e.SequenceNumber IS NOT NULL AND CAST(e.SequenceNumber AS TEXT) LIKE ?)
+               OR (e.DossierNumber IS NOT NULL AND e.DossierNumber LIKE ?)
              )
         AND  e.IsActive = 1
       ORDER  BY e.FullName ASC
       LIMIT  50
     `)
-    .all(pattern, pattern, pattern, pattern, pattern);
+    .all(pattern, pattern, pattern, pattern, pattern, pattern);
 }
 
 const { calculateRegularLeaveBalance } = require('./LeaveService');
@@ -527,6 +541,7 @@ function updateEmployee(employeeId, updateData, db) {
     departmentId,
     jobNumber,
     workShiftType,
+    dossierNumber,    // ADR-027: رقم الإضبارة
   } = updateData;
 
   if (typeof fullName !== 'string' || fullName.trim().length === 0) {
@@ -613,6 +628,17 @@ function updateEmployee(employeeId, updateData, db) {
     cleanWorkShiftType = rawShift;
   }
 
+  // DossierNumber Validation for Update / التحقق من رقم الإضبارة عند التعديل (ADR-027)
+  let cleanDossierNumber = undefined;
+  if (dossierNumber !== undefined) {
+    cleanDossierNumber = typeof dossierNumber === 'string' && dossierNumber.trim().length > 0
+      ? dossierNumber.trim()
+      : null;
+    if (cleanDossierNumber && cleanDossierNumber.length > MAX_DOSSIER_LENGTH) {
+      throw new Error(`رقم الإضبارة طويل جداً (الحد الأقصى المسموح به ${MAX_DOSSIER_LENGTH} حرف).`);
+    }
+  }
+
   return db.transaction(() => {
     const oldEmployee = db
       .prepare('SELECT * FROM Employees WHERE EmployeeID = ?')
@@ -629,7 +655,8 @@ function updateEmployee(employeeId, updateData, db) {
             AdjustmentDays  = COALESCE(?, AdjustmentDays),
             DepartmentID    = CASE WHEN ? = 1 THEN ? ELSE DepartmentID END,
             JobNumber       = CASE WHEN ? = 1 THEN ? ELSE JobNumber END,
-            WorkShiftType   = CASE WHEN ? = 1 THEN ? ELSE WorkShiftType END
+            WorkShiftType   = CASE WHEN ? = 1 THEN ? ELSE WorkShiftType END,
+            DossierNumber   = CASE WHEN ? = 1 THEN ? ELSE DossierNumber END
         WHERE EmployeeID = ?
       `)
       .run(
@@ -645,6 +672,8 @@ function updateEmployee(employeeId, updateData, db) {
         cleanJobNumber !== undefined ? cleanJobNumber : null,
         cleanWorkShiftType !== undefined ? 1 : 0,
         cleanWorkShiftType !== undefined ? cleanWorkShiftType : null,
+        cleanDossierNumber !== undefined ? 1 : 0,
+        cleanDossierNumber !== undefined ? cleanDossierNumber : null,
         employeeId
       );
 
@@ -964,7 +993,8 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         WorkLocation LIKE ? OR
         CAST(EmployeeID AS TEXT) LIKE ? OR
         (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
-        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?) OR
+        (DossierNumber IS NOT NULL AND DossierNumber LIKE ?)
       )
     `;
     countWhereClause = `
@@ -974,11 +1004,12 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         WorkLocation LIKE ? OR
         CAST(EmployeeID AS TEXT) LIKE ? OR
         (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
-        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?) OR
+        (DossierNumber IS NOT NULL AND DossierNumber LIKE ?)
       )
     `;
-    params.push(pattern, pattern, pattern, pattern, pattern, pattern);
-    countParams.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
+    countParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   // 1. Total matching count / احتساب العدد الكلي للسجلات المطابقة لحساب عدد الصفحات
@@ -1007,7 +1038,8 @@ function getEmployeesPaginated({ page = 1, pageSize = 15, search = '' } = {}, db
         DepartmentID,
         SequenceNumber,
         JobNumber,
-        WorkShiftType
+        WorkShiftType,
+        DossierNumber
       FROM Employees
       ${whereClause}
       ORDER BY IsActive DESC, FullName ASC

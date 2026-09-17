@@ -166,7 +166,11 @@ function registerEmployeeHandlers(ipcMain, db) {
         workLocation,
         leaveCardNumber,
         leaveApprover,
-        adjustmentDays
+        adjustmentDays,
+        departmentId,
+        jobNumber,
+        workShiftType,
+        dossierNumber,
       } = payload ?? {};
       const id = Number(employeeId);
       return updateEmployee(id, {
@@ -175,7 +179,11 @@ function registerEmployeeHandlers(ipcMain, db) {
         workLocation,
         leaveCardNumber,
         leaveApprover,
-        adjustmentDays
+        adjustmentDays,
+        departmentId,
+        jobNumber,
+        workShiftType,
+        dossierNumber,
       }, db);
     })
   );

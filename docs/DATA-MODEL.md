@@ -35,6 +35,7 @@ erDiagram
         TEXT LeaveCardNumber UK "فريد جزئياً — يتجاهل NULL/فارغ"
         TEXT LeaveApprover
         TEXT WorkShiftType "دوام صباحي / مناوب / مناوب بنظام 400kv (migration 020)"
+        TEXT DossierNumber "رقم الإضبارة الورقية — اختياري، مفهرس جزئياً (migration 021, ADR-027)"
         INTEGER IsActive "0/1"
         INTEGER AdjustmentDays
         INTEGER IsTransferred "0/1 — لا يُعطّل الموظف"
@@ -124,12 +125,13 @@ erDiagram
 | `LeaveCardNumber` | TEXT | **فريد جزئياً** (`idx_employees_leave_card_number`) — يتجاهل `NULL`/فارغ | أُضيف في `002` |
 | `LeaveApprover` | TEXT | اختياري | أُضيف في `002` — قيمة افتراضية للموافق، تُستنسَخ لاحقاً إلى كل إجازة عبر `006` |
 | `WorkShiftType` | TEXT | `NOT NULL DEFAULT 'دوام صباحي'`, `CHECK IN ('دوام صباحي','مناوب','مناوب بنظام 400kv')` | أُضيف في `020` — نوع دوام الموظف، قائمة مغلقة بثلاث قيم ثابتة (ADR-026) |
+| `DossierNumber` | TEXT | اختياري (`NULL`) | أُضيف في `021` — رقم الإضبارة الورقية في الأرشيف الحكومي (ADR-027)، غير مقيد بالتفرد لاحتمال تشارك الإضبارة إدارياً، مفهرس جزئياً |
 | `IsActive` | INTEGER | `CHECK IN (0,1)`, افتراضي `1` | يمنع تسجيل إجازة جديدة عند `0` عبر `trg_prevent_inactive_employee_leave` |
 | `AdjustmentDays` | INTEGER | افتراضي `0` | أُضيف في `003` — تعديل يدوي على الرصيد (مثال: ترحيل من نظام سابق) |
 | `IsTransferred` | INTEGER | `CHECK IN (0,1)`, افتراضي `0` | أُضيف في `015` — **لا يُعطّل الموظف** (`IsActive` يبقى `1`)؛ الموظف المنقول خارجياً يُستثنى من قوائم الإجازات النشطة، والتنبيهات المباشرة، وتقارير الأرصدة الحرجة، وإحصائيات التراكم السنوي، مع بقائه "نشطاً" رسمياً في دليل الموظفين |
 | `TransferOrderNumber` / `TransferOrderDate` / `TransferNotes` | TEXT | اختياري | أُضيفت في `015` — توثيق أمر النقل الإداري |
 
-**فهارس:** `idx_employees_sequence` (`SequenceNumber` فريد)، `idx_employees_dept` (`DepartmentID`)، `idx_employees_leave_card_number` (فريد جزئي)، `idx_employees_active_name` (`IsActive, FullName`)، `idx_employees_card` (`LeaveCardNumber`)، `idx_employees_is_transferred`.
+**فهارس:** `idx_employees_sequence` (`SequenceNumber` فريد)، `idx_employees_dept` (`DepartmentID`)، `idx_employees_leave_card_number` (فريد جزئي)، `idx_employees_active_name` (`IsActive, FullName`)، `idx_employees_card` (`LeaveCardNumber`)، `idx_employees_is_transferred`، `idx_employees_dossier_number` (مفهرس جزئياً عند عدم كونه فارغاً).
 
 ### 2.2 `Departments` — سجل الأقسام (جديد منذ Migration 017)
 

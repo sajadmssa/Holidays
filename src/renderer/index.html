@@ -207,6 +207,8 @@
                       id="summary-emp-name">-</strong></div>
                   <div class="summary-item"><span class="summary-label">🪪 الرقم الوظيفي:</span> <span
                       id="summary-emp-job-number">-</span></div>
+                  <div class="summary-item"><span class="summary-label">📁 رقم الإضبارة:</span> <span
+                      id="summary-emp-dossier-number">-</span></div>
                   <div class="summary-item"><span class="summary-label">🏛️ القسم / الشعبة:</span> <span
                       id="summary-emp-department">-</span></div>
                   <div class="summary-item"><span class="summary-label">💼 المسمى:</span> <span
@@ -476,6 +478,14 @@
                   <input id="emp-job-number" type="text" maxlength="100" placeholder="أدخل الرقم الوظيفي (اختياري)" />
                 </div>
 
+                <!-- Dossier Number -->
+                <div class="form-group">
+                  <label for="emp-dossier-number">
+                    رقم الإضبارة
+                  </label>
+                  <input id="emp-dossier-number" type="text" maxlength="100" placeholder="أدخل رقم الإضبارة (اختياري)" />
+                </div>
+
                 <!-- Department -->
                 <div class="form-group full-width">
                   <label for="emp-department">
@@ -681,6 +691,11 @@
                   <input id="manage-job-number" type="text" maxlength="100" placeholder="أدخل الرقم الوظيفي" />
                 </div>
 
+                <div class="form-group">
+                  <label for="manage-dossier-number">رقم الإضبارة</label>
+                  <input id="manage-dossier-number" type="text" maxlength="100" placeholder="أدخل رقم الإضبارة (اختياري)" />
+                </div>
+
                 <div class="form-group full-width">
                   <label for="manage-department">القسم / الشعبة</label>
                   <div class="input-action-group">
@@ -790,6 +805,7 @@
                     <th scope="col" class="text-center" style="width: 50px;">ت</th>
                     <th scope="col" class="text-center">رقم الموظف</th>
                     <th scope="col" class="text-center">الرقم الوظيفي</th>
+                    <th scope="col" class="text-center">رقم الإضبارة</th>
                     <th scope="col">الاسم الكامل</th>
                     <th scope="col">القسم / الشعبة</th>
                     <th scope="col">المسمى الوظيفي</th>

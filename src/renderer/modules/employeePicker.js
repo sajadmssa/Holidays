@@ -58,7 +58,8 @@ export function selectEmployeeForPicker(emp) {
   // تنسيق النص الظاهر في حقل البحث
   if (employeeSearchInput) {
     const cardPart = emp.LeaveCardNumber ? ` | كرت: ${emp.LeaveCardNumber}` : '';
-    employeeSearchInput.value = `${emp.FullName} (رقم: ${emp.EmployeeID}${cardPart})`;
+    const dossierPart = emp.DossierNumber ? ` | إضبارة: ${emp.DossierNumber}` : '';
+    employeeSearchInput.value = `${emp.FullName} (رقم: ${emp.EmployeeID}${cardPart}${dossierPart})`;
     employeeSearchInput.classList.add('is-selected');
   }
 
@@ -161,6 +162,14 @@ export function renderPickerDropdown(employees) {
       cardBadge.className = 'picker-item-badge';
       cardBadge.textContent = `كرت: ${emp.LeaveCardNumber}`;
       badgesDiv.appendChild(cardBadge);
+    }
+
+    // شارة رقم الإضبارة
+    if (emp.DossierNumber) {
+      const dossierBadge = document.createElement('span');
+      dossierBadge.className = 'picker-item-badge';
+      dossierBadge.textContent = `إضبارة: ${emp.DossierNumber}`;
+      badgesDiv.appendChild(dossierBadge);
     }
 
     // شارة الموظف المنقول خارجياً مع تفاصيل رقم الأمر الإداري

@@ -496,10 +496,11 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         WorkLocation LIKE ? OR
         CAST(EmployeeID AS TEXT) LIKE ? OR
         (JobNumber IS NOT NULL AND JobNumber LIKE ?) OR
-        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?)
+        (SequenceNumber IS NOT NULL AND CAST(SequenceNumber AS TEXT) LIKE ?) OR
+        (DossierNumber IS NOT NULL AND DossierNumber LIKE ?)
       )
     `;
-    params.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   const query = `
@@ -515,7 +516,8 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         IsActive,
         DepartmentID,
         SequenceNumber,
-        JobNumber
+        JobNumber,
+        DossierNumber
       FROM Employees
       ${whereClause}
       ORDER BY IsActive DESC, FullName ASC
@@ -568,6 +570,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
   const COLUMNS = [
     { key: 'seq',        width: 10 },
     { key: 'jobNumber',  width: 15 },
+    { key: 'dossier',    width: 16 },
     { key: 'name',       width: 26 },
     { key: 'department', width: 22 },
     { key: 'jobTitle',   width: 22 },
@@ -593,6 +596,7 @@ async function exportAllEmployees(arg1, arg2, arg3) {
   const headerRow = ws.addRow([
     'التسلسل',
     'الرقم الوظيفي',
+    'رقم الإضبارة',
     'الاسم الكامل',
     'القسم',
     'المسمى الوظيفي',
@@ -630,9 +634,14 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         ? emp.JobNumber
         : '-';
 
+      const dossierDisplay = (emp.DossierNumber !== null && emp.DossierNumber !== undefined && emp.DossierNumber !== '')
+        ? emp.DossierNumber
+        : '-';
+
       const dataRow = ws.addRow([
         emp.SequenceNumber || (index + 1),
         jobNumberDisplay,
+        dossierDisplay,
         emp.FullName,
         emp.DepartmentName || '-',
         emp.JobTitle || '-',
@@ -648,13 +657,16 @@ async function exportAllEmployees(arg1, arg2, arg3) {
       applyRowStyle(dataRow, index % 2 === 0 ? STYLE.rowEven : STYLE.rowOdd, COL_COUNT);
       dataRow.height = 18;
 
-      // Numeric formatting for Sequence, ID and Card columns
+      // Numeric formatting for Sequence, ID, Dossier, and Card columns
       dataRow.getCell(1).numFmt = '0';
       if (jobNumberDisplay !== '-' && !isNaN(Number(jobNumberDisplay))) {
         dataRow.getCell(2).numFmt = '0';
       }
+      if (dossierDisplay !== '-' && !isNaN(Number(dossierDisplay))) {
+        dataRow.getCell(3).numFmt = '0';
+      }
       if (typeof cardVal === 'number') {
-        dataRow.getCell(8).numFmt = '0';
+        dataRow.getCell(9).numFmt = '0';
       }
     });
   }

@@ -144,7 +144,8 @@ export function renderModalResults(employees) {
             LeaveCardNumber,
             LeaveApprover,
             IsTransferred,
-            TransferOrderNumber
+            TransferOrderNumber,
+            DossierNumber: emp.DossierNumber
           });
         }
       }
