@@ -225,10 +225,10 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 
 | العمود | النوع | القيد | الغرض |
 |---|---|---|---|
-| `CounterKey` | TEXT | `PRIMARY KEY` | المفتاح المعرّف للعداد (مثال: `'next_employee_sequence'`). |
+| `CounterKey` | TEXT | `PRIMARY KEY` | المفتاح المعرّف للعداد (مثل: `'next_employee_sequence'` للتسلسل الداخلي، أو `'next_employee_id'` لتوليد المعرّف التقني الداخلي `EmployeeID` تلقائياً — **مختلف** عن حقل `JobNumber` الذي يُدخله المستخدم يدوياً). |
 | `CounterValue` | INTEGER | `NOT NULL DEFAULT 1` | القيمة العددية الحالية للعداد. |
 
-> **وظيفة حاسمة (Monotonic Persistence):** يُستخدم هذا الجدول لضمان ثبات التسلسل التصاعدي المستمر للموظفين `SequenceNumber`. عند إضافة موظف جديد، يُقرأ العداد ويُرفع بقيمة 1 ويُحفظ فوراً. ولا ينقص العداد أبداً عند حذف أي موظف (حتى لو كان آخر موظف مضاف)، مما يمنع ثغرة تكرار التسلسل نهائياً (ADR-020).
+> **وظيفة حاسمة (Monotonic Persistence):** يُستخدم هذا الجدول لضمان ثبات التسلسل التصاعدي المستمر للموظفين `SequenceNumber` (ADR-020)، وكذلك توليد المعرّف الرئيسي التلقائي `EmployeeID` برمجياً وبشكل تصاعدي غير متراجع (ADR-025 والترحيل 022). عند إضافة موظف جديد، يُقرأ العداد ويُرفع بقيمة 1 ويُحفظ فوراً داخل نفس المعاملة الذرية، ولا ينقص أبداً عند حذف أي موظف لمنع تكرار المعرّفات نهائياً. تم إنشاء الجدول رسميّاً عبر الترحيل `022_create_app_counters_table.sql`.
 
 ### 2.8 `AuditLogs` — سجل التدقيق (النشط حالياً)
 
@@ -288,10 +288,12 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | 018 | `allow_overlapping_leaves_and_remove_duplicate_unique` | إعادة بناء جدول `Leaves` لإلغاء قيد التفرد القديم `UNIQUE(EmployeeID, LeaveTypeID, StartDate, EndDate)` للسماح بتسجيل الإجازات المتداخلة وإدارتها عبر التطبيق |
 | 019 | `seed_default_departments` | زرع القسمين الرسميين الافتراضيين المعتمدين (`قسم الشؤون الإدارية` و `قسم التشغيل`) وحذف أي بذور غير معتمدة وفق ADR-024 |
 | 020 | `add_work_shift_type_to_employees` | إضافة عمود `WorkShiftType` إلى `Employees` بقيد `CHECK` لثلاث قيم ثابتة (ADR-026) |
+| 021 | `add_dossier_number_to_employees` | إضافة عمود `DossierNumber` (رقم الإضبارة) إلى `Employees` مع فهرس جزئي لتسريع البحث (ADR-027) ومنع تكراره بين الموظفين النشطين برمجياً (ADR-029) |
+| 022 | `create_app_counters_table` | إنشاء جدول `AppCounters` للعدادات النظامية المستمرة وزرع قيمة البداية لـ `next_employee_id` لحساب `MAX(EmployeeID)+1` لدعم التثبيت النظيف ومنع تكرار المعرّفات (ADR-020, ADR-025) |
 
 **قاعدة ذهبية عند إضافة أي ترحيل جديد مستقبلاً:** أضف سطراً هنا في نفس الالتزام (Commit)، وحدِّث القسم المقابل من هذه الوثيقة (الجدول المتأثر) — لضمان بقاء نموذج البيانات مطابقاً بنسبة 100% للواقع الفعلي.
 
 ---
 
-*آخر تحديث: 17 أيلول 2026، يشمل الترحيل `020_add_work_shift_type_to_employees.sql` وتوليد `EmployeeID` التلقائي وفق ADR-025 و ADR-026.*
+*آخر تحديث: 17 أيلول 2026، يشمل الترحيلات الكاملة حتى `022_create_app_counters_table.sql` وتوليد `EmployeeID` التلقائي وفق ADR-025 و ADR-026 و ADR-027 و ADR-029.*
 
