@@ -90,6 +90,42 @@ function initialize() {
 }
 
 // ──────────────────────────────────────────────────────────────
+//  stripDuplicateAlterTableAdd(sql, filename)
+//
+//  N2 FIX helper: Removes ALTER TABLE … ADD COLUMN statements for
+//  columns that already exist in the target table, so that when the
+//  cleaned SQL is passed to _db.exec() it does not abort early and
+//  the subsequent statements (e.g. CREATE UNIQUE INDEX) always run.
+//
+//  هذه الدالة المساعدة لإصلاح N2:
+//  تُنقّي ملف SQL من جمل ALTER TABLE ADD COLUMN التي ستفشل لأن العمود
+//  موجود مسبقاً في المخطط الحالي. تُبقي كل الجمل الأخرى سليمة تماماً.
+//
+//  @param {string} sql       – full SQL content of the migration file
+//  @param {string} filename  – for diagnostic logging only
+//  @returns {string}         – SQL with redundant ALTER statements removed
+// ──────────────────────────────────────────────────────────────
+function stripDuplicateAlterTableAdd(sql, filename) {
+  // Match: ALTER TABLE <tableName> ADD COLUMN <colName> ...;
+  // This regex is intentionally simple and only targets the exact pattern
+  // used in our migration files (one ALTER TABLE per statement).
+  const alterPattern = /ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)[^;]*;/gi;
+  return sql.replace(alterPattern, (match, tableName, colName) => {
+    // Check if the table exists first (new DB may not have it yet)
+    const tableInfo = _db.pragma(`table_info(${tableName})`);
+    if (tableInfo.length === 0) {
+      return match; // Table doesn't exist yet — keep the ALTER statement (it will fail for another reason anyway)
+    }
+    const colExists = tableInfo.some(row => row.name === colName);
+    if (colExists) {
+      LoggerService.info('DB', `[Migration Notice] Column "${tableName}.${colName}" already exists in ${filename} — stripping ALTER TABLE statement.`);
+      return '-- [stripped: column already exists] ' + match.replace(/\n/g, ' ');
+    }
+    return match;
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
 //  runMigrations()
 //  Reads every .sql file from the migrations directory in order
 //  and executes it. Uses `CREATE TABLE IF NOT EXISTS` and
@@ -98,7 +134,8 @@ function initialize() {
 //  محرك ترحيل بنية قاعدة البيانات:
 //  يقرأ ملفات .sql بالترتيب الهجائي/الرقمي الصارم (001_ ثم 002_ وهكذا)،
 //  وينفذ كل ملف داخل Transaction مستقلة مع توثيق اسم الترحيل في جدول _Migrations.
-//  يتميز بكونه Idempotent (آمن ضد التكرار) ويتجاهل أخطاء الأعمدة المكررة بمرونة.
+//  يتميز بكونه Idempotent (آمن ضد التكرار) ويحذف تلقائياً جمل ALTER TABLE
+//  المكررة قبل التنفيذ لضمان تطبيق بقية الجمل (مثل CREATE INDEX) دون انقطاع.
 // ──────────────────────────────────────────────────────────────
 function runMigrations() {
   _db.exec(`
@@ -127,14 +164,23 @@ function runMigrations() {
       _db.pragma('foreign_keys = OFF');
       try {
         _db.transaction(() => {
-          try {
-            _db.exec(sql);
-          } catch (err) {
-            if (err.message.includes('duplicate column name')) {
-              LoggerService.info('DB', `[DB Migration Notice] Column already exists in ${file}: ${err.message}`);
-            } else {
-              throw err;
-            }
+          // ── N2 FIX: Smart idempotent SQL execution.
+          //
+          //    Problem: _db.exec(sql) stops at the first error. In migration 002,
+          //    ALTER TABLE ADD COLUMN fails because migration 001 already defines
+          //    those columns, so the subsequent CREATE UNIQUE INDEX never runs.
+          //
+          //    Solution: Strip out ALTER TABLE ADD COLUMN statements for columns
+          //    that already exist before calling exec(). All other SQL (CREATE TABLE
+          //    IF NOT EXISTS, CREATE INDEX IF NOT EXISTS, CREATE TRIGGER IF NOT EXISTS,
+          //    INSERT OR IGNORE, etc.) remains intact and executes normally.
+          //
+          //  إصلاح N2: تنقية جمل ALTER TABLE ADD COLUMN المكررة فقط قبل التنفيذ:
+          //  يحافظ على بنية SQL الكاملة (CREATE TRIGGER, INSERT, إلخ) ويزيل فقط
+          //  الجمل التي ستفشل بسبب أعمدة موجودة مسبقاً، دون المساس بأي جملة أخرى.
+          const sqlToExec = stripDuplicateAlterTableAdd(sql, file);
+          if (sqlToExec.trim().length > 0) {
+            _db.exec(sqlToExec);
           }
 
           // Verify referential integrity before committing transaction
