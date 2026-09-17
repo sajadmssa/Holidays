@@ -13,7 +13,9 @@
 
 'use strict';
 
-const { BrowserWindow, dialog, app } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const { BrowserWindow, dialog, app, shell } = require('electron');
 const db = require('../database');
 const LoggerService = require('../services/LoggerService');
 const { createSafeHandler } = require('../utils/ipcHandlerHelper');
@@ -229,21 +231,48 @@ function registerSystemHandlers(ipcMain) {
   );
 
   // ── system:openPath ─────────────────────────────────────────
-  //  فتح مسار ملف أو مجلد في التطبيق الافتراضي لنظام التشغيل (مثل Excel أو عارض الصور)
-  //  Opens a file at the given absolute path using the default OS application (e.g. Excel).
+  //  فتح مسار ملف في التطبيق الافتراضي لنظام التشغيل (مقيد بالامتدادات المصرح بها)
+  //  Opens an existing file with OS default app, strictly restricted to safe document extensions.
   // ─────────────────────────────────────────────────────────────
+  const ALLOWED_OPEN_EXTENSIONS = new Set(['.xlsx', '.pdf', '.jpg', '.jpeg', '.png', '.webp']);
+
   ipcMain.handle(
     'system:openPath',
     safeHandleAsync(async (filePath) => {
-      if (!filePath || typeof filePath !== 'string') {
-        throw new Error('مسار الملف غير صالح.');
+      // 1. التحقق أن filePath نص غير فارغ
+      if (!filePath || typeof filePath !== 'string' || filePath.trim().length === 0) {
+        throw new Error('مسار الملف غير صالح أو فارغ.');
       }
-      const { shell } = require('electron');
-      const err = await shell.openPath(filePath);
+
+      const trimmedPath = filePath.trim();
+
+      // 2. التحقق من وجود الملف فعلياً على القرص وأنه ملف وليس مجلداً
+      if (!fs.existsSync(trimmedPath)) {
+        throw new Error(`الملف غير موجود في المسار المحدد: "${trimmedPath}".`);
+      }
+
+      let stat;
+      try {
+        stat = fs.statSync(trimmedPath);
+      } catch (err) {
+        throw new Error(`تعذر قراءة بيانات الملف: ${err.message}`);
+      }
+
+      if (!stat.isFile()) {
+        throw new Error('المسار المحدد ليس ملفاً صالحاً للفتح.');
+      }
+
+      // 3. فحص الامتداد ضمن القائمة المسموحة
+      const ext = path.extname(trimmedPath).toLowerCase();
+      if (!ALLOWED_OPEN_EXTENSIONS.has(ext)) {
+        throw new Error(`امتداد الملف (${ext || 'بدون امتداد'}) غير مصرح بفتحه عبر هذا المسار. الامتدادات المسموحة: (${Array.from(ALLOWED_OPEN_EXTENSIONS).join(', ')}).`);
+      }
+
+      const err = shell && typeof shell.openPath === 'function' ? await shell.openPath(trimmedPath) : null;
       if (err) {
-        throw new Error(`تعذر فتح الملف: ${err}`);
+        throw new Error(`تعذر فتح الملف بالبرنامج الافتراضي: ${err}`);
       }
-      return { opened: true, filePath };
+      return { opened: true, filePath: trimmedPath };
     })
   );
 
