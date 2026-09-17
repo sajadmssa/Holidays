@@ -71,9 +71,9 @@ export async function loadDepartmentsList() {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 50px;" class="text-center">#</th>
+                <th style="width: 44px;" class="text-center">#</th>
                 <th>اسم القسم / الشعبة</th>
-                <th style="width: 130px;" class="text-center">إجراءات</th>
+                <th style="width: 90px;" class="text-center">إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -81,11 +81,11 @@ export async function loadDepartmentsList() {
                 const deptName = d.DepartmentName || d.Name || '';
                 return `
                 <tr data-dept-id="${d.DepartmentID}">
-                  <td class="text-center font-bold">${d.DepartmentID}</td>
+                  <td class="text-center font-bold dept-id-cell">${d.DepartmentID}</td>
                   <td class="dept-name-cell">${escapeHtml(deptName)}</td>
                   <td class="text-center table-actions-cell">
-                    <button type="button" class="btn-action-icon btn-edit-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="تعديل اسم القسم">✏️</button>
-                    <button type="button" class="btn-action-icon btn-delete-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="حذف القسم">🗑️</button>
+                    <button type="button" class="btn-action-icon btn-edit-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="تعديل اسم القسم" aria-label="تعديل اسم القسم">✏️</button>
+                    <button type="button" class="btn-action-icon btn-delete-dept" data-id="${d.DepartmentID}" data-name="${escapeHtml(deptName)}" title="حذف القسم" aria-label="حذف القسم">🗑️</button>
                   </td>
                 </tr>
               `;}).join('')}

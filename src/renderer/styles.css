@@ -4428,12 +4428,45 @@ textarea:focus,
 
 .dept-add-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
-.dept-add-row input {
+.dept-add-input {
   flex: 1;
+  height: 42px;
+  box-sizing: border-box;
+}
+
+.dept-add-btn {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dept-add-btn .dept-add-btn-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.dept-add-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.dept-add-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .departments-list-container {
@@ -4441,33 +4474,159 @@ textarea:focus,
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
   overflow: hidden;
-  margin-top: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .departments-table-wrapper {
-  max-height: 220px;
+  max-height: 230px;
   overflow-y: auto;
 }
 
 .departments-table-wrapper table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
-.departments-table-wrapper th,
-.departments-table-wrapper td {
-  padding: 10px 14px;
-  border-block-end: 1px solid var(--color-border);
-}
-
-.departments-table-wrapper thead {
+.departments-table-wrapper thead th {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
   background-color: var(--color-surface-alt);
+  border-block-end: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.departments-table-wrapper tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.departments-table-wrapper tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.04);
+}
+
+:root[data-theme="dark"] .departments-table-wrapper tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.departments-table-wrapper td {
+  padding: 6px 12px;
+  border-block-end: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+
+.departments-table-wrapper tbody tr:last-child td {
+  border-block-end: none;
+}
+
+.dept-id-cell {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 .dept-name-cell {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text);
+  line-height: 1.4;
+}
+
+/* Department table actions */
+.departments-table-wrapper .table-actions-cell {
+  padding: 4px 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.departments-table-wrapper .btn-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  margin: 0 3px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all var(--transition-fast);
+}
+
+/* Edit department button */
+.departments-table-wrapper .btn-edit-dept {
+  color: var(--color-accent);
+  background-color: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+.departments-table-wrapper .btn-edit-dept:hover:not(:disabled) {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* Delete department button */
+.departments-table-wrapper .btn-delete-dept {
+  color: var(--color-error-text);
+  background-color: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.departments-table-wrapper .btn-delete-dept:hover:not(:disabled) {
+  background-color: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* Dark theme refinements */
+:root[data-theme="dark"] .departments-list-container {
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="dark"] .departments-table-wrapper thead th {
+  background-color: var(--color-surface-alt);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+:root[data-theme="dark"] .departments-table-wrapper td {
+  border-color: var(--color-border);
+}
+
+:root[data-theme="dark"] .departments-table-wrapper .btn-edit-dept {
+  background-color: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .departments-table-wrapper .btn-edit-dept:hover:not(:disabled) {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .departments-table-wrapper .btn-delete-dept {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+:root[data-theme="dark"] .departments-table-wrapper .btn-delete-dept:hover:not(:disabled) {
+  background-color: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
 }
 
 /* ────────────────────────────────────────────────────────────
