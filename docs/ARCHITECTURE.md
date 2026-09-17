@@ -241,7 +241,7 @@ flowchart LR
         R3["sandbox: true"]
     end
     subgraph Bridge["preload.js"]
-        W["VALID_CHANNELS Whitelist (47 قناة)"]
+        W["VALID_CHANNELS Whitelist (50 قناة)"]
     end
     subgraph Main["Main Process (Node.js الكامل)"]
         M["ipcMain.handle(...)"]
@@ -254,9 +254,9 @@ flowchart LR
 * لا أسرار أو مفاتيح API مضمّنة في الشيفرة (منطقي لتطبيق Offline بلا اتصال شبكي خارجي).
 * `DocumentStorageService.js`: كل عملية وصول لملف مستند تمر عبر تحقق `path.resolve` + مطابقة بادئة مسار جذر التخزين قبل التنفيذ — يمنع هجمات اجتياز المسار (Path Traversal) حتى لو كانت قيمة `RelativePath` المخزَّنة أو المُدخلة ملغومة.
 * **سياسة أمان المحتوى الصارمة (Strict Content Security Policy):**
-  - مطبَّقة عبر وسم `<meta http-equiv="Content-Security-Policy">` في `index.html` وتفرض: `default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:;`.
-  - ملف `index.html` خالٍ تماماً من أي سكربتات أو أنماط مضمنة (Zero Inline Scripts & Styles).
-  - تم استخراج منطق قراءة وتعيين السمة مبكراً إلى سكربت خارجي مستقل (`src/renderer/theme-init.js`) يُستدعى متزامناً داخل `<head>` لمنع وميض الشاشة (FOUT) مع الامتثال الصارم لـ CSP دون اللجوء لـ `'unsafe-inline'`.
+  - مطبَّقة عبر وسم `<meta http-equiv="Content-Security-Policy">` في `index.html` وتفرض: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:;`.
+  - التطبيق يعمل بصورة **Offline بالكامل 100%** مع تضمين خط Cairo محلياً في حزمة التطبيق، وخالٍ تماماً من أي اتصال أو اعتماد على خوادم خطوط خارجية (مثل Google Fonts).
+  - حظر تشغيل أي سكربتات مضمنة (Zero Inline Scripts) وفرض `'self'` حصراً على `script-src`، مع استخراج منطق قراءة وتعيين السمة مبكراً إلى سكربت خارجي مستقل (`src/renderer/theme-init.js`) يُستدعى متزامناً داخل `<head>` لمنع وميض الشاشة (FOUT). في حين يسمح `style-src` بالأنماط المضمنة لتسهيل التحكم الديناميكي بخصائص الواجهة في وحدات JS.
 
 ---
 
@@ -270,7 +270,7 @@ Holidays/
 ├── src/
 │   ├── main/                         # عملية Electron الرئيسية (Node.js كامل)
 │   │   ├── main.js                   # نقطة الدخول — دورة الحياة، تسجيل IPC، الأمان
-│   │   ├── preload.js                # الجسر الآمن الوحيد (VALID_CHANNELS - 47 قناة)
+│   │   ├── preload.js                # الجسر الآمن الوحيد (VALID_CHANNELS - 50 قناة)
 │   │   ├── database.js               # التهيئة + الترحيل (001-016) + النسخ الاحتياطي والاستعادة
 │   │   ├── ipc/                      # 6 ملفات معالجات — طبقة تفويض رقيقة فقط
 │   │   ├── services/                 # 9 ملفات — منطق الأعمال الفعلي
@@ -283,7 +283,7 @@ Holidays/
 │       ├── styles.css
 │       └── modules/                  # وحدة JS مستقلة لكل شاشة وظيفية
 ├── tests/
-│   ├── ipcChannelGuard.test.js       # حارس بنيوي لقنوات IPC (47 قناة)
+│   ├── ipcChannelGuard.test.js       # حارس بنيوي لقنوات IPC (50 قناة)
 │   └── leaveService.test.js          # اختبارات محرك الإجازات والشرائح الثلاث ومنع التداخل
 ├── scripts/                          # reset-db.js (أدوات تطوير)
 └── package.json

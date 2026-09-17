@@ -28,6 +28,7 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 const LoggerService = require('./services/LoggerService');
+const { resolveSafePathWithinRoot } = require('./utils/pathValidator');
 
 // ──────────────────────────────────────────────────────────────
 //  Database File Location
@@ -658,7 +659,7 @@ async function restoreDatabase(backupPath) {
       for (const entry of entries) {
         if (entry.entryName.startsWith('EmployeeDocuments/') && !entry.isDirectory) {
           const relativeInsideDoc = entry.entryName.replace(/^EmployeeDocuments\//, '');
-          const targetPath = path.join(activeTargetDocPath, relativeInsideDoc);
+          const targetPath = resolveSafePathWithinRoot(activeTargetDocPath, relativeInsideDoc);
           const targetDir = path.dirname(targetPath);
           if (!fs.existsSync(targetDir)) {
             fs.mkdirSync(targetDir, { recursive: true });
@@ -736,7 +737,7 @@ async function _emergencyRollback(safetyBackupPath) {
     for (const entry of entries) {
       if (entry.entryName.startsWith('EmployeeDocuments/') && !entry.isDirectory) {
         const relative = entry.entryName.replace(/^EmployeeDocuments\//, '');
-        const target = path.join(preRestoreDocPath, relative);
+        const target = resolveSafePathWithinRoot(preRestoreDocPath, relative);
         const parent = path.dirname(target);
         if (!fs.existsSync(parent)) fs.mkdirSync(parent, { recursive: true });
         fs.writeFileSync(target, zip.readFile(entry));

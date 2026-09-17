@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const LoggerService = require('./LoggerService');
+const { resolveSafePathWithinRoot } = require('../utils/pathValidator');
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -181,38 +182,8 @@ function validateMagicBytes(filePath, ext) {
  * @returns {string} Safe absolute path
  */
 function resolveAbsolutePath(relativePath, db) {
-  if (!relativePath || typeof relativePath !== 'string') {
-    throw new Error('مسار المستند غير صالح.');
-  }
-
-  // Reject UNC paths, absolute Windows drive paths, explicit parent traversal, or null bytes
-  if (
-    relativePath.startsWith('\\\\') ||
-    relativePath.startsWith('//') ||
-    /^[a-zA-Z]:/.test(relativePath) ||
-    relativePath.includes('..') ||
-    relativePath.includes('\0')
-  ) {
-    throw new Error('محاولة وصول غير مصرح بها للمسار (Path Traversal Detected).');
-  }
-
-  const root = path.resolve(getStorageRoot(db));
-  const normalizedRel = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
-  const absolutePath = path.resolve(root, normalizedRel);
-
-  // Enforce true folder boundary (path.sep / slash after root) to prevent sibling prefix bypass
-  const normalizedRoot = root.replace(/\\/g, '/');
-  const normalizedRootWithSep = normalizedRoot.endsWith('/') ? normalizedRoot : normalizedRoot + '/';
-  const normalizedAbs = absolutePath.replace(/\\/g, '/');
-
-  const relativeDiff = path.relative(root, absolutePath);
-  const isOutside = relativeDiff.startsWith('..') || path.isAbsolute(relativeDiff);
-
-  if (isOutside || (normalizedAbs !== normalizedRoot && !normalizedAbs.startsWith(normalizedRootWithSep))) {
-    throw new Error('المسار المطلوب يقع خارج مجلد تخزين المستندات المصرح به.');
-  }
-
-  return absolutePath;
+  const root = getStorageRoot(db);
+  return resolveSafePathWithinRoot(root, relativePath);
 }
 
 /**
