@@ -110,7 +110,7 @@ assert(res1.remainingBalance === 99, 'Remaining balance after 1-day deduction is
 console.log('\nTest 2: EndDate earlier than StartDate throws error');
 assertThrows(() => {
   LeaveService.processRegularLeave(1, 1, '2026-05-15', '2026-05-14', db, 'إجازة اعتيادية');
-}, 'لا يتطابق', 'Throws error when EndDate < StartDate');
+}, 'تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها', 'Throws error when EndDate < StartDate');
 
 // ── 3. سنة كبيسة تتضمن 29 شباط (Leap year including Feb 29) ───
 console.log('\nTest 3: Leap year leap-day calculation (2024-02-28 to 2024-03-01 = 3 days)');
@@ -590,6 +590,52 @@ const updateFakeDateRes = mockIpc.handlers['leave:update']({}, {
 });
 assert(updateFakeDateRes.success === false, 'Update leave with fake date 2023-02-29 is rejected by IPC handler');
 assert(updateFakeDateRes.error.includes('يرجى إدخال تاريخ بداية الإجازة بصيغة صحيحة'), 'Update leave rejection error clearly states invalid calendar date');
+
+// 7. التحقق المباشر من رفض التواريخ الوهمية تقويمياً في دوال الخدمة LeaveService
+console.log('\nTest 20b: Direct calendar date validation in LeaveService methods');
+// أ: processSickLeave يرفض تاريخاً وهمياً تقويمياً
+assertThrows(() => {
+  LeaveService.processSickLeave(1, 1, '2024-02-30', '2024-02-30', db, 'المدير');
+}, 'غير صالح تقويمياً', 'processSickLeave rejects fake calendar date 2024-02-30');
+
+// ب: processRegularLeave يرفض تاريخاً وهمياً تقويمياً
+assertThrows(() => {
+  LeaveService.processRegularLeave(1, 1, '2023-02-29', '2023-02-29', db, 'إجازة اعتيادية');
+}, 'غير صالح تقويمياً', 'processRegularLeave rejects fake calendar date 2023-02-29');
+
+// ج: updateLeave يرفض تاريخاً وهمياً تقويمياً
+assertThrows(() => {
+  LeaveService.updateLeave(1, {
+    modifierName: 'مدقق',
+    startDate: '2024-04-31',
+    endDate: '2024-04-31',
+    requestedDays: 1,
+    leaveType: 'إجازة اعتيادية'
+  }, db);
+}, 'غير صالح تقويمياً', 'updateLeave rejects fake calendar date 2024-04-31');
+
+// 8. التحقق المباشر من رفض تاريخ نهاية يسبق تاريخ البداية برسالة عربية دقيقة
+console.log('\nTest 20c: Date ordering validation (endDate < startDate) across LeaveService methods');
+// أ: processSickLeave
+assertThrows(() => {
+  LeaveService.processSickLeave(1, 1, '2026-05-15', '2026-05-10', db, 'المدير');
+}, 'تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها', 'processSickLeave rejects endDate < startDate with precise message');
+
+// ب: processRegularLeave
+assertThrows(() => {
+  LeaveService.processRegularLeave(1, 1, '2026-06-20', '2026-06-19', db, 'إجازة اعتيادية');
+}, 'تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها', 'processRegularLeave rejects endDate < startDate with precise message');
+
+// ج: updateLeave
+assertThrows(() => {
+  LeaveService.updateLeave(1, {
+    modifierName: 'مدقق',
+    startDate: '2026-07-10',
+    endDate: '2026-07-05',
+    requestedDays: 1,
+    leaveType: 'إجازة اعتيادية'
+  }, db);
+}, 'تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها', 'updateLeave rejects endDate < startDate with precise message');
 
 // ── Suite 21: Auto SequenceNumber Generation & Immutability ─
 console.log('\n--- Suite 21: Auto SequenceNumber Generation & Immutability ---');

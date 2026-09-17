@@ -31,6 +31,7 @@
 
 const AuditService = require('./AuditService');
 const { validateOrderNumber } = require('../utils/orderNumberValidator');
+const { isValidIsoDate } = require('../utils/dateValidator');
 const LoggerService = require('./LoggerService');
 
 // ──────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ function _requireLeaveType(name, db) {
  */
 function checkLeaveOverlap(employeeId, startDate, endDate, excludeLeaveId, db) {
   if (!employeeId || !startDate || !endDate || !db) return null;
+  if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate) || endDate < startDate) return null;
 
   let query = `
     SELECT 
@@ -411,6 +413,28 @@ function processSickLeave(
     throw new Error('يرجى تحديد تاريخ بداية ونهاية الإجازة.');
   }
 
+  // Real calendar verification & date ordering (precedes any day/balance calculations)
+  // التحقق التقويمي الواقعي وترتيب التواريخ (يسبق أي حسابات للأيام أو الأرصدة)
+  if (!isValidIsoDate(startDate)) {
+    throw new Error('تاريخ بداية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
+  if (!isValidIsoDate(endDate)) {
+    throw new Error('تاريخ نهاية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
+  if (endDate < startDate) {
+    throw new Error('تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها.');
+  }
+
+  if (requestDate && !isValidIsoDate(requestDate)) {
+    throw new Error('تاريخ تقديم الطلب غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (memoDate && !isValidIsoDate(memoDate)) {
+    throw new Error('تاريخ المذكرة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (orderDate && !isValidIsoDate(orderDate)) {
+    throw new Error('تاريخ الأمر الإداري غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+
   // Inclusive date-range count must match requestedDays
   // مطابقة عدد الأيام الفعلي بين تاريخ البداية والنهاية
   const dateRangeDays = _daysBetween(startDate, endDate) + 1;
@@ -650,6 +674,28 @@ function processRegularLeave(
   }
   if (!startDate || !endDate) {
     throw new Error('يرجى تحديد تاريخ بداية ونهاية الإجازة.');
+  }
+
+  // Real calendar verification & date ordering (precedes any day/balance calculations)
+  // التحقق التقويمي الواقعي وترتيب التواريخ (يسبق أي حسابات للأيام أو الأرصدة)
+  if (!isValidIsoDate(startDate)) {
+    throw new Error('تاريخ بداية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
+  if (!isValidIsoDate(endDate)) {
+    throw new Error('تاريخ نهاية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
+  if (endDate < startDate) {
+    throw new Error('تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها.');
+  }
+
+  if (requestDate && !isValidIsoDate(requestDate)) {
+    throw new Error('تاريخ تقديم الطلب غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (memoDate && !isValidIsoDate(memoDate)) {
+    throw new Error('تاريخ المذكرة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (orderDate && !isValidIsoDate(orderDate)) {
+    throw new Error('تاريخ الأمر الإداري غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
   }
 
   // Inclusive date-range count must match requestedDays
@@ -1031,11 +1077,11 @@ function getExpiredLeaves({ period = 'last3months', customStartDate = null, cust
   } else if (period === 'currentYear') {
     periodClause = `AND l.EndDate >= date('now', 'localtime', 'start of year')`;
   } else if (period === 'custom') {
-    if (customStartDate && typeof customStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(customStartDate.trim())) {
+    if (customStartDate && isValidIsoDate(customStartDate.trim())) {
       periodClause += ` AND l.EndDate >= ?`;
       params.push(customStartDate.trim());
     }
-    if (customEndDate && typeof customEndDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(customEndDate.trim())) {
+    if (customEndDate && isValidIsoDate(customEndDate.trim())) {
       periodClause += ` AND l.EndDate <= ?`;
       params.push(customEndDate.trim());
     }
@@ -1336,8 +1382,27 @@ function updateLeave(leaveId, payload, db) {
   if (!startDate || !endDate) {
     throw new Error('يرجى تحديد تاريخ بداية ونهاية الإجازة.');
   }
+
+  // Real calendar verification & date ordering (precedes any day/balance calculations)
+  // التحقق التقويمي الواقعي وترتيب التواريخ (يسبق أي حسابات للأيام أو الأرصدة)
+  if (!isValidIsoDate(startDate)) {
+    throw new Error('تاريخ بداية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
+  if (!isValidIsoDate(endDate)) {
+    throw new Error('تاريخ نهاية الإجازة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD وتاريخاً حقيقياً).');
+  }
   if (endDate < startDate) {
-    throw new Error('تاريخ النهاية يجب أن يكون بعد أو مساوياً لتاريخ البداية.');
+    throw new Error('تاريخ نهاية الإجازة لا يمكن أن يسبق تاريخ بدايتها.');
+  }
+
+  if (requestDate && !isValidIsoDate(requestDate)) {
+    throw new Error('تاريخ تقديم الطلب غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (memoDate && !isValidIsoDate(memoDate)) {
+    throw new Error('تاريخ المذكرة غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
+  }
+  if (orderDate && !isValidIsoDate(orderDate)) {
+    throw new Error('تاريخ الأمر الإداري غير صالح تقويمياً (يجب أن يكون بصيغة YYYY-MM-DD).');
   }
 
   const calculatedDays = _daysBetween(startDate, endDate) + 1;
