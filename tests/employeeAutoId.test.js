@@ -89,7 +89,7 @@ const db = createTestDb();
 
 // ── Test 1: Auto generation from AppCounters ───────────────────
 console.log('--- Test 1: Auto EmployeeID generation from AppCounters ---');
-db.prepare("INSERT INTO AppCounters (CounterKey, CounterValue) VALUES ('next_employee_id', 10)").run();
+db.prepare("INSERT OR REPLACE INTO AppCounters (CounterKey, CounterValue) VALUES ('next_employee_id', 10)").run();
 db.prepare("INSERT OR REPLACE INTO _AppSettings (Key, Value) VALUES ('next_employee_id', '10')").run();
 
 EmployeeService.addEmployee({
@@ -214,5 +214,31 @@ assertThrows(() => {
 // Verify atomic rollback: employee must NOT exist in database!
 const rolledBackEmp = db.prepare("SELECT * FROM Employees WHERE FullName = 'موظف يجب أن يفشل بالكامل'").get();
 assert(rolledBackEmp == null, 'Employee is NOT inserted (atomic rollback succeeded, zero orphan records)');
+
+// ── Test 7: Missing AppCounters table catches 'no such table', logs warning & falls back ──
+console.log('\n--- Test 7: Missing AppCounters table graceful degradation ---');
+const isolatedDb = new Database(':memory:');
+const migDir = path.join(__dirname, '..', 'src', 'main', 'migrations');
+const files021 = fs.readdirSync(migDir).filter(f => f.endsWith('.sql') && !f.startsWith('022')).sort();
+for (const f of files021) {
+  const sql = fs.readFileSync(path.join(migDir, f), 'utf8');
+  try { isolatedDb.exec(sql); } catch (e) {
+    if (!e.message.includes('duplicate column')) throw e;
+  }
+}
+
+// When AppCounters table is missing, reading from it does NOT throw 'تعذر قراءة عداد الموظفين من AppCounters'.
+// It logs a warning, proceeds to fallback, and then fails safely on write with rollback.
+assertThrows(() => {
+  EmployeeService.addEmployee({
+    fullName: 'موظف في قاعدة بيانات بدون جدول عدادات',
+    gender: 'Male',
+    hireDate: '2023-07-01',
+    jobTitle: 'مهندس صيانة',
+    departmentId: 1
+  }, isolatedDb);
+}, 'فشل تحديث عداد AppCounters', 'addEmployee handles missing AppCounters table on read gracefully and fails safely on write');
+
+isolatedDb.close();
 
 console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED FOR EMPLOYEE AUTO ID & JOBNUMBER!`);

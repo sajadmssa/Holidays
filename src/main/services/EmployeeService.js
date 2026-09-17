@@ -270,8 +270,12 @@ function addEmployee(employeeData, db) {
           savedId = Number(counterRow.CounterValue);
         }
       } catch (err) {
-        LoggerService.error('EmployeeService', `Failed to read from AppCounters: ${err.message}`, err);
-        throw new Error(`تعذر قراءة عداد الموظفين من AppCounters: ${err.message}`);
+        if (err.message && err.message.toLowerCase().includes('no such table')) {
+          LoggerService.warn('EmployeeService', `AppCounters table does not exist, falling back to secondary sources: ${err.message}`);
+        } else {
+          LoggerService.error('EmployeeService', `Failed to read from AppCounters: ${err.message}`, err);
+          throw new Error(`تعذر قراءة عداد الموظفين من AppCounters: ${err.message}`);
+        }
       }
 
       // 2. Read from secondary fallback counter: _AppSettings if AppCounters has no row
