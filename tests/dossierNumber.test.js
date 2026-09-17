@@ -117,19 +117,26 @@ const emp2Id = EmployeeService.addEmployee({
 const emp2 = EmployeeService.getEmployeeById(emp2Id, db);
 assert(emp2.DossierNumber === null, 'emp2 has DossierNumber === null when omitted');
 
-// ── Test 3: Non-uniqueness (multiple employees can share dossier) ──────
-console.log('--- Test 3: Non-uniqueness allowed ---');
+// ── Test 3: Non-uniqueness allowed for transferred employee (ADR-029) ─
+console.log('--- Test 3: Non-uniqueness allowed when previous owner is transferred ---');
+EmployeeService.transferEmployee({
+  employeeId: emp1Id,
+  transferOrderNumber: '1001',
+  transferOrderDate: '2022-01-01',
+  transferNotes: 'نقل إلى دائرة أخرى'
+}, db);
+
 const emp3Id = EmployeeService.addEmployee({
   fullName: 'حيدر كريم جاسم',
   gender: 'Male',
   hireDate: '2022-06-01',
   jobTitle: 'مبرمج',
   departmentId: 1,
-  dossierNumber: 'DOS-2024-001' // Same dossier number as emp1
+  dossierNumber: 'DOS-2024-001' // Same dossier number as transferred emp1
 }, db);
 
 const emp3 = EmployeeService.getEmployeeById(emp3Id, db);
-assert(emp3.DossierNumber === 'DOS-2024-001', 'emp3 shares the same DossierNumber successfully');
+assert(emp3.DossierNumber === 'DOS-2024-001', 'emp3 shares the same DossierNumber successfully with transferred emp1');
 
 // ── Test 4: Update dossierNumber via updateEmployee ───────────────────
 console.log('--- Test 4: Update dossierNumber via updateEmployee ---');

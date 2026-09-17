@@ -44,6 +44,39 @@ const MAX_CARD_LENGTH = 100;
 const MAX_APPROVER_LENGTH = 200;
 const MAX_DOSSIER_LENGTH = 100;  // ADR-027: رقم الإضبارة
 
+/**
+ * التحقق من تفرد رقم الإضبارة بين الموظفين النشطين الفعليين (ADR-029).
+ * - يُشترط التفرد فقط بين الموظفين الذين هم: IsActive = 1 و IsTransferred = 0.
+ * - إذا كان صاحب الرقم منقولاً (IsTransferred = 1) أو مجمّداً/محالاً للتقاعد (IsActive = 0)،
+ *   يُسمح بإعادة استخدام نفس رقم الإضبارة لموظف نشط آخر.
+ * - إذا كانت القيمة فارغة أو null، لا يُطبق الفحص إطلاقاً.
+ * - عند التعديل، يُستثنى الموظف نفسه (excludeEmployeeId).
+ *
+ * @param {string|null} dossierNumber
+ * @param {number|null} excludeEmployeeId
+ * @param {import('better-sqlite3').Database} db
+ */
+function checkDossierNumberUniqueness(dossierNumber, excludeEmployeeId, db) {
+  if (!dossierNumber || typeof dossierNumber !== 'string') return;
+  const trimmed = dossierNumber.trim();
+  if (!trimmed) return;
+
+  const query = `
+    SELECT EmployeeID, FullName
+    FROM Employees
+    WHERE DossierNumber = ?
+      AND IsActive = 1
+      AND IsTransferred = 0
+      AND (? IS NULL OR EmployeeID != ?)
+    LIMIT 1
+  `;
+
+  const conflict = db.prepare(query).get(trimmed, excludeEmployeeId ?? null, excludeEmployeeId ?? null);
+  if (conflict) {
+    throw new Error(`رقم الإضبارة هذا مسجَّل مسبقاً للموظف: ${conflict.FullName}`);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  addEmployee
 //
@@ -207,12 +240,15 @@ function addEmployee(employeeData, db) {
     throw new Error('نوع الدوام غير صالح. الخيارات المتاحة: دوام صباحي، مناوب، مناوب بنظام 400kv.');
   }
 
-  // DossierNumber Validation / التحقق من رقم الإضبارة (ADR-027)
+  // DossierNumber Validation / التحقق من رقم الإضبارة (ADR-027 & ADR-029)
   const cleanDossierNumber = typeof dossierNumber === 'string' && dossierNumber.trim().length > 0
     ? dossierNumber.trim()
     : null;
   if (cleanDossierNumber && cleanDossierNumber.length > MAX_DOSSIER_LENGTH) {
     throw new Error(`رقم الإضبارة طويل جداً (الحد الأقصى المسموح به ${MAX_DOSSIER_LENGTH} حرف).`);
+  }
+  if (cleanDossierNumber) {
+    checkDossierNumberUniqueness(cleanDossierNumber, null, db);
   }
 
   // ── Step 6: Atomic Transaction (Insert Employee + Default Balances + Audit Log) ──
@@ -628,7 +664,7 @@ function updateEmployee(employeeId, updateData, db) {
     cleanWorkShiftType = rawShift;
   }
 
-  // DossierNumber Validation for Update / التحقق من رقم الإضبارة عند التعديل (ADR-027)
+  // DossierNumber Validation for Update / التحقق من رقم الإضبارة عند التعديل (ADR-027 & ADR-029)
   let cleanDossierNumber = undefined;
   if (dossierNumber !== undefined) {
     cleanDossierNumber = typeof dossierNumber === 'string' && dossierNumber.trim().length > 0
@@ -636,6 +672,9 @@ function updateEmployee(employeeId, updateData, db) {
       : null;
     if (cleanDossierNumber && cleanDossierNumber.length > MAX_DOSSIER_LENGTH) {
       throw new Error(`رقم الإضبارة طويل جداً (الحد الأقصى المسموح به ${MAX_DOSSIER_LENGTH} حرف).`);
+    }
+    if (cleanDossierNumber) {
+      checkDossierNumberUniqueness(cleanDossierNumber, employeeId, db);
     }
   }
 
@@ -775,6 +814,10 @@ function activateEmployee(employeeId, db) {
       throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
     }
 
+    if (oldEmployee.DossierNumber) {
+      checkDossierNumberUniqueness(oldEmployee.DossierNumber, employeeId, db);
+    }
+
     const result = db
       .prepare('UPDATE Employees SET IsActive = 1 WHERE EmployeeID = ?')
       .run(employeeId);
@@ -911,6 +954,10 @@ function cancelEmployeeTransfer(employeeId, db) {
   const emp = db.prepare('SELECT * FROM Employees WHERE EmployeeID = ?').get(employeeId);
   if (!emp) {
     throw new Error(`تعذر العثور على الموظف صاحب الرقم (${employeeId}).`);
+  }
+
+  if (emp.DossierNumber) {
+    checkDossierNumberUniqueness(emp.DossierNumber, employeeId, db);
   }
 
   return db.transaction(() => {
@@ -1103,4 +1150,5 @@ module.exports = {
   transferEmployee,
   cancelEmployeeTransfer,
   getEmployeesPaginated,
+  checkDossierNumberUniqueness,
 };
