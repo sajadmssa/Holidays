@@ -73,12 +73,11 @@ function createTestDb() {
     }
   }
 
-  // Ensure AppCounters table exists as created by migration script / schema
+  // Ensure AppCounters table exists (schema must match migration 022: 2 columns only, no UpdatedAt)
   db.exec(`
     CREATE TABLE IF NOT EXISTS AppCounters (
       CounterKey TEXT PRIMARY KEY,
-      CounterValue INTEGER NOT NULL,
-      UpdatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      CounterValue INTEGER NOT NULL
     );
   `);
 

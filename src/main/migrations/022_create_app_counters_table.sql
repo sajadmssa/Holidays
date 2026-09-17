@@ -7,18 +7,20 @@
 --    that never decrement or collide even when records are deleted.
 --  • CounterKey is the PRIMARY KEY.
 --  • next_employee_id is initialized from MAX(EmployeeID) + 1 of the Employees table.
+--  • UpdatedAt column intentionally omitted — not used by EmployeeService.js.
+--    Keeping the schema minimal prevents conflicts with any pre-existing table
+--    created before this migration was introduced (hotfix: production crash fix).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS AppCounters (
     CounterKey TEXT PRIMARY KEY,
-    CounterValue INTEGER NOT NULL DEFAULT 1,
-    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    CounterValue INTEGER NOT NULL DEFAULT 1
 );
 
 -- Seed next_employee_id from existing Employees table if not already present
-INSERT OR IGNORE INTO AppCounters (CounterKey, CounterValue, UpdatedAt)
+INSERT OR IGNORE INTO AppCounters (CounterKey, CounterValue)
 VALUES (
     'next_employee_id',
-    (SELECT COALESCE(MAX(EmployeeID), 0) + 1 FROM Employees),
-    datetime('now', 'localtime')
+    (SELECT COALESCE(MAX(EmployeeID), 0) + 1 FROM Employees)
 );
+
