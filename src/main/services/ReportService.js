@@ -75,6 +75,34 @@ function applyRowStyle(row, style, colCount) {
 }
 
 /**
+ * كتابة قيمة رقمية أو نصية في خلية Excel مع ضبط التنسيق المناسب.
+ * إذا كانت القيمة رقماً صحيحاً بحتاً بعد التقليم (/^\d+$/):
+ * تُكتب كـ Number حقيقي (parseInt) مع numFmt = '0'.
+ * خلاف ذلك (رموز، حروف، فارغ/null/undefined): تُكتب كنص كما هي دون تحويل.
+ *
+ * @param {import('exceljs').Cell} cell
+ * @param {any} rawVal
+ * @param {string} [emptyPlaceholder='-']
+ */
+function writeNumericOrTextCell(cell, rawVal, emptyPlaceholder = '-') {
+  if (rawVal === null || rawVal === undefined) {
+    cell.value = emptyPlaceholder;
+    return;
+  }
+  const str = String(rawVal).trim();
+  if (str === '') {
+    cell.value = emptyPlaceholder;
+    return;
+  }
+  if (/^\d+$/.test(str)) {
+    cell.value = parseInt(str, 10);
+    cell.numFmt = '0';
+  } else {
+    cell.value = str;
+  }
+}
+
+/**
  * استرجاع الاسم الرسمي للدائرة أو الجهة من إعدادات النظام
  * Retrieves the department/division official name from _AppSettings.
  * @param {import('better-sqlite3').Database} db
@@ -630,18 +658,10 @@ async function exportAllEmployees(arg1, arg2, arg3) {
         ? Number(emp.LeaveCardNumber)
         : (emp.LeaveCardNumber || '-');
 
-      const jobNumberDisplay = (emp.JobNumber !== null && emp.JobNumber !== undefined && emp.JobNumber !== '')
-        ? emp.JobNumber
-        : '-';
-
-      const dossierDisplay = (emp.DossierNumber !== null && emp.DossierNumber !== undefined && emp.DossierNumber !== '')
-        ? emp.DossierNumber
-        : '-';
-
       const dataRow = ws.addRow([
         emp.SequenceNumber || (index + 1),
-        jobNumberDisplay,
-        dossierDisplay,
+        '',
+        '',
         emp.FullName,
         emp.DepartmentName || '-',
         emp.JobTitle || '-',
@@ -659,12 +679,8 @@ async function exportAllEmployees(arg1, arg2, arg3) {
 
       // Numeric formatting for Sequence, ID, Dossier, and Card columns
       dataRow.getCell(1).numFmt = '0';
-      if (jobNumberDisplay !== '-' && !isNaN(Number(jobNumberDisplay))) {
-        dataRow.getCell(2).numFmt = '0';
-      }
-      if (dossierDisplay !== '-' && !isNaN(Number(dossierDisplay))) {
-        dataRow.getCell(3).numFmt = '0';
-      }
+      writeNumericOrTextCell(dataRow.getCell(2), emp.JobNumber);
+      writeNumericOrTextCell(dataRow.getCell(3), emp.DossierNumber);
       if (typeof cardVal === 'number') {
         dataRow.getCell(9).numFmt = '0';
       }
@@ -1827,5 +1843,6 @@ module.exports = {
   exportCriticalReportToExcel,
   exportTransferredEmployeesToExcel,
   getDepartmentName,
+  writeNumericOrTextCell,
 };
 

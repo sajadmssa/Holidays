@@ -9,7 +9,7 @@
     "dev": "electron . --inspect=5858",
     "db:reset": "node scripts/reset-db.js",
     "dev:clean": "npm run db:reset && npm run dev",
-    "test": "node tests/ipcChannelGuard.test.js && node tests/employeeAutoId.test.js && node tests/workShiftType.test.js && node tests/leaveService.test.js && node tests/freshInstall.test.js && node tests/dossierNumber.test.js",
+    "test": "node tests/ipcChannelGuard.test.js && node tests/employeeAutoId.test.js && node tests/workShiftType.test.js && node tests/leaveService.test.js && node tests/freshInstall.test.js && node tests/dossierNumber.test.js && node tests/excelNumericFormatting.test.js",
     "build": "electron-builder --win"
   },
   "keywords": [],
