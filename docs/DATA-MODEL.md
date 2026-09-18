@@ -125,13 +125,13 @@ erDiagram
 | `LeaveCardNumber` | TEXT | **فريد جزئياً** (`idx_employees_leave_card_number`) — يتجاهل `NULL`/فارغ | أُضيف في `002` |
 | `LeaveApprover` | TEXT | اختياري | أُضيف في `002` — قيمة افتراضية للموافق، تُستنسَخ لاحقاً إلى كل إجازة عبر `006` |
 | `WorkShiftType` | TEXT | `NOT NULL DEFAULT 'دوام صباحي'`, `CHECK IN ('دوام صباحي','مناوب','مناوب بنظام 400kv')` | أُضيف في `020` — نوع دوام الموظف، قائمة مغلقة بثلاث قيم ثابتة (ADR-026) |
-| `DossierNumber` | TEXT | اختياري (`NULL`) | أُضيف في `021` — رقم الإضبارة الورقية في الأرشيف الحكومي (ADR-027)، غير مقيد بالتفرد لاحتمال تشارك الإضبارة إدارياً، مفهرس جزئياً |
+| `DossierNumber` | TEXT | اختياري (`NULL`) | أُضيف في `021` (ADR-027) — رقم الإضبارة الورقية في الأرشيف الحكومي؛ مقيد بالتفرد على مستوى قاعدة البيانات للموظفين النشطين غير المنقولين عبر قيد التفرد الجزئي `idx_employees_dossier_number_unique` (أُضيف في `025`، ADR-034)، مع بقاء الفهرس الجزئي `idx_employees_dossier_number` للبحث السريع عبر كافة الموظفين |
 | `IsActive` | INTEGER | `CHECK IN (0,1)`, افتراضي `1` | يمنع تسجيل إجازة جديدة عند `0` عبر `trg_prevent_inactive_employee_leave` |
 | `AdjustmentDays` | INTEGER | افتراضي `0` | أُضيف في `003` — تعديل يدوي على الرصيد (مثال: ترحيل من نظام سابق) |
 | `IsTransferred` | INTEGER | `CHECK IN (0,1)`, افتراضي `0` | أُضيف في `015` — **لا يُعطّل الموظف** (`IsActive` يبقى `1`)؛ الموظف المنقول خارجياً يُستثنى من قوائم الإجازات النشطة، والتنبيهات المباشرة، وتقارير الأرصدة الحرجة، وإحصائيات التراكم السنوي، مع بقائه "نشطاً" رسمياً في دليل الموظفين |
 | `TransferOrderNumber` / `TransferOrderDate` / `TransferNotes` | TEXT | اختياري | أُضيفت في `015` — توثيق أمر النقل الإداري |
 
-**فهارس:** `idx_employees_sequence` (`SequenceNumber` فريد)، `idx_employees_dept` (`DepartmentID`)، `idx_employees_leave_card_number` (فريد جزئي)، `idx_employees_active_name` (`IsActive, FullName`)، `idx_employees_card` (`LeaveCardNumber`)، `idx_employees_is_transferred`، `idx_employees_dossier_number` (مفهرس جزئياً عند عدم كونه فارغاً).
+**فهارس:** `idx_employees_sequence` (`SequenceNumber` فريد)، `idx_employees_dept` (`DepartmentID`)، `idx_employees_leave_card_number` (فريد جزئي)، `idx_employees_active_name` (`IsActive, FullName`)، `idx_employees_card` (`LeaveCardNumber`)، `idx_employees_is_transferred`، `idx_employees_dossier_number` (فهرس بحث جزئي)، `idx_employees_dossier_number_unique` (فهرس فريد جزئي للموظفين النشطين غير المنقولين).
 
 ### 2.2 `Departments` — سجل الأقسام (جديد منذ Migration 017)
 
@@ -295,10 +295,11 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | 022 | `create_app_counters_table` | إنشاء جدول `AppCounters` للعدادات النظامية المستمرة وزرع قيمة البداية لـ `next_employee_id` لحساب `MAX(EmployeeID)+1` لدعم التثبيت النظيف ومنع تكرار المعرّفات (ADR-020, ADR-025) |
 | 023 | `set_leaves_on_delete_restrict` | تثبيت قيد `ON DELETE RESTRICT` على `Leaves.LeaveTypeID` لضمان حماية أنواع الإجازات من الحذف عند ارتباطها بسجلات فعلية |
 | 024 | `add_leave_location_to_leaves` | إضافة عمود `LeaveLocation` (مكان الإجازة — اختياري) إلى جدول `Leaves` لتوثيق مكان قضاء الإجازة (داخل/خارج القطر) |
+| 025 | `add_dossier_number_unique_constraint` | إضافة فهرس فريد جزئي `idx_employees_dossier_number_unique` لفرض تفرد رقم الإضبارة بين الموظفين النشطين غير المنقولين على مستوى قاعدة البيانات (ADR-034) |
 
 **قاعدة ذهبية عند إضافة أي ترحيل جديد مستقبلاً:** أضف سطراً هنا في نفس الالتزام (Commit)، وحدِّث القسم المقابل من هذه الوثيقة (الجدول المتأثر) — لضمان بقاء نموذج البيانات مطابقاً بنسبة 100% للواقع الفعلي.
 
 ---
 
-*آخر تحديث: 18 أيلول 2026، يشمل الترحيلات الكاملة حتى `024_add_leave_location_to_leaves.sql` ودعم إدارة أنواع الإجازات ومكان الإجازة.*
+*آخر تحديث: 18 أيلول 2026، يشمل الترحيلات الكاملة حتى `025_add_dossier_number_unique_constraint.sql` وفرض تفرد رقم الإضبارة بقيد قاعدة البيانات.*
 

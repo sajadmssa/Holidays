@@ -35,7 +35,15 @@ function translateSqliteError(err) {
     return 'رقم الأمر الإداري مطلوب لهذا النوع من الإجازات.';
   }
 
-  // قيود التفرد (عدم تكرار الرقم الوظيفي مثلاً)
+  // قيد تفرد رقم الإضبارة للموظفين النشطين (ADR-032 / Defense-in-Depth)
+  if (
+    msg.includes('idx_employees_dossier_number_unique') ||
+    (msg.includes('UNIQUE constraint failed') && (msg.includes('Employees.DossierNumber') || msg.includes('DossierNumber')))
+  ) {
+    return 'رقم الإضبارة مستخدم من قبل موظف نشط آخر.';
+  }
+
+  // قيود التفرد العامة (عدم تكرار الرقم الوظيفي مثلاً)
   if (msg.includes('UNIQUE constraint failed')) {
     return 'البيانات المدخلة مكررة، يوجد سجل مطابق مسبقاً في النظام.';
   }
