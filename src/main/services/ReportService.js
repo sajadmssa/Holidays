@@ -357,6 +357,7 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
         l.StartDate,
         l.EndDate,
         l.DaysCount,
+        l.LeaveLocation,
         l.RequestDate,
         l.MemoNumber,
         l.MemoDate,
@@ -386,17 +387,18 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
   });
 
   const COLUMNS = [
-    { key: 'seq',         width: 6  },   // ت
-    { key: 'leaveType',   width: 20 },   // نوع الإجازة
-    { key: 'requestDate', width: 16 },   // تاريخ تقديم الطلب
-    { key: 'startDate',   width: 15 },   // تاريخ البدء
-    { key: 'endDate',     width: 15 },   // تاريخ الانتهاء
-    { key: 'days',        width: 12 },   // عدد الأيام
-    { key: 'memoNumber',  width: 16 },   // رقم المذكرة
-    { key: 'memoDate',    width: 15 },   // تاريخ المذكرة
-    { key: 'orderNumber', width: 16 },   // رقم الأمر الإداري
-    { key: 'orderDate',   width: 15 },   // تاريخ الأمر الإداري
-    { key: 'approver',    width: 24 },   // المسؤول عن منح الإجازة
+    { key: 'seq',           width: 6  },   // ت
+    { key: 'leaveType',     width: 20 },   // نوع الإجازة
+    { key: 'leaveLocation', width: 16 },   // موقع الإجازة
+    { key: 'requestDate',   width: 16 },   // تاريخ تقديم الطلب
+    { key: 'startDate',     width: 15 },   // تاريخ البدء
+    { key: 'endDate',       width: 15 },   // تاريخ الانتهاء
+    { key: 'days',          width: 12 },   // عدد الأيام
+    { key: 'memoNumber',    width: 16 },   // رقم المذكرة
+    { key: 'memoDate',      width: 15 },   // تاريخ المذكرة
+    { key: 'orderNumber',   width: 16 },   // رقم الأمر الإداري
+    { key: 'orderDate',     width: 15 },   // تاريخ الأمر الإداري
+    { key: 'approver',      width: 24 },   // المسؤول عن منح الإجازة
   ];
   const COL_COUNT = COLUMNS.length;
   ws.columns = COLUMNS;
@@ -419,6 +421,7 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
   const headerRow = ws.addRow([
     'ت',
     'نوع الإجازة',
+    'موقع الإجازة',
     'تاريخ تقديم الطلب',
     'تاريخ البدء',
     'تاريخ الانتهاء',
@@ -446,6 +449,7 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
       const dataRow = ws.addRow([
         index + 1,
         leave.LeaveName || '-',
+        leave.LeaveLocation || '-',
         leave.RequestDate || '-',
         leave.StartDate || '-',
         leave.EndDate || '-',
@@ -459,13 +463,14 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
       applyRowStyle(dataRow, index % 2 === 0 ? STYLE.rowEven : STYLE.rowOdd, COL_COUNT);
       dataRow.height = 18;
       dataRow.getCell(1).numFmt = '0';
-      dataRow.getCell(6).numFmt = '0';
+      dataRow.getCell(7).numFmt = '0';
     });
 
     const totalDays = leaves.reduce((sum, l) => sum + Number(l.DaysCount || 0), 0);
     const summaryRow = ws.addRow([
       '',
       'الإجمالي الكلي للأيام المستهلكة',
+      '',
       '',
       '',
       '',
@@ -478,7 +483,7 @@ async function exportEmployeeHistory(employeeId, filePath, db) {
     ]);
     applyRowStyle(summaryRow, STYLE.header, COL_COUNT);
     summaryRow.height = 20;
-    summaryRow.getCell(6).numFmt = '0';
+    summaryRow.getCell(7).numFmt = '0';
   }
 
   // Apply 3-Box Official Approvals Footer
@@ -1128,7 +1133,9 @@ EmployeeCalculations AS (
 function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().getFullYear() } = {}) {
   const safeThreshold = Number.isInteger(Number(threshold)) ? Number(threshold) : 5;
   const targetYear = Number.isInteger(Number(year)) ? Number(year) : new Date().getFullYear();
-  const yearStr = String(targetYear);
+  // ISO date boundaries for proportional cross-year day allocation
+  const yearStart = `${targetYear}-01-01`;
+  const yearEnd   = `${targetYear}-12-31`;
 
   // 1. Total Active Employees Count
   const totalActiveRow = db.prepare('SELECT COUNT(*) as count FROM Employees WHERE IsActive = 1 AND IsTransferred = 0').get();
@@ -1155,7 +1162,9 @@ function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().
   `;
   const criticalEmployees = db.prepare(criticalQuery).all(safeThreshold);
 
-  // 3. Query Year-to-Date Accumulated Leaves
+  // 3. Query Year-to-Date Accumulated Leaves (proportional cross-year allocation via julianday)
+  // الإجازات العابرة لحدود السنة تُوزَّع نسبياً: يُحتسب فقط عدد الأيام الواقعة فعلاً داخل نطاق السنة.
+  // مثال: إجازة 2025-12-25 → 2026-01-05 = 7 أيام في عام 2025 و 5 أيام في عام 2026.
   const rawAccumulatedLeaves = db
     .prepare(`
       SELECT
@@ -1166,18 +1175,36 @@ function getCriticalAndAccumulatedLeaves(db, { threshold = 5, year = new Date().
         e.LeaveCardNumber,
         e.HireDate,
         COUNT(l.LeaveID) AS TotalLeavesCount,
-        COALESCE(SUM(l.DaysCount), 0) AS TotalDaysCount,
-        COALESCE(SUM(CASE WHEN lt.Name = 'إجازة اعتيادية' THEN l.DaysCount ELSE 0 END), 0) AS RegularDaysCount,
-        COALESCE(SUM(CASE WHEN lt.Name = 'إجازة مرضية' THEN l.DaysCount ELSE 0 END), 0) AS SickDaysCount,
-        COALESCE(SUM(CASE WHEN lt.Name NOT IN ('إجازة اعتيادية', 'إجازة مرضية') THEN l.DaysCount ELSE 0 END), 0) AS OtherDaysCount
+        COALESCE(SUM(
+          CAST(ROUND(
+            julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))
+          ) AS INTEGER) + 1
+        ), 0) AS TotalDaysCount,
+        COALESCE(SUM(CASE WHEN lt.Name = 'إجازة اعتيادية' THEN
+          CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+        ELSE 0 END), 0) AS RegularDaysCount,
+        COALESCE(SUM(CASE WHEN lt.Name = 'إجازة مرضية' THEN
+          CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+        ELSE 0 END), 0) AS SickDaysCount,
+        COALESCE(SUM(CASE WHEN lt.Name NOT IN ('إجازة اعتيادية', 'إجازة مرضية') THEN
+          CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+        ELSE 0 END), 0) AS OtherDaysCount
       FROM Employees e
-      LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID AND strftime('%Y', l.StartDate) = ?
+      LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID
+        AND l.StartDate <= ?
+        AND l.EndDate   >= ?
       LEFT JOIN LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
       WHERE e.IsActive = 1 AND e.IsTransferred = 0
       GROUP BY e.EmployeeID
       ORDER BY TotalDaysCount DESC, e.FullName ASC
     `)
-    .all(yearStr);
+    .all(
+      yearEnd,  yearStart,   // TotalDaysCount MIN/MAX
+      yearEnd,  yearStart,   // RegularDaysCount MIN/MAX
+      yearEnd,  yearStart,   // SickDaysCount MIN/MAX
+      yearEnd,  yearStart,   // OtherDaysCount MIN/MAX
+      yearEnd,  yearStart    // JOIN condition
+    );
 
   const accumulatedLeaves = rawAccumulatedLeaves.map((r) => ({
     ...r,
@@ -1340,14 +1367,23 @@ function getCriticalBalancesPaginated(db, { threshold = 5, page = 1, pageSize = 
  */
 function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), page = 1, pageSize = 15, search = '' } = {}) {
   const targetYear = Number.isInteger(Number(year)) ? Number(year) : new Date().getFullYear();
-  const yearStr = String(targetYear);
+  // ISO date boundaries for proportional cross-year day allocation
+  const yearStart = `${targetYear}-01-01`;
+  const yearEnd   = `${targetYear}-12-31`;
   const safePage = Math.max(1, parseInt(page, 10) || 1);
   const safePageSize = Math.max(1, Math.min(200, parseInt(pageSize, 10) || 15));
   const offset = (safePage - 1) * safePageSize;
   const trimmedSearch = (search || '').trim();
 
   let searchClause = '';
-  const params = [yearStr];
+  // params for the data query: 8x julianday args + JOIN bounds + optional search + LIMIT/OFFSET
+  const params = [
+    yearEnd, yearStart,   // TotalDaysCount MIN/MAX
+    yearEnd, yearStart,   // RegularDaysCount MIN/MAX
+    yearEnd, yearStart,   // SickDaysCount MIN/MAX
+    yearEnd, yearStart,   // OtherDaysCount MIN/MAX
+    yearEnd, yearStart,   // JOIN condition
+  ];
   const countParams = [];
 
   if (trimmedSearch.length > 0) {
@@ -1370,7 +1406,8 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
   const totalCount = countRow ? countRow.total : 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
 
-  // 2. Paginated data query
+  // 2. Paginated data query (proportional cross-year allocation via julianday)
+  // الإجازات العابرة لحدود السنة تُوزَّع نسبياً: يُحتسب فقط عدد الأيام الواقعة فعلاً داخل نطاق السنة.
   const query = `
     SELECT
       e.EmployeeID,
@@ -1380,12 +1417,24 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
       e.LeaveCardNumber,
       e.HireDate,
       COUNT(l.LeaveID) AS TotalLeavesCount,
-      COALESCE(SUM(l.DaysCount), 0) AS TotalDaysCount,
-      COALESCE(SUM(CASE WHEN lt.Name = 'إجازة اعتيادية' THEN l.DaysCount ELSE 0 END), 0) AS RegularDaysCount,
-      COALESCE(SUM(CASE WHEN lt.Name = 'إجازة مرضية' THEN l.DaysCount ELSE 0 END), 0) AS SickDaysCount,
-      COALESCE(SUM(CASE WHEN lt.Name NOT IN ('إجازة اعتيادية', 'إجازة مرضية') THEN l.DaysCount ELSE 0 END), 0) AS OtherDaysCount
+      COALESCE(SUM(
+        CAST(ROUND(
+          julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))
+        ) AS INTEGER) + 1
+      ), 0) AS TotalDaysCount,
+      COALESCE(SUM(CASE WHEN lt.Name = 'إجازة اعتيادية' THEN
+        CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+      ELSE 0 END), 0) AS RegularDaysCount,
+      COALESCE(SUM(CASE WHEN lt.Name = 'إجازة مرضية' THEN
+        CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+      ELSE 0 END), 0) AS SickDaysCount,
+      COALESCE(SUM(CASE WHEN lt.Name NOT IN ('إجازة اعتيادية', 'إجازة مرضية') THEN
+        CAST(ROUND(julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))) AS INTEGER) + 1
+      ELSE 0 END), 0) AS OtherDaysCount
     FROM Employees e
-    LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID AND strftime('%Y', l.StartDate) = ?
+    LEFT JOIN Leaves l ON l.EmployeeID = e.EmployeeID
+      AND l.StartDate <= ?
+      AND l.EndDate   >= ?
     LEFT JOIN LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
     WHERE e.IsActive = 1 AND e.IsTransferred = 0
     ${searchClause}
@@ -1405,15 +1454,21 @@ function getAccumulatedLeavesPaginated(db, { year = new Date().getFullYear(), pa
     LeavesCount: Number(r.TotalLeavesCount || 0),
   }));
 
-  // 3. Overall Year Summary Totals
+  // 3. Overall Year Summary Totals (proportional cross-year allocation)
   const overallTotals = db.prepare(`
     SELECT
       COUNT(l.LeaveID) AS totalLeavesThisYear,
-      COALESCE(SUM(l.DaysCount), 0) AS totalDaysThisYear
+      COALESCE(SUM(
+        CAST(ROUND(
+          julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?))
+        ) AS INTEGER) + 1
+      ), 0) AS totalDaysThisYear
     FROM Leaves l
     JOIN Employees e ON e.EmployeeID = l.EmployeeID
-    WHERE e.IsActive = 1 AND e.IsTransferred = 0 AND strftime('%Y', l.StartDate) = ?
-  `).get(yearStr);
+    WHERE e.IsActive = 1 AND e.IsTransferred = 0
+      AND l.StartDate <= ?
+      AND l.EndDate   >= ?
+  `).get(yearEnd, yearStart, yearEnd, yearStart);
 
   return {
     data: pagedData,

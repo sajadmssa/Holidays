@@ -56,6 +56,66 @@ function resolveSafePathWithinRoot(rootDir, relativePath) {
   return absolutePath;
 }
 
+const { execSync } = require('child_process');
+
+/**
+ * Checks whether a given file/directory path points to a network location
+ * (UNC share path \\server\share, //server/share, \\?\UNC\, or a Windows Mapped Network Drive).
+ *
+ * @param {string} targetPath - Path to inspect
+ * @returns {boolean} True if network path, false if local
+ */
+function isNetworkPath(targetPath) {
+  if (!targetPath || typeof targetPath !== 'string') return false;
+
+  const rawPath = targetPath.trim();
+
+  // 1. Raw UNC check before and after resolve (\\server\share, //server/share, \\?\UNC\server\share)
+  if (
+    rawPath.startsWith('\\\\') ||
+    rawPath.startsWith('//') ||
+    rawPath.toLowerCase().startsWith('\\\\?\\unc\\')
+  ) {
+    return true;
+  }
+
+  const resolved = path.resolve(rawPath);
+  if (
+    resolved.startsWith('\\\\') ||
+    resolved.startsWith('//') ||
+    resolved.toLowerCase().startsWith('\\\\?\\unc\\')
+  ) {
+    return true;
+  }
+
+  // 2. Windows Mapped Network Drive check (e.g. Z:\...)
+  if (process.platform === 'win32') {
+    const driveMatch = resolved.match(/^([a-zA-Z]:)/);
+    if (driveMatch) {
+      const driveLetter = driveMatch[1].toUpperCase();
+      try {
+        // Query mapped network drives using net use
+        const output = execSync('net use', {
+          stdio: ['ignore', 'pipe', 'ignore'],
+          encoding: 'utf8',
+          timeout: 2000,
+          windowsHide: true,
+        });
+        // Match drive letter followed by UNC path in net use output
+        const driveRegex = new RegExp(`\\b${driveLetter}\\b.*\\\\\\\\[^\\s]+`, 'i');
+        if (driveRegex.test(output)) {
+          return true;
+        }
+      } catch (_) {
+        // If net use fails or times out, proceed safely
+      }
+    }
+  }
+
+  return false;
+}
+
 module.exports = {
   resolveSafePathWithinRoot,
+  isNetworkPath,
 };

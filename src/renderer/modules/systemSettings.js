@@ -39,12 +39,27 @@ let btnAddDepartment = null;
 let departmentsListContainer = null;
 let _onDepartmentsChangedCallbacks = [];
 
+let inputNewLeaveTypeName = null;
+let btnAddLeaveType = null;
+let leaveTypesListContainer = null;
+let _onLeaveTypesChangedCallbacks = [];
+
 export function onDepartmentsChanged(cb) {
   if (typeof cb === 'function') _onDepartmentsChangedCallbacks.push(cb);
 }
 
 function notifyDepartmentsChanged() {
   _onDepartmentsChangedCallbacks.forEach(cb => {
+    try { cb(); } catch (e) { console.error(e); }
+  });
+}
+
+export function onLeaveTypesChanged(cb) {
+  if (typeof cb === 'function') _onLeaveTypesChangedCallbacks.push(cb);
+}
+
+function notifyLeaveTypesChanged() {
+  _onLeaveTypesChangedCallbacks.forEach(cb => {
     try { cb(); } catch (e) { console.error(e); }
   });
 }
@@ -159,6 +174,116 @@ export async function loadDepartmentsList() {
 }
 
 /**
+ * تحميل وعرض قائمة أنواع الإجازات مع حماية الأنواع الأساسية من التعديل والحذف
+ */
+export async function loadLeaveTypesList() {
+  if (!leaveTypesListContainer) return;
+  try {
+    const res = await window.api.leaveTypes.getAllManaged();
+    if (res && res.success && Array.isArray(res.data)) {
+      if (res.data.length === 0) {
+        leaveTypesListContainer.innerHTML = '<div style="padding: 14px; text-align: center; color: var(--color-text-muted);">لا توجد أنواع إجازات مسجلة.</div>';
+        return;
+      }
+      leaveTypesListContainer.innerHTML = `
+        <div class="departments-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 44px;" class="text-center">#</th>
+                <th>اسم نوع الإجازة</th>
+                <th style="width: 80px;" class="text-center">الحالة</th>
+                <th style="width: 90px;" class="text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.data.map((lt, idx) => {
+                const isProtected = lt.IsProtected === true || lt.IsProtected === 1;
+                const actionBtns = isProtected
+                  ? `<span title="نوع أساسي محمي — لا يمكن تعديله أو حذفه" style="color:var(--color-text-muted);font-size:0.9em;cursor:help;">🔒</span>`
+                  : `<button type="button" class="btn-action-icon btn-edit-lt" data-id="${lt.LeaveTypeID}" data-name="${escapeHtml(lt.Name)}" title="تعديل اسم نوع الإجازة" aria-label="تعديل">✏️</button>
+                     <button type="button" class="btn-action-icon btn-delete-lt" data-id="${lt.LeaveTypeID}" data-name="${escapeHtml(lt.Name)}" title="حذف نوع الإجازة" aria-label="حذف">🗑️</button>`;
+                const badge = isProtected
+                  ? `<span style="font-size:0.75em;color:var(--color-text-muted);background:var(--color-bg-secondary);padding:2px 6px;border-radius:4px;white-space:nowrap;">أساسي محمي</span>`
+                  : '';
+                return `
+                <tr data-lt-id="${lt.LeaveTypeID}" ${isProtected ? 'style="opacity:0.85;"' : ''}>
+                  <td class="text-center font-bold dept-id-cell">${lt.LeaveTypeID}</td>
+                  <td class="dept-name-cell">${escapeHtml(lt.Name)} ${badge}</td>
+                  <td class="text-center" style="font-size:0.8em;color:var(--color-text-muted);">${lt.UsageCount > 0 ? `${lt.UsageCount} سجل` : 'غير مستخدم'}</td>
+                  <td class="text-center table-actions-cell">${actionBtns}</td>
+                </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Edit handlers
+      leaveTypesListContainer.querySelectorAll('.btn-edit-lt').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.id, 10);
+          const currentName = btn.dataset.name;
+          const newName = prompt('أدخل الاسم الجديد لنوع الإجازة:', currentName);
+          if (newName === null) return;
+          const trimmed = newName.trim();
+          if (!trimmed) {
+            showToast('اسم نوع الإجازة لا يمكن أن يكون فارغاً.', 'warning');
+            return;
+          }
+          if (trimmed === currentName) return;
+
+          try {
+            const updateRes = await window.api.leaveTypes.update(id, trimmed);
+            if (updateRes && updateRes.success) {
+              showToast('تم تعديل اسم نوع الإجازة بنجاح.', 'success');
+              await loadLeaveTypesList();
+              notifyLeaveTypesChanged();
+            } else {
+              showToast(updateRes?.error || 'تعذر تعديل اسم نوع الإجازة.', 'error');
+            }
+          } catch (err) {
+            showToast(err.message || 'حدث خطأ أثناء تعديل نوع الإجازة.', 'error');
+          }
+        });
+      });
+
+      // Delete handlers
+      leaveTypesListContainer.querySelectorAll('.btn-delete-lt').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.id, 10);
+          const ltName = btn.dataset.name;
+
+          const confirmed = await showConfirm(
+            `هل أنت متأكد من رغبتك في حذف نوع الإجازة "${ltName}"؟\nملاحظة: إذا كان هناك سجلات إجازات مرتبطة بهذا النوع فلن يُسمح بحذفه.`,
+            'تأكيد حذف نوع الإجازة'
+          );
+          if (!confirmed) return;
+
+          try {
+            const delRes = await window.api.leaveTypes.delete(id);
+            if (delRes && delRes.success) {
+              showToast(`تم حذف نوع الإجازة "${ltName}" بنجاح.`, 'success');
+              await loadLeaveTypesList();
+              notifyLeaveTypesChanged();
+            } else {
+              showToast(delRes?.error || 'تعذر حذف نوع الإجازة.', 'error');
+            }
+          } catch (err) {
+            showToast(err.message || 'حدث خطأ أثناء محاولة حذف نوع الإجازة.', 'error');
+          }
+        });
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load leave types list:', err);
+  }
+}
+
+/**
  * جلب إحصائيات المستندات المحذوفة ناعماً (Soft-deleted) وتحديث العداد والحجم الإجمالي وزر الإفراغ
  */
 export async function loadDeletedDocsStats() {
@@ -252,6 +377,9 @@ export async function loadSystemSettings() {
 
   // 6. قائمة الأقسام الإدارية والشعب
   await loadDepartmentsList();
+
+  // 7. قائمة أنواع الإجازات
+  await loadLeaveTypesList();
 }
 
 /**
@@ -314,6 +442,10 @@ export function initSystemSettings() {
   btnAddDepartment = document.getElementById('btn-add-department');
   departmentsListContainer = document.getElementById('departments-list-container');
 
+  inputNewLeaveTypeName = document.getElementById('input-new-leave-type-name');
+  btnAddLeaveType = document.getElementById('btn-add-leave-type');
+  leaveTypesListContainer = document.getElementById('leave-types-list-container');
+
   if (btnAddDepartment && inputNewDepartmentName) {
     const handleAddDept = async () => {
       const name = inputNewDepartmentName.value.trim();
@@ -345,6 +477,41 @@ export function initSystemSettings() {
       if (e.key === 'Enter') {
         e.preventDefault();
         handleAddDept();
+      }
+    });
+  }
+
+  if (btnAddLeaveType && inputNewLeaveTypeName) {
+    const handleAddLeaveType = async () => {
+      const name = inputNewLeaveTypeName.value.trim();
+      if (!name) {
+        showToast('يرجى إدخال اسم نوع الإجازة أولاً.', 'warning');
+        inputNewLeaveTypeName.focus();
+        return;
+      }
+      try {
+        btnAddLeaveType.disabled = true;
+        const addRes = await window.api.leaveTypes.add(name);
+        if (addRes && addRes.success) {
+          showToast(`تمت إضافة نوع الإجازة "${name}" بنجاح.`, 'success');
+          inputNewLeaveTypeName.value = '';
+          await loadLeaveTypesList();
+          notifyLeaveTypesChanged();
+        } else {
+          showToast(addRes?.error || 'تعذر إضافة نوع الإجازة.', 'error');
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء إضافة نوع الإجازة.', 'error');
+      } finally {
+        btnAddLeaveType.disabled = false;
+      }
+    };
+
+    btnAddLeaveType.addEventListener('click', handleAddLeaveType);
+    inputNewLeaveTypeName.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddLeaveType();
       }
     });
   }

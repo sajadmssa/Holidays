@@ -132,6 +132,7 @@ function registerLeaveHandlers(ipcMain, db) {
         memoDate,
         orderNumber,
         orderDate,
+        leaveLocation,
       } = payload ?? {};
 
       // Surface-level guard before handing off to the service / التحقق الهيكلي من المدخلات
@@ -188,6 +189,7 @@ function registerLeaveHandlers(ipcMain, db) {
             orderNumber: validOrderNumber,
             orderDate: orderDate || null,
             confirmOverlap: Boolean(payload?.confirmOverlap),
+            leaveLocation: leaveLocation || null,
           }
         );
       } catch (err) {
@@ -231,6 +233,7 @@ function registerLeaveHandlers(ipcMain, db) {
         memoDate,
         orderNumber,
         orderDate,
+        leaveLocation,
         confirmExcess,
         allowDeficit,
       } = payload ?? {};
@@ -291,6 +294,7 @@ function registerLeaveHandlers(ipcMain, db) {
             orderDate: orderDate ?? null,
             confirmExcess: Boolean(confirmExcess || allowDeficit),
             confirmOverlap: Boolean(payload?.confirmOverlap),
+            leaveLocation: leaveLocation || null,
           }
         );
       } catch (err) {

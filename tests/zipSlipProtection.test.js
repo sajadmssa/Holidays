@@ -177,13 +177,66 @@ database.initialize();
   // Restore LoggerService
   LoggerService.error = originalLoggerError;
 
+  // ── Test Section 3: Symlink Entry Protection in Validation & Restore ──────────
+  console.log('\n--- Section 3: Symlink Entry Protection in Validation & Restore ---');
+
+  // 1. Create a malicious backup with an entry marked as a symbolic link (S_IFLNK: 0xA000)
+  const symlinkZip = new AdmZip(validBackupPath);
+  symlinkZip.addFile(
+    'EmployeeDocuments/symlink_payload.txt',
+    Buffer.from('C:\\Windows\\System32\\calc.exe')
+  );
+  const symlinkEntry = symlinkZip.getEntry('EmployeeDocuments/symlink_payload.txt');
+  // S_IFLNK (0120000 / 0xA000) in upper 16 bits of external file attributes
+  symlinkEntry.attr = ((0xA000 << 16) | 0o777) >>> 0;
+
+  const symlinkZipPath = path.join(testSandboxDir, 'symlink_backup.hbak');
+  symlinkZip.writeZip(symlinkZipPath);
+
+  // 2. Test validateDatabaseBackup rejects symlink archive
+  let validateSymlinkRejected = false;
+  try {
+    database.validateDatabaseBackup(symlinkZipPath);
+  } catch (err) {
+    validateSymlinkRejected = true;
+    assert(
+      err.message.includes('رابط رمزي'),
+      `validateDatabaseBackup rejected symlink with expected message: ${err.message}`
+    );
+  }
+  assert(validateSymlinkRejected === true, 'validateDatabaseBackup throws error when archive contains symlink');
+
+  // 3. Test restoreDatabase rejects symlink archive before extraction
+  let restoreSymlinkRejected = false;
+  try {
+    await database.restoreDatabase(symlinkZipPath);
+  } catch (err) {
+    restoreSymlinkRejected = true;
+    assert(
+      err.message.includes('رابط رمزي'),
+      `restoreDatabase rejected symlink with expected message: ${err.message}`
+    );
+  }
+  assert(restoreSymlinkRejected === true, 'restoreDatabase aborted and rejected archive with symlink entry');
+
+  // 4. Verify ZERO file extraction of symlink target
+  const symlinkExtractedPath = path.join(testDocsDir, 'symlink_payload.txt');
+  assert(
+    !fs.existsSync(symlinkExtractedPath),
+    'ZERO file write: symlink payload was NOT extracted to filesystem'
+  );
+
+  // 5. Test that normal valid backup restores cleanly without false positive
+  const cleanRestoreRes = await database.restoreDatabase(validBackupPath);
+  assert(cleanRestoreRes && cleanRestoreRes.success === true, 'Clean archive restores successfully without false positives');
+
   // Close database and clean up sandbox
   database.close();
   try {
     fs.rmSync(testSandboxDir, { recursive: true, force: true });
   } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} SECURITY CHECKS PASSED FOR ZIP SLIP PROTECTION!\n`);
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} SECURITY CHECKS PASSED FOR ZIP SLIP & SYMLINK PROTECTION!\n`);
   process.exit(0);
 })().catch(err => {
   console.error('Unhandled test failure:', err);

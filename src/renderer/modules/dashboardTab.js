@@ -63,6 +63,7 @@ let editLeaveMemoDateEl = null;
 let editLeaveOrderNumEl = null;
 let editLeaveOrderDateEl = null;
 let editLeaveNotesEl = null;
+let editLeaveLocationEl = null;
 let btnSaveEditLeave = null;
 
 // مؤشرات التحديث التلقائي للتواريخ وذاكرة التخزين المؤقت لأنواع الإجازات
@@ -394,6 +395,12 @@ export async function openEditLeaveModal(leave) {
   if (editLeaveOrderDateEl) editLeaveOrderDateEl.value = leave.OrderDate || '';
   if (editLeaveNotesEl) editLeaveNotesEl.value = leave.Notes || '';
 
+  // Populate leave location
+  if (editLeaveLocationEl) {
+    const loc = leave.LeaveLocation || '';
+    editLeaveLocationEl.value = loc; // matches one of the option values or resets to ''
+  }
+
   editLeaveModal.showModal();
 
   setTimeout(() => {
@@ -459,6 +466,7 @@ async function handleEditLeaveSubmit(event) {
     orderNumber: editLeaveOrderNumEl?.value.trim() || null,
     orderDate: editLeaveOrderDateEl?.value || null,
     notes: editLeaveNotesEl?.value.trim() || null,
+    leaveLocation: editLeaveLocationEl?.value || null,
     modifierName,
     confirmExcess: false,
   };
@@ -587,6 +595,7 @@ export function initDashboardTab(options = {}) {
   editLeaveOrderNumEl = document.getElementById('edit-leave-order-num');
   editLeaveOrderDateEl = document.getElementById('edit-leave-order-date');
   editLeaveNotesEl = document.getElementById('edit-leave-notes');
+  editLeaveLocationEl = document.getElementById('edit-leave-location');
   btnSaveEditLeave = document.getElementById('btn-save-edit-leave');
 
   _onSwitchToDashboard = options.onSwitchToDashboard || null;

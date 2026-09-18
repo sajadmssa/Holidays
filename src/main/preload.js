@@ -76,6 +76,11 @@ const VALID_CHANNELS = new Set([
   'department:add',
   'department:update',
   'department:delete',
+  // ── Leave Types Management ─────────────────────────────────
+  'leaveType:getAll',
+  'leaveType:add',
+  'leaveType:update',
+  'leaveType:delete',
 ]);
 
 /**
@@ -99,8 +104,23 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── Leave Types ────────────────────────────────────────────
   leaveTypes: {
-    /** @returns {Promise<{success:boolean, data: LeaveType[]}>} */
+    /** استرجاع قائمة أنواع الإجازات لنماذج التسجيل (legacy)
+     * @returns {Promise<{success:boolean, data: LeaveType[]}>} */
     getAll: () => invoke('leaveTypes:getAll'),
+    /** استرجاع كل أنواع الإجازات مع عدد الاستخدام وحماية الأنواع الأساسية
+     * @returns {Promise<{success:boolean, data: Array<{LeaveTypeID:number, Name:string, MaxDaysPerInstance:number, RequiresOrderRef:number, GenderRestriction:string|null, UsageCount:number, IsProtected:boolean}>}>} */
+    getAllManaged: () => invoke('leaveType:getAll'),
+    /** @param {{name:string, maxDaysPerInstance?:number} | string} data */
+    add: (data) => invoke('leaveType:add', typeof data === 'string' ? { name: data } : data),
+    /** @param {{id:number, name:string} | number} data @param {string} [name] */
+    update: (data, name) => {
+      if (name !== undefined || typeof data !== 'object') {
+        return invoke('leaveType:update', { id: data, name });
+      }
+      return invoke('leaveType:update', data);
+    },
+    /** @param {number} id */
+    delete: (id) => invoke('leaveType:delete', id),
   },
 
   // ── Leave Balances ─────────────────────────────────────────

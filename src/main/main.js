@@ -24,6 +24,7 @@ const { registerSystemHandlers }   = require('./ipc/systemHandlers');
 const { registerAuditHandlers }    = require('./ipc/auditHandlers');
 const { registerDocumentHandlers } = require('./ipc/documentHandlers');
 const { registerDepartmentHandlers } = require('./ipc/departmentHandlers');
+const { registerLeaveTypeHandlers }  = require('./ipc/leaveTypeHandlers');
 const notificationService          = require('./services/NotificationService');
 const autoBackupService            = require('./services/AutoBackupService');
 const LoggerService                = require('./services/LoggerService');
@@ -97,9 +98,12 @@ if (!gotTheLock) {
       db.initialize();
     } catch (err) {
       LoggerService.error('Main', 'Failed to initialize database on startup', err);
+      const isNetError = err && err.message && (err.message.includes('شبكي') || err.message.includes('UNC') || err.message.includes('Network Share'));
       dialog.showErrorBox(
-        'خطأ في تشغيل قاعدة البيانات',
-        'تعذر فتح أو تهيئة ملف قاعدة البيانات الخاص بالنظام.\n\nيرجى التأكد من صلاحيات المجلد أو إعادة تشغيل البرنامج.'
+        isNetError ? 'مسار شبكي غير مدعوم لقاعدة البيانات' : 'خطأ في تشغيل قاعدة البيانات',
+        isNetError
+          ? `${err.message}\n\nيرجى نقل ملف قاعدة البيانات إلى مجلد محلي على القرص الصلب للجهاز.`
+          : 'تعذر فتح أو تهيئة ملف قاعدة البيانات الخاص بالنظام.\n\nيرجى التأكد من صلاحيات المجلد أو إعادة تشغيل البرنامج.'
       );
       app.quit();
       return;
@@ -182,4 +186,8 @@ function registerIpcHandlers() {
   // ── DEPARTMENTS (Phase 13) ─────────────────────────────────
   //  تفويض قنوات إدارة الأقسام إلى departmentHandlers
   registerDepartmentHandlers(ipcMain, db.getDb());
+
+  // ── LEAVE TYPES MANAGEMENT ─────────────────────────────────
+  //  تفويض قنوات إدارة أنواع الإجازات إلى leaveTypeHandlers
+  registerLeaveTypeHandlers(ipcMain, db.getDb());
 }

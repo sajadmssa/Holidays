@@ -34,17 +34,17 @@ flowchart TD
     UI فقط، لا وصول مباشر لـ Node.js"]
     B["Preload Bridge
     (src/main/preload.js)
-    contextBridge + قائمة بيضاء صارمة VALID_CHANNELS (50 قناة)"]
+    contextBridge + قائمة بيضاء صارمة VALID_CHANNELS (54 قناة)"]
     C["IPC Handlers
     (src/main/ipc/*.js)
     طبقة تفويض رقيقة فقط — استقبال الطلب وتفويضه للخدمة وتغليف الاستجابة"]
     D["Business Services
     (src/main/services/*.js)
     منطق الأعمال، المعاملات الذرية، قواعد التحقق
-    (LeaveService / EmployeeService / DepartmentService / DocumentService / ReportService / AuditService)"]
+    (LeaveService / EmployeeService / DepartmentService / LeaveTypeService / DocumentService / ReportService / AuditService)"]
     E["Data Access
     (src/main/database.js)
-    التهيئة، الترحيلات (001-020)، النسخ الاحتياطي والاستعادة، جدول AppCounters"]
+    التهيئة، الترحيلات (001-024)، النسخ الاحتياطي والاستعادة، جدول AppCounters"]
     F[("SQLite (WAL)
     + EmployeeDocuments/
     على نظام الملفات")]
@@ -77,10 +77,10 @@ flowchart TD
 
 الملف الوحيد المسموح له بالوصول لكل من `electron` (`contextBridge`, `ipcRenderer`) وبيئة المتصفح (`window`) في آن واحد. يبني كائن `window.api` عبر `contextBridge.exposeInMainWorld('api', {...})`، مقسّماً حسب النطاق الوظيفي: `employees`، `departments`، `leaveTypes`، `leaveBalances`، `leaves`، `leave`، `employee`، `report`، `audit`، `system`، `document`.
 
-**آلية الحماية المحورية:** كل استدعاء يمر عبر دالة `invoke(channel, ...args)` داخلية تتحقق أولاً أن `channel` موجود ضمن `Set` باسم `VALID_CHANNELS` (يحتوي على **50 قناة معتمدة** بعد إضافة قنوات الأقسام وتصدير الإجازات المنتهية) قبل تمريره لـ `ipcRenderer.invoke` — أي قناة غير مُدرَجة تُرفَض فوراً بـ `Promise.reject` دون أن تصل للعملية الرئيسية إطلاقاً.
+**آلية الحماية المحورية:** كل استدعاء يمر عبر دالة `invoke(channel, ...args)` داخلية تتحقق أولاً أن `channel` موجود ضمن `Set` باسم `VALID_CHANNELS` (يحتوي على **54 قناة معتمدة** بعد إضافة قنوات إدارة أنواع الإجازات) قبل تمريره لـ `ipcRenderer.invoke` — أي قناة غير مُدرَجة تُرفَض فوراً بـ `Promise.reject` دون أن تصل للعملية الرئيسية إطلاقاً.
 
 **🛡️ نمط IPC Channel Guard (`tests/ipcChannelGuard.test.js`):**
-وحدة اختبار آلية مدمجة تفحص مطابقة الـ 50 قناة IPC بدقة متناهية:
+وحدة اختبار آلية مدمجة تفحص مطابقة الـ 54 قناة IPC بدقة متناهية:
 * تجمع القنوات المسجلة فعلياً في معالجات العملية الرئيسية (`src/main/ipc/*Handlers.js` و `src/main/main.js`).
 * تجمع القنوات المسموح بها في القائمة البيضاء (`src/main/preload.js` -> `VALID_CHANNELS`).
 * تفحص وجود أي قناة في جهة دون الأخرى، وتفشل عملية الاختبار صراحة عند حدوث أي انحراف، مما يمنع حدوث أخطاء `Channel not allowed` أثناء أي تطوير مستقبلي.
@@ -92,6 +92,7 @@ flowchart TD
 الملفات المسؤولة عن توجيه القنوات:
 * `employeeHandlers.js`: تفويض حركات الموظفين (إضافة، بحث، تعديل، تفعيل/تجميد، نقل، استعادة، وتتبع التسلسل) إلى `EmployeeService`.
 * `departmentHandlers.js`: تفويض عمليات الأقسام (استعلام، إضافة، تعديل، حذف) إلى `DepartmentService`.
+* `leaveTypeHandlers.js`: تفويض عمليات إدارة أنواع الإجازات (استعلام، إضافة، تعديل، حذف) إلى `LeaveTypeService`.
 * `leaveHandlers.js`: تفويض حركات الإجازات (تسجيل مرضي/اعتيادي، استعلام أرصدة، إجازات نشطة وقادمة، حذف، تعديل) مباشرة وبشكل رقيق إلى `LeaveService`.
 * `reportHandlers.js`: تفويض تقارير وتصديرات Excel (السارية والقادمة، المنتهية بـ 16 عموداً، التراكم، الأرصدة الحرجة) إلى `ReportService`.
 * `systemHandlers.js`: إدارة النسخ الاحتياطي والاستعادة وإعدادات النظام بالتنسيق مع `database.js`.
@@ -107,6 +108,7 @@ flowchart TD
 | `LeaveService.js` | محرك احتساب الإجازات: `calculateRegularLeaveBalance`، `processSickLeave`، `processRegularLeave`، `checkLeaveOverlap`، `getActiveLeavesForToday` (سارية وقادمة)، `getExpiredLeaves` (فترات مرنة)، `updateLeave`، `deleteLeave` |
 | `EmployeeService.js` | دورة حياة الموظف، إدارة التسلسل التراكمي الثابت عبر `AppCounters`، النقل الخارجي وإلغاء النقل، والتحقق من التكرار |
 | `DepartmentService.js` | إدارة هيكل الأقسام، التحقق من عدم تكرار الاسم، وحماية الأقسام المشغولة بموظفين من الحذف |
+| `LeaveTypeService.js` | إدارة كتالوج أنواع الإجازات (إضافة، تعديل، حذف، استعلام)، الحماية الصارمة للأنواع الأساسية المحمية، وفرض قيود الاستخدام |
 | `ReportService.js` | بناء تقارير Excel بتنسيق RTL احترافي عبر `exceljs` (كشف الإجازات الحالية والقادمة، كشف الإجازات المنتهية بـ 16 عموداً، تقارير الأرصدة والتراكم، سجل الموظفين، والمستندات) |
 | `DocumentService.js` | منطق إدارة مستندات الموظفين (بطاقات الدوام/الإجازات) |
 | `DocumentStorageService.js` | التخزين الفيزيائي الآمن للمستندات على القرص، مع تحقق فعلي من احتواء المسار (Path Containment) لمنع اجتياز المسار |
@@ -149,21 +151,22 @@ flowchart TD
 
 بعد تنظيف N1، أُزيلت كافة دوال الـ CRUD القديمة التي كانت تتجاوز طبقة الخدمات. يقتصر دور هذا الملف اليوم على:
 1. **التهيئة:** فتح اتصال SQLite وتفعيل خصائص الأداء والأمان الأساسية (`PRAGMA journal_mode = WAL` و `PRAGMA foreign_keys = ON`).
-2. **إدارة الترحيلات:** تشغيل ملفات `src/main/migrations/` بالترتيب من `001` إلى `016` داخل معاملات ذرية مع تسجيل أسماء الترحيلات في جدول `_Migrations` لمنع تكرارها.
+2. **إدارة الترحيلات:** تشغيل ملفات `src/main/migrations/` بالترتيب من `001` إلى `023` داخل معاملات ذرية مع تسجيل أسماء الترحيلات في جدول `_Migrations` لمنع تكرارها.
 3. **النسخ الاحتياطي والاستعادة المجمعة:** إنشاء حزم `.hbak` والتحقق من سلامتها (`validateDatabaseBackup`)، وأخذ نسخة أمان فورية (`createSafetyBackup`) قبل أي عملية استعادة مع دعم التراجع الطارئ (`_emergencyRollback`).
 
 ---
 
 ## 4. خريطة قنوات IPC الكاملة (الحالة الفعلية)
 
-### 4.1 القنوات المعتمدة والنشطة (47 قناة)
+### 4.1 القنوات المعتمدة والنشطة (50 قناة)
 
-| المجموعة | القنوات (47 قناة معتمدة) |
+| المجموعة | القنوات (50 قناة معتمدة) |
 |---|---|
-| `leaveTypes` / `leaveBalances` | `leaveTypes:getAll`، `leaveBalances:getByEmployee`، `leaveBalances:upsert` (3 قنوات) |
+| `leaveTypes` / `leaveBalances` | `leaveTypes:getAll`، `leaveBalances:upsert` (قناتان) |
 | `leave:*` (محرك الإجازات الحديث) | `leave:getRegularBalance`، `leave:submitSickLeave`، `leave:submitRegularLeave`، `leave:getActiveToday`، `leave:getActiveTodayPaginated`، `leave:getHistory`، `leave:delete`، `leave:update` (8 قنوات) |
 | `employee:*` (إدارة الموظفين الحديثة) | `employee:add`، `employee:search`، `employee:getById`، `employee:update`، `employee:deactivate`، `employee:activate`، `employee:transfer`، `employee:cancelTransfer`، `employee:getPaginated`، `employee:exportAll` (10 قنوات) |
-| `report:*` (تقارير وتصدير Excel) | `report:exportHistory`، `report:exportActiveLeaves`، `report:getCriticalReport`، `report:exportCriticalReport`، `report:getCriticalBalancesPaginated`، `report:getAccumulatedPaginated`، `report:exportTransferredEmployees` (7 قنوات) |
+| `department:*` (إدارة الأقسام) | `department:getAll`، `department:add`، `department:update`، `department:delete` (4 قنوات) |
+| `report:*` (تقارير وتصدير Excel) | `report:exportHistory`، `report:exportActiveLeaves`، `report:exportExpiredLeaves`، `report:exportCriticalReport`، `report:getCriticalBalancesPaginated`، `report:getAccumulatedPaginated`، `report:exportTransferredEmployees` (7 قنوات) |
 | `audit:*` (سجل التدقيق) | `audit:getLogs` (قناة واحدة) |
 | `system:*` (النسخ الاحتياطي والإعدادات) | `system:backup`، `system:restore`، `system:selectDirectory`، `system:getSetting`، `system:setSetting`، `system:openPath` (6 قنوات) |
 | `document:*` (أرشفة وطباعة المستندات) | `document:add`، `document:list`، `document:delete`، `document:openExternal`، `document:pickFile`، `document:getStoragePath`، `document:setStoragePath`، `document:testStoragePath`، `document:openStorageFolder`، `document:print`، `document:getDeletedStats`، `document:purgeDeleted` (12 قناة) |
@@ -172,7 +175,7 @@ flowchart TD
 
 تم تنظيف وحذف كافة القنوات القديمة العشر (`employees:getAll`، `employees:getById`، `employees:create`، `employees:update`، `employees:deactivate`، `leaves:getAll`، `leaves:getByEmployee`، `leaves:create`، `leaves:delete`، `audit:getAll`) بالكامل في المرحلة الأولى (N1). لم يعد هناك أي مسار قديم يتجاوز طبقة الخدمات.
 
-> **إجمالي القنوات المعتمدة حالياً في `VALID_CHANNELS` ومطابقة تماماً للمعالجات:** 47 قناة بدقة 100%.
+> **إجمالي القنوات المعتمدة حالياً في `VALID_CHANNELS` ومطابقة تماماً للمعالجات:** 50 قناة بدقة 100%.
 
 ---
 
@@ -264,17 +267,24 @@ flowchart LR
 
 ```
 Holidays/
-├── docs/                             # التوثيق المعماري وهيكلية البيانات
+├── docs/                             # التوثيق المعماري وهيكلية البيانات (9 ملفات توثيق تفصيلية)
 │   ├── ARCHITECTURE.md               # المعمارية الطبقية وتدفق البيانات وحراس IPC
-│   └── DATA-MODEL.md                 # نموذج قاعدة البيانات الشامل وترحيلات 001-016
+│   ├── CHECKPOINT.md                 # سجل الإنجاز والجاهزية الهندسية
+│   ├── DATA-MODEL.md                 # نموذج قاعدة البيانات الشامل وترحيلات 001-024
+│   ├── DECISIONS.md                  # سجل القرارات المعمارية (ADRs)
+│   ├── IMPLEMENTATION-PLAN.md        # خطط التنفيذ المرحلية
+│   ├── PRD.md                        # وثيقة متطلبات المنتج
+│   ├── PRODUCT-SPECIFICATION.md      # المواصفات الوظيفية التفصيلية
+│   ├── ROADMAP.md                    # خارطة طريق التطوير المستقبلي
+│   └── TECHNICAL-SPECIFICATION.md    # المواصفات التقنية ومعايير الأمان
 ├── src/
 │   ├── main/                         # عملية Electron الرئيسية (Node.js كامل)
 │   │   ├── main.js                   # نقطة الدخول — دورة الحياة، تسجيل IPC، الأمان
-│   │   ├── preload.js                # الجسر الآمن الوحيد (VALID_CHANNELS - 50 قناة)
-│   │   ├── database.js               # التهيئة + الترحيل (001-016) + النسخ الاحتياطي والاستعادة
-│   │   ├── ipc/                      # 6 ملفات معالجات — طبقة تفويض رقيقة فقط
-│   │   ├── services/                 # 9 ملفات — منطق الأعمال الفعلي
-│   │   ├── migrations/               # 16 ملف SQL مرقّم، تراكمي Idempotent
+│   │   ├── preload.js                # الجسر الآمن الوحيد (VALID_CHANNELS - 54 قناة)
+│   │   ├── database.js               # التهيئة + الترحيل (001-024) + النسخ الاحتياطي والاستعادة
+│   │   ├── ipc/                      # 8 ملفات معالجات — طبقة تفويض رقيقة فقط
+│   │   ├── services/                 # 11 ملفاً — منطق الأعمال الفعلي
+│   │   ├── migrations/               # 24 ملف SQL مرقّم، تراكمي Idempotent (001-024)
 │   │   └── utils/                    # مترجمات أخطاء، أداة safeHandle، تحقق أرقام الأوامر
 │   └── renderer/                     # عملية الواجهة (Sandboxed، بلا Node.js)
 │       ├── index.html
@@ -282,10 +292,23 @@ Holidays/
 │       ├── renderer.js
 │       ├── styles.css
 │       └── modules/                  # وحدة JS مستقلة لكل شاشة وظيفية
-├── tests/
-│   ├── ipcChannelGuard.test.js       # حارس بنيوي لقنوات IPC (50 قناة)
-│   └── leaveService.test.js          # اختبارات محرك الإجازات والشرائح الثلاث ومنع التداخل
+├── tests/                            # 14 ملف اختبار شامل للأمان ومنطق الأعمال والتوافق وحجب البيانات
+│   ├── dossierNumber.test.js         # اختبارات حقل رقم الإضبارة
+│   ├── dossierUniqueness.test.js     # اختبارات فرادية رقم الإضبارة
+│   ├── employeeAutoId.test.js        # اختبارات الترقيم التلقائي للموظف
+│   ├── excelNumericFormatting.test.js# اختبارات تنسيق أرقام وتواريخ Excel
+│   ├── freshInstall.test.js          # اختبارات التثبيت النظيف وقاعدة البيانات الفارغة
+│   ├── ipcChannelGuard.test.js       # حارس بنيوي لقنوات IPC (54 قناة معتمدة)
+│   ├── leaveService.test.js          # اختبارات محرك الإجازات والشرائح الثلاث ومنع التداخل
+│   ├── leaveTypeService.test.js      # اختبارات إدارة أنواع الإجازات وحماية الأنواع الأساسية والقيود
+│   ├── loggerServicePiiRedaction.test.js # اختبارات حجب البيانات الحساسة ومسارات المستخدمين في السجلات
+│   ├── migrationUpgradeCompat.test.js# اختبارات ترقية الترحيل وتوافق الجداول
+│   ├── reportService.test.js         # اختبارات توزيع الإجازات العابرة وتراكم الأرصدة
+│   ├── systemOpenPathSecurity.test.js# اختبارات أمان فتح المسارات ومنع الثغرات
+│   ├── workShiftType.test.js         # اختبارات نوع دوام الموظف (صباحي/مسائي/خفارة)
+│   └── zipSlipProtection.test.js     # اختبارات الحماية من ثغرات Zip Slip
 ├── scripts/                          # reset-db.js (أدوات تطوير)
+├── README.md                         # الدليل الإرشادي العام والتشغيلي للنظام
 └── package.json
 ```
 
@@ -311,9 +334,14 @@ Holidays/
 2. **أي عملية كتابة متعددة الخطوات يجب أن تُغلَّف داخل `db.transaction()` واحدة** تشمل كتابة سجل التدقيق ضمن نفس المعاملة — لا كتابات منفصلة قابلة للانفصال عند انقطاع الكهرباء.
 3. **منطق الأعمال يعيش في `src/main/services/`، لا في `src/main/ipc/`** — معالجات IPC هي طبقة تفويض رقيقة فقط (تم تطبيق هذا المبدأ بصرامة في N3 بعد تجريد معالجات الإجازات).
 4. **أي وصول لملف على القرص عبر مسار نسبي مُخزَّن أو مُدخَل من المستخدم يجب أن يمر عبر تحقق احتواء المسار** (على نمط `DocumentStorageService.js`) قبل أي قراءة/كتابة/حذف.
-5. **تشغيل الاختبارات الآلية (`npm test`) إلزامياً قبل أي دمج أو نشر** — للتحقق من سلامة قنوات IPC (47 قناة) واختبارات محرك الإجازات والشرائح الثلاث (17 كتلة / 70 فحصاً).
+5. **تشغيل الاختبارات الآلية (`npm test`) إلزامياً قبل أي دمج أو نشر** — للتحقق من سلامة قنوات IPC (54 قناة) واختبارات محرك الإجازات والشرائح الثلاث وكافة جوانب الأمان وتوافق البيانات.
 6. **لا تُحدَّث `electron` أو `better-sqlite3` كتحديث أمني روتيني** — أي تغيير في هذين المكوّنين مرتبط مباشرة بدعم أنظمة Windows 7/8.1، ويجب أن يُتَّخذ كقرار منتج موثَّق في `DECISIONS.md`.
+
+## 11. القيود المعمارية المعروفة (Known Limitations)
+
+* **ممنوع وضع ملف قاعدة البيانات على مجلد شبكي مشترك:**
+  النظام مبني على SQLite ونمط WAL (`Write-Ahead Logging`)، والذي يتطلب تخزيناً محلياً مباشراً (`Local Disk Storage`) مع ذاكرة مشتركة محلية (`-shm`) وتسجيلاً عالي السرعة منخفض التأخير (`-wal`). مشاركة ملف قاعدة البيانات عبر مسار شبكي (مثل UNC Path البادئ بـ `\\` أو `//` أو محركات الأقراص الشبكية المربوطة Mapped Network Drives عبر SMB/NFS) غير مدعومة نهائياً وتؤدي إلى تعطل أقفال الملفات المتزامنة أو تلف البيانات. يقوم النظام بفحص استباقي صارم عند الإقلاع (`isNetworkPath`) ويرفض تشغيل قاعدة البيانات فوراً في حال اكتشاف مسار شبكي مع إظهار رسالة تحذيرية واضحة للمستخدم.
 
 ---
 
-*آخر تحديث لهذه الوثيقة: 10 أيلول 2026، بعد اكتمال تنفيذ المراحل الهندسية الأربع (N1–N4) واستكمال تحصينات CSP واستثناء المنقولين.*
+*آخر تحديث لهذه الوثيقة: 18 أيلول 2026، بعد إضافة ميزة إدارة أنواع الإجازات وتوثيق قيود التخزين الشبكي وتحصين حجب PII وتحديث قنوات IPC (54 قناة) وقائمة الترحيلات (001-024).*

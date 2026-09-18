@@ -1,6 +1,6 @@
 # DATA-MODEL.md — نظام إدارة الإجازات والمستندات (Holidays)
 
-> **حالة الوثيقة:** الشكل النهائي الفعلي لقاعدة البيانات بعد تطبيق كل ملفات الترحيل (`001` إلى `020`) بالتسلسل — مُستخرَج مباشرة من ملفات SQL الفعلية، وليس افتراضاً.
+> **حالة الوثيقة:** الشكل النهائي الفعلي لقاعدة البيانات بعد تطبيق كل ملفات الترحيل (`001` إلى `022`) بالتسلسل — مُستخرَج مباشرة من ملفات SQL الفعلية، وليس افتراضاً.
 > المرجع الوحيد الموثوق دائماً هو مجلد `src/main/migrations/`. عند إضافة ترحيل جديد مستقبلاً، **حدِّث هذا الملف في نفس الالتزام (Commit)**.
 
 ---
@@ -205,9 +205,10 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | العمود | ملاحظة |
 |---|---|
 | `LeaveID` | `PRIMARY KEY AUTOINCREMENT` |
-| `EmployeeID`, `LeaveTypeID` | مفتاحان أجنبيان — `ON DELETE CASCADE` للموظف، `ON DELETE RESTRICT` لنوع الإجازة (لا يمكن حذف نوع إجازة له سجلات فعلية) |
+| `EmployeeID`, `LeaveTypeID` | مفتاحان أجنبيان — `ON DELETE CASCADE` للموظف، `ON DELETE RESTRICT` لنوع الإجازة (لا يمكن حذف نوع إجازة له سجلات فعلية — تم تأكيده في `023`) |
 | `StartDate`, `EndDate` | نص ISO-8601، مع `CHECK(EndDate >= StartDate)` **على مستوى قاعدة البيانات نفسها** — طبقة حماية ثانية إضافية فوق تحقق `_daysBetween` في JS |
 | `DaysCount` | `CHECK > 0` — مخزَّن صراحة (ليس محسوباً وقت القراءة) |
+| `LeaveLocation` | أُضيف في `024` — حقل نصي اختياري لتوثيق مكان قضاء الإجازة (داخل أو خارج القطر) |
 | `OrderRef` | من `001` — إلزاميته مُعطَّلة فعلياً منذ `012` |
 | `LeaveApprover` | أُضيف `006`، مع Backfill تلقائي للسجلات التاريخية من `Employees.LeaveApprover` وقت الترحيل |
 | `RequestDate`, `MemoNumber`, `MemoDate`, `OrderNumber`, `OrderDate` | أُضيفت دفعة واحدة في `009` — توثيق إداري كامل (تاريخ الطلب، رقم/تاريخ المذكرة، رقم/تاريخ الأمر) |
@@ -238,7 +239,7 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 
 | الجدول | الغرض | ملاحظة |
 |---|---|---|
-| `_Migrations` | تتبّع ملفات الترحيل المنفَّذة (`id` PK AUTOINCREMENT, `name` TEXT UNIQUE NOT NULL, `executedAt` TEXT NOT NULL) | تُنشأ تلقائياً برمجياً داخل `database.js` عند الإقلاع وتُستخدم كآلية تتبع Idempotent تضمن تشغيل كل ملف من `001` إلى `020` مرة واحدة فقط داخل معاملة ذرية موحدة |
+| `_Migrations` | تتبّع ملفات الترحيل المنفَّذة (`id` PK AUTOINCREMENT, `name` TEXT UNIQUE NOT NULL, `executedAt` TEXT NOT NULL) | تُنشأ تلقائياً برمجياً داخل `database.js` عند الإقلاع وتُستخدم كآلية تتبع Idempotent تضمن تشغيل كل ملف من `001` إلى `024` مرة واحدة فقط داخل معاملة ذرية موحدة |
 | `_AppSettings` | تخزين إعدادات النظام بنمط Key-Value (`Key` PK, `Value`, `UpdatedAt`) | من `008` — تُستخدَم لمسار تخزين المستندات المخصَّص وإعدادات أخرى قابلة للتغيير من الواجهة |
 | `_NotificationLog` | منع تكرار إشعار الإجازات اليومي لنفس اليوم (`notificationType`, `sentDate`, `itemCount`) | من `004` |
 
@@ -259,7 +260,7 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | اسم القسم فريد ولا يتكرر | `UNIQUE` على `Departments.Name` | `017` |
 | مسار المستند فريد | `UNIQUE` على `EmployeeDocuments.RelativePath` | `013` |
 | حذف موظف يحذف تلقائياً كل إجازاته وأرصدته ومستنداته | `ON DELETE CASCADE` من `Leaves`/`LeaveBalances`/`EmployeeDocuments` نحو `Employees` | `001` / `013` / `017` |
-| لا يجوز حذف نوع إجازة له سجلات فعلية | `ON DELETE RESTRICT` من `Leaves` نحو `LeaveTypes` | `001` |
+| لا يجوز حذف نوع إجازة له سجلات فعلية | `ON DELETE RESTRICT` من `Leaves` نحو `LeaveTypes` | `001` و `023` |
 | لا يجوز حذف قسم مرتبط بموظفين | فحص مرجعي ومنطقي صارم في `DepartmentService` قبل الحذف (`ON DELETE RESTRICT`) | `017` |
 
 ---
@@ -290,10 +291,12 @@ PayPercentage INTEGER NOT NULL DEFAULT 100 CHECK(PayPercentage IN (100, 50, 25))
 | 020 | `add_work_shift_type_to_employees` | إضافة عمود `WorkShiftType` إلى `Employees` بقيد `CHECK` لثلاث قيم ثابتة (ADR-026) |
 | 021 | `add_dossier_number_to_employees` | إضافة عمود `DossierNumber` (رقم الإضبارة) إلى `Employees` مع فهرس جزئي لتسريع البحث (ADR-027) ومنع تكراره بين الموظفين النشطين برمجياً (ADR-029) |
 | 022 | `create_app_counters_table` | إنشاء جدول `AppCounters` للعدادات النظامية المستمرة وزرع قيمة البداية لـ `next_employee_id` لحساب `MAX(EmployeeID)+1` لدعم التثبيت النظيف ومنع تكرار المعرّفات (ADR-020, ADR-025) |
+| 023 | `set_leaves_on_delete_restrict` | تثبيت قيد `ON DELETE RESTRICT` على `Leaves.LeaveTypeID` لضمان حماية أنواع الإجازات من الحذف عند ارتباطها بسجلات فعلية |
+| 024 | `add_leave_location_to_leaves` | إضافة عمود `LeaveLocation` (مكان الإجازة — اختياري) إلى جدول `Leaves` لتوثيق مكان قضاء الإجازة (داخل/خارج القطر) |
 
 **قاعدة ذهبية عند إضافة أي ترحيل جديد مستقبلاً:** أضف سطراً هنا في نفس الالتزام (Commit)، وحدِّث القسم المقابل من هذه الوثيقة (الجدول المتأثر) — لضمان بقاء نموذج البيانات مطابقاً بنسبة 100% للواقع الفعلي.
 
 ---
 
-*آخر تحديث: 17 أيلول 2026، يشمل الترحيلات الكاملة حتى `022_create_app_counters_table.sql` وتوليد `EmployeeID` التلقائي وفق ADR-025 و ADR-026 و ADR-027 و ADR-029.*
+*آخر تحديث: 18 أيلول 2026، يشمل الترحيلات الكاملة حتى `024_add_leave_location_to_leaves.sql` ودعم إدارة أنواع الإجازات ومكان الإجازة.*
 

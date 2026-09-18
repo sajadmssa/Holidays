@@ -370,25 +370,38 @@ console.log('\nTest 17: Overall totals query in accumulated leaves strictly excl
 const currentYear = new Date().getFullYear();
 const currentYearStr = String(currentYear);
 
-// Get total days and leaves count strictly for non-transferred active employees
+const yearStart = `${currentYearStr}-01-01`;
+const yearEnd = `${currentYearStr}-12-31`;
+
+// Get total days and leaves count strictly for non-transferred active employees (with cross-year boundary allocation)
 const expectedNonTransferred = db.prepare(`
   SELECT
-    COALESCE(SUM(l.DaysCount), 0) AS totalDays,
+    COALESCE(SUM(
+      CAST(ROUND(
+        julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?)) + 1
+      ) AS INTEGER)
+    ), 0) AS totalDays,
     COUNT(l.LeaveID) AS totalLeaves
   FROM Leaves l
   JOIN Employees e ON e.EmployeeID = l.EmployeeID
-  WHERE e.IsActive = 1 AND e.IsTransferred = 0 AND strftime('%Y', l.StartDate) = ?
-`).get(currentYearStr);
+  WHERE e.IsActive = 1 AND e.IsTransferred = 0
+    AND l.StartDate <= ? AND l.EndDate >= ?
+`).get(yearEnd, yearStart, yearEnd, yearStart);
 
 // Get total days and leaves including transferred employees
 const withTransferred = db.prepare(`
   SELECT
-    COALESCE(SUM(l.DaysCount), 0) AS totalDays,
+    COALESCE(SUM(
+      CAST(ROUND(
+        julianday(MIN(l.EndDate, ?)) - julianday(MAX(l.StartDate, ?)) + 1
+      ) AS INTEGER)
+    ), 0) AS totalDays,
     COUNT(l.LeaveID) AS totalLeaves
   FROM Leaves l
   JOIN Employees e ON e.EmployeeID = l.EmployeeID
-  WHERE e.IsActive = 1 AND strftime('%Y', l.StartDate) = ?
-`).get(currentYearStr);
+  WHERE e.IsActive = 1
+    AND l.StartDate <= ? AND l.EndDate >= ?
+`).get(yearEnd, yearStart, yearEnd, yearStart);
 
 // Transferred employees (Employee 6 and Employee 8) have registered leaves in current year
 assert(withTransferred.totalDays > expectedNonTransferred.totalDays, 'Transferred employees contribute days when not filtered');
@@ -1148,9 +1161,68 @@ migTestDb.close();
   assert(fs.existsSync(testEmptyExcelPath) && fs.statSync(testEmptyExcelPath).size > 0, 'Excel export for empty date range generates successfully with empty placeholder');
   try { fs.unlinkSync(testEmptyExcelPath); } catch (_) {}
 
-  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 28 TEST SUITES!`);
-})();
+  // ── Test Suite 29: LeaveLocation field — save, NULL, and retrieve ─────────────────────────────
+  console.log('\nTest Suite 29: LeaveLocation field — حفظ واسترجاع موقع الإجازة');
+  {
+    const empId29 = 2901;
+    const hireDate29 = new Date(Date.now() - 1000 * 24 * 3600 * 1000).toISOString().split('T')[0];
+    db.prepare(`
+      INSERT OR REPLACE INTO Employees (EmployeeID, FullName, Gender, HireDate, JobTitle, IsActive)
+      VALUES (?, 'موظف اختبار موقع الإجازة', 'Male', ?, 'مهندس', 1)
+    `).run(empId29, hireDate29);
 
+    // Scenario A: Save with 'داخل العراق'
+    const r29a = LeaveService.processRegularLeave(
+      empId29, 3, '2026-03-01', '2026-03-03', db, 'إجازة اعتيادية',
+      { leaveLocation: 'داخل العراق' }
+    );
+    assert(r29a && r29a.leaveId > 0, 'Scenario A: processRegularLeave succeeded');
+    const leave29a = db.prepare('SELECT LeaveLocation FROM Leaves WHERE LeaveID = ?').get(r29a.leaveId);
+    assert(leave29a.LeaveLocation === 'داخل العراق',
+      `Scenario A: LeaveLocation saved as 'داخل العراق' (got: ${leave29a.LeaveLocation})`);
+
+    // Scenario B: Save without leaveLocation → NULL
+    const r29b = LeaveService.processRegularLeave(
+      empId29, 2, '2026-04-01', '2026-04-02', db, 'إجازة اعتيادية',
+      { leaveLocation: null }
+    );
+    assert(r29b && r29b.leaveId > 0, 'Scenario B: processRegularLeave succeeded (no location)');
+    const leave29b = db.prepare('SELECT LeaveLocation FROM Leaves WHERE LeaveID = ?').get(r29b.leaveId);
+    assert(leave29b.LeaveLocation === null,
+      `Scenario B: LeaveLocation is NULL when not provided (got: ${leave29b.LeaveLocation})`);
+
+    // Scenario C: Value persists through getEmployeeLeaves
+    const history29 = LeaveService.getEmployeeLeaves(empId29, db);
+    const histLeave29a = history29.find(l => l.LeaveID === r29a.leaveId);
+    assert(!!histLeave29a, 'Scenario C: leave appears in getEmployeeLeaves');
+    assert(histLeave29a.LeaveLocation === 'داخل العراق',
+      `Scenario C: LeaveLocation correctly returned by getEmployeeLeaves (got: ${histLeave29a.LeaveLocation})`);
+
+    // Scenario D: updateLeave preserves existing LeaveLocation when not re-sent
+    LeaveService.updateLeave(r29a.leaveId, {
+      leaveType: 'إجازة اعتيادية',
+      startDate: '2026-03-01', endDate: '2026-03-03', requestedDays: 3,
+      modifierName: 'اختبار تلقائي',
+      // leaveLocation intentionally omitted → should preserve 'داخل العراق'
+    }, db);
+    const leave29aAfterUpdate = db.prepare('SELECT LeaveLocation FROM Leaves WHERE LeaveID = ?').get(r29a.leaveId);
+    assert(leave29aAfterUpdate.LeaveLocation === 'داخل العراق',
+      `Scenario D: updateLeave preserves existing LeaveLocation when omitted (got: ${leave29aAfterUpdate.LeaveLocation})`);
+
+    // Scenario E: updateLeave can change LeaveLocation to 'خارج العراق'
+    LeaveService.updateLeave(r29a.leaveId, {
+      leaveType: 'إجازة اعتيادية',
+      startDate: '2026-03-01', endDate: '2026-03-03', requestedDays: 3,
+      modifierName: 'اختبار تلقائي',
+      leaveLocation: 'خارج العراق',
+    }, db);
+    const leave29aUpdated = db.prepare('SELECT LeaveLocation FROM Leaves WHERE LeaveID = ?').get(r29a.leaveId);
+    assert(leave29aUpdated.LeaveLocation === 'خارج العراق',
+      `Scenario E: updateLeave changes LeaveLocation to 'خارج العراق' (got: ${leave29aUpdated.LeaveLocation})`);
+  }
+
+  console.log(`\n🎉 ALL ${passedTests}/${totalTests} TESTS PASSED ACROSS 29 TEST SUITES!`);
+})();
 
 
 

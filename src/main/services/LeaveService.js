@@ -72,17 +72,37 @@ const LEAVE_NAME_SICK       = 'إجازة مرضية';
  */
 function _daysBetween(from, to) {
   const MS_PER_DAY = 86_400_000;
-  const d1 = new Date(from);
-  const d2 = new Date(to);
 
-  if (isNaN(d1.getTime())) throw new Error(`تاريخ البداية غير صالح: ${from}`);
-  if (isNaN(d2.getTime())) throw new Error(`تاريخ النهاية غير صالح: ${to}`);
+  function toUtc(val, label) {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      const parts = trimmed.split('-');
+      if (parts.length === 3) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          const dt = new Date(Date.UTC(y, m - 1, d));
+          if (!isNaN(dt.getTime())) {
+            return dt.getTime();
+          }
+        }
+      }
+    } else if (val instanceof Date && !isNaN(val.getTime())) {
+      return Date.UTC(val.getUTCFullYear(), val.getUTCMonth(), val.getUTCDate());
+    }
 
-  // Strip time component so we always count whole days / تجريد الوقت لحساب الأيام الكاملة
-  const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
-  const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+    const fallback = new Date(val);
+    if (isNaN(fallback.getTime())) {
+      throw new Error(`${label} غير صالح: ${val}`);
+    }
+    return Date.UTC(fallback.getUTCFullYear(), fallback.getUTCMonth(), fallback.getUTCDate());
+  }
 
-  return Math.floor((utc2 - utc1) / MS_PER_DAY);
+  const utc1 = toUtc(from, 'تاريخ البداية');
+  const utc2 = toUtc(to, 'تاريخ النهاية');
+
+  return Math.round((utc2 - utc1) / MS_PER_DAY);
 }
 
 /**
@@ -105,6 +125,22 @@ function _requireLeaveType(name, db) {
     throw new Error(`نوع الإجازة غير معرّف بالنظام: "${name}".`);
   }
   return row;
+}
+
+/**
+ * التحقق وتطبيع قيمة موقع الإجازة (داخل العراق / خارج العراق أو null):
+ *
+ * @param {string|null} loc
+ * @returns {string|null}
+ */
+function _normalizeLeaveLocation(loc) {
+  if (loc == null) return null;
+  const trimmed = typeof loc === 'string' ? loc.trim() : '';
+  if (!trimmed) return null;
+  if (trimmed === 'داخل العراق' || trimmed === 'خارج العراق') {
+    return trimmed;
+  }
+  throw new Error(`موقع الإجازة غير صالح: "${loc}". القيم المسموحة: "داخل العراق" أو "خارج العراق" فقط.`);
 }
 
 /**
@@ -398,7 +434,7 @@ function processSickLeave(
   endDate,
   db,
   leaveApprover = null,
-  { requestDate = null, memoNumber = null, memoDate = null, orderNumber = null, orderDate = null, confirmOverlap = false } = {}
+  { requestDate = null, memoNumber = null, memoDate = null, orderNumber = null, orderDate = null, confirmOverlap = false, leaveLocation = null } = {}
 ) {
 
   // ── Pre-flight validation (outside transaction — fast checks) ──
@@ -443,6 +479,8 @@ function processSickLeave(
       `عدد الأيام المدخل (${requestedDays} يوم) لا يتطابق مع الفترة المحددة (${dateRangeDays} يوم).`
     );
   }
+
+  const validLeaveLocation = _normalizeLeaveLocation(leaveLocation);
 
   // ── Overlap Guard with Explicit User Confirmation / فحص التداخل مع طلب تأكيد المستخدم ─
   const overlap = checkLeaveOverlap(employeeId, startDate, endDate, null, db);
@@ -564,9 +602,9 @@ function processSickLeave(
     const insertResult = db
       .prepare(`
         INSERT INTO Leaves
-          (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate)
+          (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate, LeaveLocation)
         VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         employeeId,
@@ -580,7 +618,8 @@ function processSickLeave(
         memoNumber ?? null,
         memoDate ?? null,
         orderNumber ?? null,
-        orderDate ?? null
+        orderDate ?? null,
+        validLeaveLocation
       );
 
     const newLeaveId = Number(insertResult.lastInsertRowid);
@@ -602,6 +641,7 @@ function processSickLeave(
         DaysAt50: daysAt50,
         DaysAt25: daysAt25,
         LeaveApprover: leaveApprover ?? null,
+        LeaveLocation: validLeaveLocation,
         RequestDate: requestDate ?? null,
         MemoNumber: memoNumber ?? null,
         MemoDate: memoDate ?? null,
@@ -663,6 +703,7 @@ function processRegularLeave(
     orderDate = null,
     confirmExcess = false,
     confirmOverlap = false,
+    leaveLocation = null,
   } = {}
 ) {
   // ── Pre-flight validation (outside transaction — fast checks) ──
@@ -705,6 +746,8 @@ function processRegularLeave(
       `عدد الأيام المدخل (${requestedDays} يوم) لا يتطابق مع الفترة المحددة (${dateRangeDays} يوم).`
     );
   }
+
+  const validLeaveLocation = _normalizeLeaveLocation(leaveLocation);
 
   // ── Resolve the target LeaveType ───────────────────────────
   let targetLeaveName = typeof leaveType === 'string' ? leaveType.trim() : '';
@@ -789,9 +832,9 @@ function processRegularLeave(
     const insertResult = db
       .prepare(`
         INSERT INTO Leaves
-          (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, OrderRef, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate)
+          (EmployeeID, LeaveTypeID, StartDate, EndDate, DaysCount, OrderRef, Notes, LeaveApprover, RequestDate, MemoNumber, MemoDate, OrderNumber, OrderDate, LeaveLocation)
         VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         employeeId,
@@ -806,7 +849,8 @@ function processRegularLeave(
         memoNumber  ?? null,
         memoDate    ?? null,
         orderNumber ?? null,
-        orderDate   ?? null
+        orderDate   ?? null,
+        validLeaveLocation
       );
 
     const newLeaveId = Number(insertResult.lastInsertRowid);
@@ -826,6 +870,7 @@ function processRegularLeave(
         DaysCount: requestedDays,
         RemainingBalance: remainingBalance,
         LeaveApprover: leaveApprover ?? null,
+        LeaveLocation: validLeaveLocation,
         RequestDate: requestDate ?? null,
         MemoNumber: memoNumber ?? null,
         MemoDate: memoDate ?? null,
@@ -894,6 +939,7 @@ function getActiveLeavesForToday(db) {
         l.MemoDate                  AS MemoDate,
         l.OrderNumber               AS OrderNumber,
         l.OrderDate                 AS OrderDate,
+        l.LeaveLocation             AS LeaveLocation,
         DATE(l.EndDate, '+1 day')   AS ResumptionDate,
         CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
         CAST(ROUND(julianday(l.StartDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysUntilStart,
@@ -1019,6 +1065,7 @@ function getActiveLeavesTodayPaginated({ page = 1, pageSize = 15, search = '', s
       l.MemoDate                  AS MemoDate,
       l.OrderNumber               AS OrderNumber,
       l.OrderDate                 AS OrderDate,
+      l.LeaveLocation             AS LeaveLocation,
       DATE(l.EndDate, '+1 day')   AS ResumptionDate,
       CAST(ROUND(julianday(l.EndDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysRemaining,
       CAST(ROUND(julianday(l.StartDate) - julianday(date('now', 'localtime'))) AS INTEGER) AS DaysUntilStart,
@@ -1117,6 +1164,7 @@ function getExpiredLeaves({ period = 'last3months', customStartDate = null, cust
       l.MemoDate                  AS MemoDate,
       l.OrderNumber               AS OrderNumber,
       l.OrderDate                 AS OrderDate,
+      l.LeaveLocation             AS LeaveLocation,
       DATE(l.EndDate, '+1 day')   AS ResumptionDate,
       (
         SELECT COUNT(*)
@@ -1205,6 +1253,7 @@ function getEmployeeLeaves(employeeId, db) {
         l.MemoDate,
         l.OrderNumber,
         l.OrderDate,
+        l.LeaveLocation,
         l.CreatedAt
       FROM   Leaves l
       JOIN   LeaveTypes lt ON lt.LeaveTypeID = l.LeaveTypeID
@@ -1316,6 +1365,7 @@ function updateLeave(leaveId, payload, db) {
     orderDate,
     notes,
     modifierName,
+    leaveLocation,
     confirmExcess = false,
     confirmOverlap = false,
   } = payload || {};
@@ -1347,6 +1397,11 @@ function updateLeave(leaveId, payload, db) {
   if (!oldLeave) {
     throw new Error(`تعذر العثور على قيد الإجازة برقم (${leaveId}).`);
   }
+
+  // Resolve leave location: use new value if provided, fall back to existing record
+  const validLeaveLocation = leaveLocation !== undefined
+    ? _normalizeLeaveLocation(leaveLocation)
+    : (oldLeave.LeaveLocation || null);
 
   // 2. Resolve target LeaveType / تحديد نوع الإجازة المستهدف
   let targetLeaveType = null;
@@ -1560,7 +1615,8 @@ function updateLeave(leaveId, payload, db) {
           MemoNumber = ?,
           MemoDate = ?,
           OrderNumber = ?,
-          OrderDate = ?
+          OrderDate = ?,
+          LeaveLocation = ?
       WHERE LeaveID = ?
     `).run(
       targetLeaveType.LeaveTypeID,
@@ -1575,6 +1631,7 @@ function updateLeave(leaveId, payload, db) {
       memoDate ?? null,
       validOrderNumber ?? null,
       orderDate ?? null,
+      validLeaveLocation,
       leaveId
     );
 
@@ -1601,6 +1658,7 @@ function updateLeave(leaveId, payload, db) {
         EndDate: oldLeave.EndDate,
         DaysCount: oldLeave.DaysCount,
         LeaveApprover: oldLeave.LeaveApprover,
+        LeaveLocation: oldLeave.LeaveLocation,
         RequestDate: oldLeave.RequestDate,
         MemoNumber: oldLeave.MemoNumber,
         MemoDate: oldLeave.MemoDate,
@@ -1616,6 +1674,7 @@ function updateLeave(leaveId, payload, db) {
         EndDate: updatedLeave.EndDate,
         DaysCount: updatedLeave.DaysCount,
         LeaveApprover: updatedLeave.LeaveApprover,
+        LeaveLocation: updatedLeave.LeaveLocation,
         RequestDate: updatedLeave.RequestDate,
         MemoNumber: updatedLeave.MemoNumber,
         MemoDate: updatedLeave.MemoDate,

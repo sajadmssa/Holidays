@@ -25,6 +25,7 @@ let startDateEl = null;
 let endDateEl = null;
 let requestedDaysEl = null;
 let leaveApproverEl = null;
+let leaveLocationEl = null;
 let notesEl = null;
 let submitBtn = null;
 let balanceDisplay = null;
@@ -392,6 +393,7 @@ export function collectAndValidate() {
   const memoDate = leaveMemoDateEl?.value || null;
   const orderNumber = leaveOrderNumberEl?.value.trim() || null;
   const orderDate = leaveOrderDateEl?.value || null;
+  const leaveLocation = leaveLocationEl?.value || null;
 
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     showToast('يرجى اختيار موظف مسجل من القائمة.', 'warning');
@@ -437,6 +439,7 @@ export function collectAndValidate() {
     memoDate,
     orderNumber,
     orderDate,
+    leaveLocation,
   };
 }
 
@@ -556,6 +559,7 @@ export function initLeaveRegistration() {
   endDateEl = document.getElementById('end-date');
   requestedDaysEl = document.getElementById('requested-days');
   leaveApproverEl = document.getElementById('leave-approver');
+  leaveLocationEl = document.getElementById('leave-location');
   notesEl = document.getElementById('notes');
   submitBtn = document.getElementById('submit-btn');
   balanceDisplay = document.getElementById('balance-display');
@@ -810,6 +814,7 @@ export function initLeaveRegistration() {
             memoDate: payload.memoDate,
             orderNumber: payload.orderNumber,
             orderDate: payload.orderDate,
+            leaveLocation: payload.leaveLocation,
             confirmOverlap: false,
           };
 
@@ -856,6 +861,7 @@ export function initLeaveRegistration() {
             memoDate: payload.memoDate,
             orderNumber: payload.orderNumber,
             orderDate: payload.orderDate,
+            leaveLocation: payload.leaveLocation,
             confirmExcess: false,
             confirmOverlap: false,
           };

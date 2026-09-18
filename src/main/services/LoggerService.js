@@ -112,6 +112,7 @@ const SENSITIVE_KEY_PATTERNS = [
   /salary/i,
   /nationalid/i,
   /idnumber/i,
+  /jobnumber/i,
   /ssn/i,
   /civilid/i,
   /passport/i,
@@ -121,7 +122,15 @@ const SENSITIVE_KEY_PATTERNS = [
   /creditcard/i,
   /phone/i,
   /mobile/i,
-  /email/i
+  /email/i,
+  /dossier/i,
+  /dossiernumber/i,
+  /address/i,
+  /birth/i,
+  /dob/i,
+  /iban/i,
+  /bank/i,
+  /account/i
 ];
 
 /**
@@ -133,7 +142,14 @@ function isSensitiveKey(key) {
   if (typeof key !== 'string') return false;
   const lower = key.toLowerCase();
   // استثناء الحقول الهيكلية المهمة للتشخيص البرمجي من الحجب
-  if (lower === 'leavetypename' || lower === 'documenttypename' || lower === 'actiontype' || lower === 'entitytype') {
+  if (
+    lower === 'leavetypename' ||
+    lower === 'documenttypename' ||
+    lower === 'departmentname' ||
+    lower === 'deptname' ||
+    lower === 'actiontype' ||
+    lower === 'entitytype'
+  ) {
     return false;
   }
   return SENSITIVE_KEY_PATTERNS.some(pattern => pattern.test(lower));
@@ -147,18 +163,20 @@ function isSensitiveKey(key) {
 function redactSensitiveString(str) {
   if (typeof str !== 'string') return str;
   return str
-    .replace(/([a-zA-Z]:\\Users\\[^\\]+)/gi, '[USER_DIR]')
-    .replace(/(\/Users\/[^\/]+)/gi, '[USER_DIR]')
-    .replace(/(\/home\/[^\/]+)/gi, '[USER_DIR]');
+    .replace(/([a-zA-Z]:[\\\/]Users[\\\/][^\\\/]+)/gi, '[USER_DIR]')
+    .replace(/([a-zA-Z]:[\\\/]Documents and Settings[\\\/][^\\\/]+)/gi, '[USER_DIR]')
+    .replace(/([\\\/]Users[\\\/][^\\\/]+)/gi, '[USER_DIR]')
+    .replace(/([\\\/]home[\\\/][^\\\/]+)/gi, '[USER_DIR]');
 }
 
 /**
  * فحص وتنقية الكائنات والمصفوفات بشكل متكرر (Recursive) لحجب كافة البيانات الحساسة
  * @param {any} val القيمة أو الكائن المراد فحصه
  * @param {number} depth عمق التكرار لتفادي الحلقات اللانهائية
+ * @param {WeakSet} seen تتبع الكائنات لمنع الحلقات المرجعية الدائرية
  * @returns {any} النسخة المنقاة
  */
-function redactSensitiveData(val, depth = 0) {
+function redactSensitiveData(val, depth = 0, seen = new WeakSet()) {
   if (depth > 6) return '[MAX_DEPTH]';
   if (val === null || val === undefined) return val;
 
@@ -170,17 +188,39 @@ function redactSensitiveData(val, depth = 0) {
     return val;
   }
 
-  if (Array.isArray(val)) {
-    return val.map(item => redactSensitiveData(item, depth + 1));
-  }
-
   if (typeof val === 'object') {
+    if (seen.has(val)) {
+      return '[CIRCULAR]';
+    }
+    seen.add(val);
+
+    if (Array.isArray(val)) {
+      return val.map(item => redactSensitiveData(item, depth + 1, seen));
+    }
+
+    if (val instanceof Error) {
+      const errObj = {
+        message: redactSensitiveString(val.message),
+        stack: redactSensitiveString(val.stack)
+      };
+      for (const [key, value] of Object.entries(val)) {
+        if (key !== 'message' && key !== 'stack') {
+          if (isSensitiveKey(key)) {
+            errObj[key] = '***REDACTED***';
+          } else {
+            errObj[key] = redactSensitiveData(value, depth + 1, seen);
+          }
+        }
+      }
+      return errObj;
+    }
+
     const cleanObj = {};
     for (const [key, value] of Object.entries(val)) {
       if (isSensitiveKey(key)) {
         cleanObj[key] = '***REDACTED***';
       } else if (typeof value === 'object' && value !== null) {
-        cleanObj[key] = redactSensitiveData(value, depth + 1);
+        cleanObj[key] = redactSensitiveData(value, depth + 1, seen);
       } else if (typeof value === 'string') {
         cleanObj[key] = redactSensitiveString(value);
       } else {
@@ -207,13 +247,27 @@ function log(level, context, message, errorObj = null) {
     rotateLogIfNeeded();
 
     const timestamp = new Date().toISOString();
-    const cleanMessage = redactSensitiveString(message);
+    const cleanContext = redactSensitiveString(context || '');
+    const cleanMessage = redactSensitiveString(message || '');
     let details = '';
 
     if (errorObj) {
       if (errorObj instanceof Error) {
         const cleanStack = redactSensitiveString(errorObj.stack || errorObj.message);
-        details = ` | Stack: ${cleanStack}`;
+        const customEntries = Object.entries(errorObj);
+        let customPropsStr = '';
+        if (customEntries.length > 0) {
+          const customProps = {};
+          for (const [k, v] of customEntries) {
+            if (isSensitiveKey(k)) {
+              customProps[k] = '***REDACTED***';
+            } else {
+              customProps[k] = redactSensitiveData(v);
+            }
+          }
+          customPropsStr = ` | ErrorData: ${JSON.stringify(customProps)}`;
+        }
+        details = ` | Stack: ${cleanStack}${customPropsStr}`;
       } else if (typeof errorObj === 'object') {
         const sanitizedData = redactSensitiveData(errorObj);
         details = ` | Data: ${JSON.stringify(sanitizedData)}`;
@@ -223,7 +277,7 @@ function log(level, context, message, errorObj = null) {
       }
     }
 
-    const logLine = `[${timestamp}] [${level}] [${context}] ${cleanMessage}${details}\n`;
+    const logLine = `[${timestamp}] [${level}] [${cleanContext}] ${cleanMessage}${details}\n`;
     fs.appendFileSync(getLogFilePath(), logLine, 'utf8');
   } catch (_e) {
     // صمام أمان: منع انهيار التطبيق في حال فشلت عملية التوثيق في الملف
@@ -235,10 +289,21 @@ module.exports = {
   info: (context, message, data) => log('INFO', context, message, data),
   /** تسجيل تحذير */
   warn: (context, message, data) => log('WARN', context, message, data),
-  /** تسجيل خطأ فني مع طباعته في مخرجات وحدة التحكم للتشخيص السريع */
+  /** تسجيل خطأ فني مع طباعته في مخرجات وحدة التحكم للتشخيص السريع مع حجب PII */
   error: (context, message, err) => {
     log('ERROR', context, message, err);
-    console.error(`[${context}] ${message}`, err ? (err.message || err) : '');
+    const cleanMsg = redactSensitiveString(message || '');
+    let cleanErr = '';
+    if (err) {
+      if (err instanceof Error) {
+        cleanErr = redactSensitiveString(err.message || String(err));
+      } else if (typeof err === 'object') {
+        cleanErr = JSON.stringify(redactSensitiveData(err));
+      } else {
+        cleanErr = redactSensitiveString(String(err));
+      }
+    }
+    console.error(`[${context}] ${cleanMsg}`, cleanErr);
   },
   /** مسار ملف السجل */
   getLogPath: () => getLogFilePath(),

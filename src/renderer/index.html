@@ -283,6 +283,16 @@
                     placeholder="يُملأ تلقائياً من المسؤول الافتراضي للموظف، ويمكن تعديله لهذه الإجازة" />
                 </div>
 
+                <!-- Leave Location -->
+                <div class="form-group full-width">
+                  <label for="leave-location">موقع الإجازة</label>
+                  <select id="leave-location">
+                    <option value="">— غير محدد —</option>
+                    <option value="داخل العراق">داخل العراق</option>
+                    <option value="خارج العراق">خارج العراق</option>
+                  </select>
+                </div>
+
                 <!-- Notes -->
                 <div class="form-group full-width">
                   <label for="notes">ملاحظات (اختياري)</label>
@@ -1309,6 +1319,33 @@
           </div>
         </div>
 
+        <!-- Section 1.6: Leave Types Management -->
+        <div class="settings-section-card">
+          <div class="settings-section-header">
+            <span class="settings-section-icon">📋</span>
+            <div class="settings-section-title-wrap">
+              <span class="settings-section-title">إدارة أنواع الإجازات</span>
+              <span class="settings-section-desc">إضافة وتعديل وحذف أنواع الإجازات المتاحة في النظام</span>
+            </div>
+          </div>
+          <div class="departments-manage-box">
+            <div class="dept-add-row">
+              <input type="text" id="input-new-leave-type-name" class="form-input dept-add-input"
+                placeholder="أدخل اسم نوع الإجازة الجديد (مثال: إجازة دراسية)" autocomplete="off" />
+              <button type="button" id="btn-add-leave-type" class="btn-primary dept-add-btn" title="إضافة نوع إجازة جديد">
+                <span class="dept-add-btn-icon">➕</span>
+                <span class="dept-add-btn-text">إضافة نوع</span>
+              </button>
+            </div>
+            <div id="leave-types-list-container" class="departments-list-container">
+              <!-- Rendered dynamically -->
+            </div>
+            <span class="helper-text">
+              🔒 الأنواع الأساسية "إجازة اعتيادية" و"إجازة مرضية" محمية من التعديل والحذف لارتباطها بمنظومة حسابات النظام.
+            </span>
+          </div>
+        </div>
+
         <!-- Section 2: Auto Backup Storage Path -->
         <div class="settings-section-card">
           <div class="settings-section-header">
@@ -1597,6 +1634,16 @@
               <input type="date" id="edit-leave-order-date" class="form-input" />
             </div>
           </div>
+        </div>
+
+        <!-- Leave Location -->
+        <div class="form-group">
+          <label for="edit-leave-location">موقع الإجازة</label>
+          <select id="edit-leave-location" class="form-select">
+            <option value="">— غير محدد —</option>
+            <option value="داخل العراق">داخل العراق</option>
+            <option value="خارج العراق">خارج العراق</option>
+          </select>
         </div>
 
         <!-- Notes -->

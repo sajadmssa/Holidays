@@ -28,7 +28,7 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 const LoggerService = require('./services/LoggerService');
-const { resolveSafePathWithinRoot } = require('./utils/pathValidator');
+const { resolveSafePathWithinRoot, isNetworkPath } = require('./utils/pathValidator');
 
 // ──────────────────────────────────────────────────────────────
 //  Database File Location
@@ -69,6 +69,13 @@ function getDb() {
 // ──────────────────────────────────────────────────────────────
 function initialize() {
   if (_db) return; // Already initialized / الاتصال مفتوح مسبقاً
+
+  // ── Pre-flight Safety Check: Reject Network / UNC / Mapped Share Paths ──
+  if (isNetworkPath(DB_PATH)) {
+    const errorMsg = 'ممنوع فتح أو وضع ملف قاعدة البيانات على مجلد شبكي مشترك أو محرك أقراص شبكي (Network Share / UNC / Mapped Drive). SQLite يتطلب تخزيناً محلياً مباشراً لمنع تلف وفقدان البيانات.';
+    LoggerService.error('DB', errorMsg);
+    throw new Error(errorMsg);
+  }
 
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
@@ -401,6 +408,16 @@ function validateDatabaseBackup(backupPath, activeDbInstance = _db) {
     }
 
     const entries = zip.getEntries();
+
+    // Defense-in-Depth: Reject any archive containing symbolic links / فحص دفاعي ضد الروابط الرمزية
+    for (const entry of entries) {
+      const isSymlink = ((entry.attr >>> 16) & 0xF000) === 0xA000;
+      if (isSymlink) {
+        LoggerService.warn('DB', `[Security] Rejected backup containing symlink entry: ${entry.entryName}`);
+        throw new Error(`الأرشيف يحتوي إدخالاً غير مسموح به (رابط رمزي: ${entry.entryName}) — تم رفض النسخة الاحتياطية لأسباب أمنية.`);
+      }
+    }
+
     const dbEntry = entries.find(e => !e.isDirectory && (e.entryName === 'leave_management.db' || e.entryName.endsWith('.db')));
 
     if (!dbEntry) {
@@ -601,6 +618,15 @@ async function restoreDatabase(backupPath) {
       const zip = new AdmZip(backupPath);
       const entries = zip.getEntries();
 
+      // Defense-in-Depth: Reject any archive containing symbolic links / فحص دفاعي ضد الروابط الرمزية
+      for (const entry of entries) {
+        const isSymlink = ((entry.attr >>> 16) & 0xF000) === 0xA000;
+        if (isSymlink) {
+          LoggerService.warn('DB', `[Security] Rejected restore containing symlink entry: ${entry.entryName}`);
+          throw new Error(`الأرشيف يحتوي إدخالاً غير مسموح به (رابط رمزي: ${entry.entryName}) — تم رفض عملية الاستعادة لأسباب أمنية.`);
+        }
+      }
+
       // Extract leave_management.db / استخراج ملف قاعدة البيانات الأساسي
       const dbEntry = entries.find(e => !e.isDirectory && (e.entryName === 'leave_management.db' || e.entryName.endsWith('.db')));
       if (!dbEntry) {
@@ -709,6 +735,15 @@ async function _emergencyRollback(safetyBackupPath) {
   const zip = new AdmZip(safetyBackupPath);
   const entries = zip.getEntries();
 
+  // Defense-in-Depth: Reject any archive containing symbolic links / فحص دفاعي ضد الروابط الرمزية
+  for (const entry of entries) {
+    const isSymlink = ((entry.attr >>> 16) & 0xF000) === 0xA000;
+    if (isSymlink) {
+      LoggerService.warn('DB', `[Security] Emergency rollback aborted due to symlink entry: ${entry.entryName}`);
+      throw new Error(`الأرشيف يحتوي إدخالاً غير مسموح به (رابط رمزي: ${entry.entryName}) — تم رفض عملية التراجع لأسباب أمنية.`);
+    }
+  }
+
   // Restore DB / استعادة ملف قاعدة البيانات
   const dbEntry = entries.find(e => !e.isDirectory && (e.entryName === 'leave_management.db' || e.entryName.endsWith('.db')));
   if (dbEntry) {
@@ -757,9 +792,10 @@ module.exports = {
   getAllLeaveTypes,
   // Leave Balances
   upsertLeaveBalance,
-  // System / Backup / Restore
+  // System / Backup / Restore / Path Security
   backupDatabase,
   validateDatabaseBackup,
   createSafetyBackup,
   restoreDatabase,
+  isNetworkPath,
 };
