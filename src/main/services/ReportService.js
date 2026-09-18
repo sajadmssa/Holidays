@@ -727,6 +727,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
   const COLUMNS = [
     { key: 'seq',            width: 10 }, // التسلسل
     { key: 'jobNumber',      width: 15 }, // الرقم الوظيفي
+    { key: 'dossier',        width: 16 }, // رقم الإضبارة
     { key: 'fullName',       width: 26 }, // الاسم الكامل
     { key: 'department',     width: 22 }, // القسم
     { key: 'jobTitle',       width: 20 }, // المسمى
@@ -755,6 +756,7 @@ async function exportActiveLeavesToExcel(filePath, db) {
   const headerRow = ws.addRow([
     'التسلسل',
     'الرقم الوظيفي',
+    'رقم الإضبارة',
     'الاسم الكامل',
     'القسم',
     'المسمى',
@@ -816,7 +818,8 @@ async function exportActiveLeavesToExcel(filePath, db) {
 
       const row = ws.addRow([
         item.SequenceNumber || (index + 1),
-        item.JobNumber || item.EmployeeID,
+        '',
+        '',
         item.FullName,
         item.DepartmentName || '-',
         item.JobTitle || '-',
@@ -836,17 +839,16 @@ async function exportActiveLeavesToExcel(filePath, db) {
       applyRowStyle(row, baseStyle, COL_COUNT);
       row.height = 20;
 
-      // Numeric formatting for Sequence, ID and Card columns
+      // Numeric formatting for Sequence, ID, Dossier, and Card columns
       row.getCell(1).numFmt = '0';
-      if (!isNaN(Number(item.JobNumber || item.EmployeeID))) {
-        row.getCell(2).numFmt = '0';
-      }
+      writeNumericOrTextCell(row.getCell(2), item.JobNumber || item.EmployeeID);
+      writeNumericOrTextCell(row.getCell(3), item.DossierNumber);
       if (typeof cardVal === 'number') {
-        row.getCell(7).numFmt = '0';
+        row.getCell(8).numFmt = '0';
       }
 
-      // Highlight Status Badge in Column 9
-      const cellStatus = row.getCell(9);
+      // Highlight Status Badge in Column 10
+      const cellStatus = row.getCell(10);
       if (isUpcoming) {
         cellStatus.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } }; // soft sky blue
         cellStatus.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0369A1' } };
@@ -855,8 +857,8 @@ async function exportActiveLeavesToExcel(filePath, db) {
         cellStatus.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF166534' } };
       }
 
-      // Highlight Badges for DaysRemaining in Column 13
-      const cellRemaining = row.getCell(13);
+      // Highlight Badges for DaysRemaining in Column 14
+      const cellRemaining = row.getCell(14);
       if (!isUpcoming) {
         if (days <= 1) {
           cellRemaining.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
@@ -870,12 +872,12 @@ async function exportActiveLeavesToExcel(filePath, db) {
         cellRemaining.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0284C7' } };
       }
 
-      // Highlight Conflict Badges in Column 14 and Employee Name
+      // Highlight Conflict Badges in Column 15 and Employee Name in Column 4
       if (item.HasConflict) {
-        const cellAlert = row.getCell(14);
+        const cellAlert = row.getCell(15);
         cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } };
         cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
-        const cellName = row.getCell(3);
+        const cellName = row.getCell(4);
         cellName.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFB45309' } };
       }
     });
@@ -919,20 +921,21 @@ async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
   const COLUMNS = [
     { key: 'seq',            width: 8  }, // 1. ت (التسلسل)
     { key: 'jobNumber',      width: 14 }, // 2. الرقم الوظيفي
-    { key: 'fullName',       width: 26 }, // 3. اسم الموظف الرباعي واللقب
-    { key: 'department',     width: 22 }, // 4. القسم / الشعبة
-    { key: 'jobTitle',       width: 20 }, // 5. المسمى الوظيفي
-    { key: 'workLocation',   width: 18 }, // 6. موقع العمل
-    { key: 'cardNum',        width: 16 }, // 7. رقم كرت الإجازة
-    { key: 'leaveType',      width: 20 }, // 8. نوع الإجازة
-    { key: 'startDate',      width: 15 }, // 9. تاريخ البداية
-    { key: 'endDate',        width: 15 }, // 10. تاريخ النهاية
-    { key: 'daysCount',      width: 12 }, // 11. عدد الأيام
-    { key: 'resumptionDate', width: 22 }, // 12. تاريخ المباشرة المفترض
-    { key: 'orderInfo',      width: 24 }, // 13. رقم وتاريخ الأمر الإداري
-    { key: 'leaveApprover',  width: 22 }, // 14. مسؤول الإجازة
-    { key: 'statusAlert',    width: 20 }, // 15. تنبيهات وتعارضات
-    { key: 'notes',          width: 25 }, // 16. الملاحظات
+    { key: 'dossier',        width: 16 }, // 3. رقم الإضبارة
+    { key: 'fullName',       width: 26 }, // 4. اسم الموظف الرباعي واللقب
+    { key: 'department',     width: 22 }, // 5. القسم / الشعبة
+    { key: 'jobTitle',       width: 20 }, // 6. المسمى الوظيفي
+    { key: 'workLocation',   width: 18 }, // 7. موقع العمل
+    { key: 'cardNum',        width: 16 }, // 8. رقم كرت الإجازة
+    { key: 'leaveType',      width: 20 }, // 9. نوع الإجازة
+    { key: 'startDate',      width: 15 }, // 10. تاريخ البداية
+    { key: 'endDate',        width: 15 }, // 11. تاريخ النهاية
+    { key: 'daysCount',      width: 12 }, // 12. عدد الأيام
+    { key: 'resumptionDate', width: 22 }, // 13. تاريخ المباشرة المفترض
+    { key: 'orderInfo',      width: 24 }, // 14. رقم وتاريخ الأمر الإداري
+    { key: 'leaveApprover',  width: 22 }, // 15. مسؤول الإجازة
+    { key: 'statusAlert',    width: 20 }, // 16. تنبيهات وتعارضات
+    { key: 'notes',          width: 25 }, // 17. الملاحظات
   ];
   const COL_COUNT = COLUMNS.length;
   ws.columns = COLUMNS;
@@ -961,6 +964,7 @@ async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
   const headerRow = ws.addRow([
     'ت',
     'الرقم الوظيفي',
+    'رقم الإضبارة',
     'اسم الموظف الرباعي واللقب',
     'القسم / الشعبة',
     'المسمى الوظيفي',
@@ -1006,7 +1010,8 @@ async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
 
       const row = ws.addRow([
         item.SequenceNumber || (index + 1),
-        item.JobNumber || item.EmployeeID,
+        '',
+        '',
         item.FullName,
         item.DepartmentName || '-',
         item.JobTitle || '-',
@@ -1027,28 +1032,28 @@ async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
       applyRowStyle(row, baseStyle, COL_COUNT);
       row.height = 20;
 
-      // Numeric formatting for Sequence, ID, Card, and DaysCount
+      // Numeric formatting for Sequence, ID, Dossier, Card, and DaysCount
       row.getCell(1).numFmt = '0';
-      if (!isNaN(Number(item.JobNumber || item.EmployeeID))) {
-        row.getCell(2).numFmt = '0';
-      }
+      writeNumericOrTextCell(row.getCell(2), item.JobNumber || item.EmployeeID);
+      writeNumericOrTextCell(row.getCell(3), item.DossierNumber);
       if (typeof cardVal === 'number') {
-        row.getCell(7).numFmt = '0';
+        row.getCell(8).numFmt = '0';
       }
-      row.getCell(11).numFmt = '0';
+      row.getCell(12).numFmt = '0';
 
-      // Highlight historical conflict badges in Column 15 and Employee Name
+      // Highlight historical conflict badges in Column 16 and Employee Name in Column 4
       if (item.HasConflict) {
-        const cellAlert = row.getCell(15);
+        const cellAlert = row.getCell(16);
         cellAlert.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } }; // Soft amber
         cellAlert.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
-        const cellName = row.getCell(3);
+        const cellName = row.getCell(4);
         cellName.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFB45309' } };
       }
     });
 
     const totalDays = expiredLeaves.reduce((sum, l) => sum + Number(l.DaysCount || 0), 0);
     const summaryRow = ws.addRow([
+      '',
       '',
       '',
       `إجمالي عدد الإجازات المنتهية: ${expiredLeaves.length}`,
@@ -1073,10 +1078,10 @@ async function exportExpiredLeavesToExcel(filePath, options = {}, db) {
       alignment: { horizontal: 'center', vertical: 'middle', readingOrder: 'rtl' },
       border: borderThin(),
     }, COL_COUNT);
-    ws.mergeCells(summaryRow.number, 1, summaryRow.number, 2);
-    ws.mergeCells(summaryRow.number, 3, summaryRow.number, 5);
-    ws.mergeCells(summaryRow.number, 9, summaryRow.number, 10);
-    summaryRow.getCell(11).numFmt = '0';
+    ws.mergeCells(summaryRow.number, 1, summaryRow.number, 3);
+    ws.mergeCells(summaryRow.number, 4, summaryRow.number, 6);
+    ws.mergeCells(summaryRow.number, 10, summaryRow.number, 11);
+    summaryRow.getCell(12).numFmt = '0';
   }
 
   // Apply 3-Box Official Approvals Footer
@@ -1537,7 +1542,7 @@ async function exportCriticalReportToExcel(filePath, db, { threshold = 5, year =
 
   const critHeaderRow = wsCritical.addRow([
     'ت',
-    'الرقم الوظيفي',
+    'الرقم التسلسلي',
     'الاسم الكامل',
     'المسمى الوظيفي',
     'موقع العمل',
@@ -1640,7 +1645,7 @@ async function exportCriticalReportToExcel(filePath, db, { threshold = 5, year =
 
   const accumHeaderRow = wsAccum.addRow([
     'ت',
-    'الرقم الوظيفي',
+    'الرقم التسلسلي',
     'الاسم الكامل',
     'المسمى الوظيفي',
     'موقع العمل',
