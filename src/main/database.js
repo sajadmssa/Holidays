@@ -223,9 +223,14 @@ function close() {
     } catch (optErr) {
       LoggerService.warn('DB', '[DB Close Warning] PRAGMA optimize failed: ' + optErr.message);
     }
-    _db.close();
-    _db = null;
-    LoggerService.info('DB', 'Database closed.');
+    try {
+      _db.close();
+    } catch (closeErr) {
+      LoggerService.warn('DB', '[DB Close Warning] SQLite close failed: ' + closeErr.message);
+    } finally {
+      _db = null;
+      LoggerService.info('DB', 'Database closed.');
+    }
   }
 }
 

@@ -60,6 +60,23 @@ const LEAVE_NAME_SICK       = 'إجازة مرضية';
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * الحصول على تاريخ اليوم الحالي بصيغة YYYY-MM-DD وفق توقيت بغداد الرسمي (Asia/Baghdad - UTC+3)
+ * @param {Date} [now=new Date()]
+ * @returns {string} YYYY-MM-DD
+ */
+function _getBaghdadTodayDateStr(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Baghdad',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const getPart = (t) => parts.find((p) => p.type === t)?.value;
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+}
+
+/**
  * احتساب عدد الأيام التقويمية بين تاريخين (to - from):
  * تستخدم التوقيت العالمي المنسق (UTC) لتفادي أخطاء فروق التوقيت المحلي.
  *
@@ -316,9 +333,9 @@ function calculateRegularLeaveBalance(employeeId, db) {
   }
 
   // ── Step 3: Total calendar days from HireDate to today ──────
-  // إجمالي الأيام التقويمية منذ تاريخ التعيين حتى اليوم
-  const today     = new Date();
-  const totalDays = _daysBetween(employee.HireDate, today);
+  // إجمالي الأيام التقويمية منذ تاريخ التعيين حتى تاريخ اليوم وفق توقيت بغداد الرسمي (Asia/Baghdad - UTC+3)
+  const todayDateStr = _getBaghdadTodayDateStr();
+  const totalDays    = _daysBetween(employee.HireDate, todayDateStr);
 
   if (totalDays < 0) {
     throw new Error(`تاريخ التعيين (${employee.HireDate}) في المستقبل، لا يمكن احتساب الرصيد.`);
@@ -1722,6 +1739,7 @@ module.exports = {
   updateLeave,
   checkLeaveOverlap,
   _restoreSickLeaveBalance,
+  _getBaghdadTodayDateStr,
 
   REGULAR_LEAVE_CONSTANTS,
 

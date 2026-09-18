@@ -1136,15 +1136,15 @@ migTestDb.close();
   await verifyWb.xlsx.readFile(testExpiredExcelPath);
   const verifyWs = verifyWb.getWorksheet('الإجازات المنتهية');
   assert(verifyWs != null, 'Worksheet "الإجازات المنتهية" exists in Excel file');
-  assert(verifyWs.columns.length === 16, 'Worksheet has exactly 16 columns matching specification');
+  assert(verifyWs.columns.length === 17, 'Worksheet has exactly 17 columns matching specification');
 
   // Inspect that conflict row in Excel has proper styling
   let conflictRowFound = false;
   verifyWs.eachRow((row, rowNumber) => {
-    const col15Val = row.getCell(15).value;
-    if (col15Val === '⚠️ تداخل تاريخي') {
+    const col16Val = row.getCell(16).value;
+    if (col16Val === '⚠️ تداخل تاريخي') {
       conflictRowFound = true;
-      const fill = row.getCell(15).fill;
+      const fill = row.getCell(16).fill;
       assert(fill && fill.fgColor && fill.fgColor.argb === 'FFFFFBEB', 'Conflict badge cell has soft amber background #FFFFFBEB');
     }
   });
