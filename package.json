@@ -13,7 +13,7 @@
     "build": "electron-builder --win"
   },
   "keywords": [],
-  "author": "Government Department",
+  "author": "Eng Sajjad Nadhim",
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
@@ -48,7 +48,18 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "appx",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -58,6 +69,18 @@
       "shortcutName": "نظام الإجازات",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
+    },
+    "appx": {
+      "identityName": "EngSajjadNadhim.Holidays",
+      "publisher": "CN=F436D457-FA45-4B3F-835F-43A6DF79C56C",
+      "publisherDisplayName": "Eng Sajjad Nadhim",
+      "displayName": "نظام الإجازات | Holidays",
+      "applicationId": "Holidays",
+      "languages": [
+        "ar-IQ",
+        "en-US"
+      ]
     }
-  }
+  },
+  "copyright": "Copyright © 2026 Eng Sajjad Nadhim"
 }
