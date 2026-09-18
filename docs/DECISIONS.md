@@ -619,6 +619,52 @@
 
 ---
 
-*آخر تحديث: 18 أيلول 2026 (إضافة القرار ADR-031). هذا السجل تراكمي لحفظ التاريخ الهندسي للمشروع.*
+## القرار 32 (ADR-032): تعزيز سلامة البيانات التاريخية بحظر الحذف المتتالي لجدول الإجازات (ON DELETE RESTRICT)
+**التاريخ:** 18 أيلول 2026  
+**الحالة:** مُعتمد ومُنفَّذ (Approved & Implemented عبر Migration `023`)
+
+**السياق:**
+كان القيد المرجعي للمفتاح الأجنبي `EmployeeID` و `LeaveTypeID` في جدول الإجازات `Leaves` عرضة لاحتمالية الحذف العرضي أو المتتالي (Cascading Deletes) في حال محاولة حذف موظف أو نوع إجازة، مما قد يتسبب في فقدان غير قابل للاسترجاع لسجلات الإجازات الرسمية والتدقيق المالي والإداري.
+
+**القرار الهندسي:**
+1. إعادة بناء جدول `Leaves` بالكامل عبر الترحيل الهيكلي [023_set_leaves_on_delete_restrict.sql](file:///c:/Users/3D/Desktop/DevProjects/Holidays/src/main/migrations/023_set_leaves_on_delete_restrict.sql):
+   - تعيين `EmployeeID REFERENCES Employees(EmployeeID) ON DELETE RESTRICT`.
+   - تعيين `LeaveTypeID REFERENCES LeaveTypes(LeaveTypeID) ON DELETE RESTRICT`.
+2. نقل كافة البيانات التاريخية بدون أي فقدان وإعادة إنشاء الفهارس (`idx_leaves_dates`, `idx_leaves_emp_type`, `idx_leaves_end_start`) والمحفزات الثلاثة (`trg_prevent_inactive_employee_leave`, `trg_prevent_female_leave_for_male`, `trg_enforce_order_ref`).
+
+**النتائج المترتبة:**
+- ✅ استحالة حذف أي موظف أو نوع إجازة من قاعدة البيانات طالما توجد له سجلات إجازات مرتبطة (إرجاع خطأ `SQLITE_CONSTRAINT_FOREIGNKEY` فوري).
+- ✅ حماية الأرشيف التاريخي للإجازات والمحاسبة الإدارية وفق مبدأ الدفاع بالعمق (Defense-in-Depth).
+
+---
+
+## القرار 33 (ADR-033): توثيق مكان قضاء الإجازة (LeaveLocation) داخل وخارج العراق بقيد فحص صارم
+**التاريخ:** 18 أيلول 2026  
+**الحالة:** مُعتمد ومُنفَّذ (Approved & Implemented عبر Migration `024`)
+
+**السياق:**
+تتطلب اللوائح الإدارية توثيق مكان تمتع الموظف بالإجازة (سواء داخل القطر العراقي أو خارجه لأغراض الإيفاد أو السياحة أو العلاج)، مع ضرورة ظهوره في كشوفات الإجازات وتصديرات Excel وتعديل تفاصيل الإجازة.
+
+**القرار الهندسي:**
+1. إضافة العمود `LeaveLocation` إلى جدول `Leaves` عبر الترحيل [024_add_leave_location_to_leaves.sql](file:///c:/Users/3D/Desktop/DevProjects/Holidays/src/main/migrations/024_add_leave_location_to_leaves.sql):
+   ```sql
+   ALTER TABLE Leaves ADD COLUMN LeaveLocation TEXT NULL
+     CHECK(LeaveLocation IS NULL OR LeaveLocation IN ('داخل العراق', 'خارج العراق'));
+   ```
+2. دعم الحقل برمجياً في طبقة الخدمات:
+   - الدالة المساعدة `_normalizeLeaveLocation` في `LeaveService.js` لتدقيق وتطهير القيمة.
+   - استيعاب الحقل في `processRegularLeave` و `processSickLeave` و `getEmployeeLeaves` و `updateLeave`.
+3. إدراج الحقل في تقارير وكشوفات Excel عبر `ReportService.js`.
+4. إدراج حقل الاختيار في واجهة تعديل الإجازة في `dashboardTab.js` و `index.html`.
+5. تغطية الحقل بالكامل باختبارات آلية مخصصة في الجناح 29 من `tests/leaveService.test.js`.
+
+**النتائج المترتبة:**
+- ✅ تتبع رسمي ودقيق لمكان قضاء الإجازة للموظفين.
+- ✅ حماية قاعدة البيانات من أي قيم عشوائية أو غير مطابقة عبر قيد `CHECK`.
+- ✅ توافق رجعي كامل: الحقل اختياري (`NULL` مسموح) بحيث لا تتأثر السجلات السابقة.
+
+---
+
+*آخر تحديث: 18 أيلول 2026 (إضافة القرارات ADR-031 و ADR-032 و ADR-033). هذا السجل تراكمي لحفظ التاريخ الهندسي للمشروع.*
 
 
