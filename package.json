@@ -77,8 +77,8 @@
       "displayName": "نظام الإجازات | Holidays",
       "applicationId": "Holidays",
       "languages": [
-        "ar-IQ",
-        "en-US"
+        "en-US",
+        "ar-SA"
       ]
     }
   },
